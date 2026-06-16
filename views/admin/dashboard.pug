@@ -1,0 +1,192 @@
+extends ../partials/admin-layout
+
+block body
+  if !currentYear
+    .alert.alert-warning
+      i.fas.fa-exclamation-triangle
+      span No current academic year set. 
+      a(href='/admin/academic-years') Set up Academic Year →
+
+  .stats-grid
+    .stat-card
+      .stat-icon.students
+        i.fas.fa-user-graduate
+      .stat-info
+        h3 #{totalStudents}
+        p Total Students
+    .stat-card
+      .stat-icon.teachers
+        i.fas.fa-chalkboard-teacher
+      .stat-info
+        h3 #{totalTeachers}
+        p Total Teachers
+    .stat-card
+      .stat-icon.classes
+        i.fas.fa-door-open
+      .stat-info
+        h3 #{totalClasses}
+        p Total Classes
+    .stat-card
+      .stat-icon.depts
+        i.fas.fa-building
+      .stat-info
+        h3 #{totalDepts}
+        p Departments
+
+  .dashboard-grid
+    .card
+      .card-header
+        h2 Attendance Ratio by Class
+        i.fas.fa-chart-pie
+      .card-body
+        if attendanceData && attendanceData.length && attendanceData.some(d => d.total > 0)
+          .chart-container
+            canvas#attendancePieChart(width='320', height='320')
+          .chart-legend#pieLegend
+        else
+          .empty-state
+            i.fas.fa-chart-pie
+            p No attendance data yet.
+
+    .card
+      .card-header
+        h2 Class Enrollment Summary
+        i.fas.fa-list
+      .card-body
+        if classes && classes.length
+          table.data-table
+            thead
+              tr
+                th Class
+                th Department
+                th Students
+                th Actions
+            tbody
+              each cls in classes
+                tr
+                  td
+                    span.badge.badge-class #{cls.name}
+                  td #{cls.department ? cls.department.code : '-'}
+                  td
+                    span.count-badge #{cls.students ? cls.students.length : 0}
+                  td
+                    a.btn.btn-sm(href=`/admin/reports/attendance?classId=${cls.id}`) Attendance
+                    a.btn.btn-sm.btn-outline(href=`/admin/reports/examination?classId=${cls.id}`) Exams
+        else
+          .empty-state
+            i.fas.fa-inbox
+            p No classes yet.
+            a.btn.btn-primary(href='/admin/classes') Add Classes
+
+  if currentYear
+    .card.mb-4
+      .card-header
+        h2 Current Academic Year — #{currentYear.name}
+        i.fas.fa-calendar-check
+      .card-body
+        .year-info-grid
+          .year-info-item
+            label Start
+            strong #{currentYear.startDate}
+          .year-info-item
+            label End
+            strong #{currentYear.endDate}
+          if currentYear.terms && currentYear.terms.length
+            each term in currentYear.terms
+              .year-info-item
+                label #{term.name}
+                strong #{term.startDate} → #{term.endDate}
+                span(class=`status-dot ${term.isOpen ? 'active' : 'inactive'}`) #{term.isOpen ? 'Open' : 'Closed'}
+
+  .quick-actions
+    h2 Quick Actions
+    .action-grid
+      a.action-card(href='/admin/academic-years')
+        i.fas.fa-calendar-alt
+        span Academic Years
+      a.action-card(href='/admin/departments')
+        i.fas.fa-building
+        span Add Department
+      a.action-card(href='/admin/teachers')
+        i.fas.fa-user-plus
+        span Add Teacher
+      a.action-card(href='/admin/classes')
+        i.fas.fa-plus-circle
+        span Add Class
+      a.action-card(href='/admin/students')
+        i.fas.fa-user-graduate
+        span Add Student
+      a.action-card(href='/admin/holidays')
+        i.fas.fa-umbrella-beach
+        span Manage Holidays
+
+  script.
+    const rawData = !{JSON.stringify(attendanceData || [])};
+    const canvas = document.getElementById('attendancePieChart');
+    if (canvas && rawData.length) {
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 20;
+
+      // Colors per class
+      const palette = ['#1a56db','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+      const classes = rawData.filter(d => d.total > 0);
+      const totalAll = classes.reduce((s, d) => s + d.total, 0);
+
+      if (totalAll === 0) { canvas.style.display='none'; return; }
+
+      let startAngle = -Math.PI / 2;
+      classes.forEach((cls, i) => {
+        const slice = (cls.total / totalAll) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+        ctx.closePath();
+        ctx.fillStyle = palette[i % palette.length];
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Label on large slices
+        if (slice > 0.3) {
+          const midAngle = startAngle + slice / 2;
+          const lx = cx + (r * 0.65) * Math.cos(midAngle);
+          const ly = cy + (r * 0.65) * Math.sin(midAngle);
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const pct = Math.round((cls.total / totalAll) * 100);
+          ctx.fillText(pct + '%', lx, ly);
+        }
+        startAngle += slice;
+      });
+
+      // Draw center circle (donut)
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Attendance', cx, cy - 8);
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(totalAll + ' records', cx, cy + 10);
+
+      // Legend
+      const legend = document.getElementById('pieLegend');
+      if (legend) {
+        classes.forEach((cls, i) => {
+          const item = document.createElement('div');
+          item.className = 'legend-item-chart';
+          const pct = totalAll > 0 ? Math.round((cls.present / cls.total) * 100) : 0;
+          item.innerHTML = `<span class="legend-dot" style="background:${palette[i % palette.length]}"></span>
+            <span class="legend-label">${cls.name}</span>
+            <span class="legend-pct">${pct}% present</span>`;
+          legend.appendChild(item);
+        });
+      }
+    }

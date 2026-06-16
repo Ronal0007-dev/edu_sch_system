@@ -1,0 +1,57 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Class
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/classes')
+          .form-group
+            label Class Name
+            input(type='text', name='name', required, placeholder='e.g. Grade 1, Form 3A')
+          .form-group
+            label Department
+            select(name='departmentId', required)
+              option(value='') Select department
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Class
+
+    .card
+      .card-header
+        h2 All Classes
+        span.count-badge #{classes.length}
+      .card-body
+        if classes.length
+          table.data-table
+            thead
+              tr
+                th Name
+                th Department
+                th Streams
+                th Students
+                th Actions
+            tbody
+              each cls in classes
+                tr
+                  td
+                    span.badge.badge-class #{cls.name}
+                  td #{cls.department ? cls.department.code : '-'}
+                  td #{cls.streams ? cls.streams.length : 0}
+                  td #{cls.students ? cls.students.length : 0}
+                  td
+                    form(method='POST', action=`/admin/classes/${cls.id}/delete`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this class?")')
+                        i.fas.fa-trash
+        else
+          .empty-state
+            i.fas.fa-door-open
+            p No classes added yet.
+
+        if pagination && pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination

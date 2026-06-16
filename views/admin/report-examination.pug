@@ -1,0 +1,108 @@
+extends ../partials/admin-layout
+
+block body
+  .card.mb-4
+    .card-header
+      h2 Filter Examination Report
+      i.fas.fa-filter
+    .card-body
+      form.filter-form(method='GET', action='/admin/reports/examination')
+        .form-row
+          .form-group
+            label Select Class
+            select(name='classId')
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id, selected=selectedClass==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          .form-group
+            label Term
+            select(name='term')
+              option(value='') All Terms
+              option(value='Term 1', selected=selectedTerm==='Term 1') Term 1
+              option(value='Term 2', selected=selectedTerm==='Term 2') Term 2
+              option(value='Term 3', selected=selectedTerm==='Term 3') Term 3
+          .form-group
+            label Academic Year
+            select(name='year')
+              option(value='') All Years
+              if currentYear
+                option(value=currentYear.name, selected=selectedYear===currentYear.name) #{currentYear.name} (Current)
+              option(value='2024/2025', selected=selectedYear==='2024/2025') 2024/2025
+              option(value='2025/2026', selected=selectedYear==='2025/2026') 2025/2026
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-search
+            span View Report
+
+  if selectedClass
+    .report-toolbar.no-print
+      span &nbsp;
+      .toolbar-actions
+        a.btn.btn-primary(href=`/admin/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+          i.fas.fa-print
+          span Print All Report Cards
+
+  if report
+    .card
+      .card-header
+        h2 Examination Marks
+        span.count-badge #{pagination.total} records
+      .card-body
+        if report.length
+          .marks-table-wrap
+            table.data-table.marks-table
+              thead
+                tr
+                  th #
+                  th Student
+                  th Class
+                  th Stream
+                  th Subject
+                  th Term
+                  th Year
+                  th H/W
+                  th G/W
+                  th QZ
+                  th C/W
+                  th U/T
+                  th F/E
+                  th Total
+                  th Grade
+                  th Method
+              tbody
+                each m, i in report
+                  tr
+                    td #{((pagination.page - 1) * 15) + i + 1}
+                    td #{m.student ? m.student.fullName : '-'}
+                    td
+                      if m.student && m.student.class
+                        span.badge.badge-class #{m.student.class.name}
+                      else
+                        | -
+                    td
+                      if m.student && m.student.stream
+                        span.badge.badge-stream #{m.student.stream.name}
+                      else
+                        span.text-muted -
+                    td #{m.subject ? m.subject.name : '-'}
+                    td #{m.term}
+                    td #{m.academicYear}
+                    td #{m.homework}
+                    td #{m.groupWork}
+                    td #{m.quiz}
+                    td #{m.classWork}
+                    td #{m.unitTest}
+                    td #{m.finalExam}
+                    td
+                      strong #{m.totalScore ? m.totalScore.toFixed(1) : '-'}
+                    td
+                      span(class=`grade-badge grade-${m.grade}`) #{m.grade}
+                    td
+                      span.method-badge #{m.gradingMethod}
+
+          if pagination.pages > 1
+            - const query = {classId: selectedClass, term: selectedTerm, year: selectedYear}
+            include ../partials/pagination
+        else
+          .empty-state
+            i.fas.fa-chart-bar
+            p No marks recorded for the selected filters.

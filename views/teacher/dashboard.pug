@@ -1,0 +1,108 @@
+extends ../partials/teacher-layout
+
+block body
+  if !canTakeAttendance
+    .alert.alert-warning
+      i.fas.fa-exclamation-triangle
+      span
+        if isWeekend
+          | Today is a weekend — attendance is not taken
+        else if holiday
+          | Today is #{holiday.name} — a public holiday
+  else
+    .alert.alert-info
+      i.fas.fa-calendar-check
+      span Today is a school day. You can take attendance.
+
+  .stats-grid
+    .stat-card
+      .stat-icon.classes
+        i.fas.fa-door-open
+      .stat-info
+        h3 #{teacher && teacher.classes ? teacher.classes.length : 0}
+        p My Classes
+    .stat-card
+      .stat-icon.teachers
+        i.fas.fa-book
+      .stat-info
+        h3 #{teacher && teacher.teacherSubjects ? teacher.teacherSubjects.length : 0}
+        p My Subjects
+
+  .dashboard-grid
+    .card
+      .card-header
+        h2 My Assigned Classes
+        i.fas.fa-chalkboard
+      .card-body
+        if teacher && teacher.classes && teacher.classes.length
+          .classes-grid
+            each cls in teacher.classes
+              .class-card
+                .class-info
+                  h3 #{cls.name}
+                  span #{cls.department ? cls.department.code : ''}
+                  p #{cls.students ? cls.students.length : 0} students
+                .class-actions
+                  a.btn.btn-sm.btn-primary(href=`/teacher/attendance?classId=${cls.id}`, class=!canTakeAttendance?'disabled':'')
+                    i.fas.fa-calendar-check
+                    span Attendance
+                  a.btn.btn-sm.btn-outline(href=`/teacher/report-cards`)
+                    i.fas.fa-file-alt
+                    span Reports
+        else
+          .empty-state
+            i.fas.fa-door-open
+            p No classes assigned yet. Contact admin.
+
+    .card
+      .card-header
+        h2 My Assigned Subjects
+        i.fas.fa-book-open
+      .card-body
+        if teacher && teacher.teacherSubjects && teacher.teacherSubjects.length
+          table.data-table
+            thead
+              tr
+                th Subject
+                th Class
+                th Action
+            tbody
+              each ts in teacher.teacherSubjects
+                tr
+                  td
+                    span.badge.badge-subject #{ts.subject ? ts.subject.name : '-'}
+                  td #{ts.class ? ts.class.name : '-'}
+                  td
+                    a.btn.btn-sm.btn-primary(href=`/teacher/marks?subjectId=${ts.subject ? ts.subject.id : ''}&classId=${ts.class ? ts.class.id : ''}`)
+                      i.fas.fa-pen-alt
+                      span Enter Marks
+        else
+          .empty-state
+            i.fas.fa-book
+            p No subjects assigned yet. Contact admin.
+
+  .card
+    .card-header
+      h2 Recent Attendance Taken
+      i.fas.fa-history
+    .card-body
+      if recentAttendance.length
+        table.data-table
+          thead
+            tr
+              th Student
+              th Class
+              th Date
+              th Status
+          tbody
+            each r in recentAttendance
+              tr
+                td #{r.student ? r.student.fullName : '-'}
+                td #{r.class ? r.class.name : '-'}
+                td #{r.date}
+                td
+                  span(class=`status-badge ${r.status}`) #{r.status}
+      else
+        .empty-state
+          i.fas.fa-clipboard
+          p No attendance taken yet.

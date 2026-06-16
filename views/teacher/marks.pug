@@ -1,0 +1,180 @@
+extends ../partials/teacher-layout
+
+block body
+  .filter-bar
+    form.filter-form#marksForm(method='GET', action='/teacher/marks')
+      .form-row
+        .form-group
+          label Subject
+          select(name='subjectId', id='subjectSelect', required)
+            option(value='') Choose subject
+            each subj in uniqueSubjects
+              option(value=subj.id, selected=selectedSubject && selectedSubject.id==subj.id) #{subj.name}
+        .form-group
+          label Class
+          select(name='classId', id='classSelect', required)
+            option(value='') — select subject first —
+            if selectedSubject && uniqueClasses.length
+              each cls in uniqueClasses
+                option(value=cls.id, selected=selectedClass && selectedClass.id==cls.id) #{cls.name}
+        .form-group
+          label Term
+          select(name='term')
+            if currentYear && currentYear.terms && currentYear.terms.length
+              each t in currentYear.terms
+                option(value=t.name, selected=term===t.name) #{t.name}
+            else
+              option(value='Term 1', selected=term==='Term 1') Term 1
+              option(value='Term 2', selected=term==='Term 2') Term 2
+              option(value='Term 3', selected=term==='Term 3') Term 3
+        .form-group
+          label Academic Year
+          select(name='year')
+            if currentYear
+              option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name} (Current)
+            option(value='2024/2025', selected=year==='2024/2025') 2024/2025
+            option(value='2025/2026', selected=year==='2025/2026') 2025/2026
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-filter
+          span Load
+
+  - const subjectClassMap = {}
+  each ts in teacherSubjectRows
+    if ts.subject && ts.class
+      - if (!subjectClassMap[ts.subject.id]) subjectClassMap[ts.subject.id] = []
+      - subjectClassMap[ts.subject.id].push({id: ts.class.id, name: ts.class.name})
+
+  if selectedSubject && selectedClass && students.length
+    .marks-header
+      h2
+        i.fas.fa-pen-alt
+        | Marks — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+      .grading-legend
+        .legend-item
+          span.method-badge weighted
+          span 5%H/W + 10%G/W + 15%QZ + 15%C/W + 25%U/T + 30%F/E
+        .legend-item
+          span.method-badge unweighted
+          span Average of all 6 components
+
+    form(method='POST', action='/teacher/marks/save')
+      input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='subjectId', value=selectedSubject.id)
+      input(type='hidden', name='term', value=term)
+      input(type='hidden', name='academicYear', value=year)
+
+      .marks-table-wrap
+        table.marks-table.data-table
+          thead
+            tr
+              th Student
+              th(title='Home Work') H/W
+              th(title='Group Work') G/W
+              th(title='Quiz') QZ
+              th(title='Class Work') C/W
+              th(title='Unit Test') U/T
+              th(title='Final Exam') F/E
+              th Method
+              th Total
+              th Grade
+            tr.weight-row
+              th Weights →
+              th 5%
+              th 10%
+              th 15%
+              th 15%
+              th 25%
+              th 30%
+              th —
+              th 100%
+              th —
+          tbody
+            each student in students
+              - const existing = existingMarks[student.id]
+              tr(data-student=student.id)
+                td
+                  .student-mini
+                    .mini-avatar #{student.fullName.charAt(0)}
+                    div
+                      strong #{student.fullName}
+                      if student.stream
+                        small #{student.stream.name}
+                each field, idx in [['hw', 'homework'], ['gw', 'groupWork'], ['qz', 'quiz'], ['cw', 'classWork'], ['ut', 'unitTest'], ['fe', 'finalExam']]
+                  td
+                    input.mark-input(
+                      type='number', min=0, max=100, step=0.5,
+                      name=`${field[0]}_${student.id}`,
+                      value=existing ? existing[field[1]] : '',
+                      placeholder='0'
+                    )
+                td
+                  select.method-select(name=`method_${student.id}`)
+                    option(value='weighted', selected=!existing||existing.gradingMethod==='weighted') Weighted
+                    option(value='unweighted', selected=existing&&existing.gradingMethod==='unweighted') Unweighted
+                td
+                  span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
+                td
+                  span.grade-display(class=existing ? `grade-badge grade-${existing.grade}` : '', data-sid=student.id) #{existing && existing.grade ? existing.grade : '—'}
+
+      .form-actions.sticky-actions
+        button.btn.btn-primary.btn-lg(type='submit')
+          i.fas.fa-save
+          span Save All Marks
+        a.btn.btn-outline(href='/teacher/report-cards') View Report Cards
+
+  else if selectedSubject && selectedClass && students.length === 0
+    .empty-state
+      i.fas.fa-user-slash
+      p No students in this class.
+  else
+    .empty-state
+      i.fas.fa-hand-pointer
+      p Select a subject and class above to enter marks.
+
+  script.
+    // Subject → Class filter
+    const subjectClassMap = !{JSON.stringify(subjectClassMap)};
+    const subjectSel = document.getElementById('subjectSelect');
+    const classSel = document.getElementById('classSelect');
+    const currentClassId = '!{selectedClass ? selectedClass.id : ""}';
+
+    function updateClasses() {
+      const sid = subjectSel.value;
+      const classes = subjectClassMap[sid] || [];
+      classSel.innerHTML = '<option value="">— select class —</option>';
+      classes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (String(c.id) === currentClassId) opt.selected = true;
+        classSel.appendChild(opt);
+      });
+    }
+
+    subjectSel.addEventListener('change', updateClasses);
+    if (subjectSel.value) updateClasses();
+
+    // Live mark calculation
+    function calcScore(row, method) {
+      const get = prefix => parseFloat(row.querySelector(`[name^="${prefix}_"]`).value) || 0;
+      const hw = get('hw'), gw = get('gw'), qz = get('qz'), cw = get('cw'), ut = get('ut'), fe = get('fe');
+      return method === 'weighted'
+        ? hw*0.05 + gw*0.10 + qz*0.15 + cw*0.15 + ut*0.25 + fe*0.30
+        : (hw + gw + qz + cw + ut + fe) / 6;
+    }
+
+    function getGrade(s) { return s>=90?'A':s>=80?'B':s>=70?'C':s>=60?'D':'F'; }
+
+    document.querySelectorAll('.marks-table tbody tr').forEach(row => {
+      const sid = row.dataset.student;
+      const totalEl = row.querySelector(`.total-display[data-sid="${sid}"]`);
+      const gradeEl = row.querySelector(`.grade-display[data-sid="${sid}"]`);
+      function update() {
+        const method = row.querySelector('.method-select').value;
+        const total = calcScore(row, method);
+        const grade = getGrade(total);
+        if (totalEl) totalEl.textContent = total.toFixed(1);
+        if (gradeEl) { gradeEl.textContent = grade; gradeEl.className = `grade-badge grade-${grade}`; }
+      }
+      row.querySelectorAll('.mark-input, .method-select').forEach(el => el.addEventListener('input', update));
+    });

@@ -1,0 +1,54 @@
+extends ../partials/teacher-layout
+
+block body
+  .card.mb-4
+    .card-header
+      h2 View Attendance by Date
+      i.fas.fa-history
+    .card-body
+      form.filter-form(method='GET', action='/teacher/attendance/history')
+        .form-row
+          .form-group
+            label Class
+            select(name='classId')
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id, selected=query.classId==cls.id.toString()) #{cls.name}
+          .form-group
+            label Date
+            input(type='date', name='date', value=query.date || '')
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-search
+            span Search
+
+  if records.length
+    .report-toolbar
+      h3 #{records.length} Records — #{query.date}
+      .toolbar-actions
+        a.btn.btn-primary(href=`/teacher/attendance/print?classId=${query.classId}&date=${query.date}`, target='_blank')
+          i.fas.fa-print
+          span Print This Day
+    .card
+      .card-body
+        table.data-table
+          thead
+            tr
+              th #
+              th Student
+              th Status
+          tbody
+            each r, i in records
+              tr
+                td #{i + 1}
+                td #{r.student ? r.student.fullName : '-'}
+                td
+                  span(class=`status-badge ${r.status}`) #{r.status}
+
+        if pagination.pages > 1
+          - const query_pag = {classId: query.classId, date: query.date}
+          include ../partials/pagination
+
+  else if query.classId && query.date
+    .empty-state
+      i.fas.fa-calendar-times
+      p No attendance records for this date.

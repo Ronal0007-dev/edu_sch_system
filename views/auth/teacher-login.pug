@@ -1,0 +1,41 @@
+extends ../layout
+
+block content
+  .auth-page
+    .auth-card
+      .auth-header
+        .auth-icon.teacher-icon
+          i.fas.fa-chalkboard-teacher
+        h1 Teacher Login
+        p School Management System
+      if error && error.length
+        each msg in error
+          .alert.alert-error
+            i.fas.fa-exclamation-circle
+            span #{msg}
+      if success && success.length
+        each msg in success
+          .alert.alert-success
+            i.fas.fa-check-circle
+            span #{msg}
+      form.auth-form(method='POST', action='/auth/teacher/login')
+        .form-group
+          label Email Address
+          .input-wrap
+            i.fas.fa-envelope
+            input(type='email', name='email', required, placeholder='Enter your email')
+        .form-group
+          label Password
+          .input-wrap
+            i.fas.fa-lock
+            input(type='password', name='password', required, placeholder='Enter password')
+        .form-hint
+          i.fas.fa-info-circle
+          span Default password is your phone number + department code
+        button.btn.btn-primary.btn-full.btn-teacher(type='submit')
+          i.fas.fa-sign-in-alt
+          span Login as Teacher
+      .auth-footer
+        a(href='/auth/admin/login') Admin? Login here →
+        br
+        a(href='/') ← Back to Home

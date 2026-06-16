@@ -1,0 +1,116 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Academic Year
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/academic-years')
+          .form-group
+            label Year Name
+            input(type='text', name='name', required, placeholder='e.g. 2025/2026')
+          .form-group
+            label Start Date
+            input(type='date', name='startDate', required)
+          .form-group
+            label End Date
+            input(type='date', name='endDate', required)
+          .form-group
+            label
+              input(type='checkbox', name='isCurrent', value='1')
+              |  Set as Current Year
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Academic Year
+
+      .card-header(style='margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1rem')
+        h2 Add Term
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/terms')
+          .form-group
+            label Academic Year
+            select(name='academicYearId', required)
+              option(value='') Select year
+              each yr in years
+                option(value=yr.id) #{yr.name}
+          .form-group
+            label Term
+            select(name='name', required)
+              option(value='') Select term
+              option(value='Term 1') Term 1
+              option(value='Term 2') Term 2
+              option(value='Term 3') Term 3
+          .form-group
+            label Open Date
+            input(type='date', name='startDate', required)
+          .form-group
+            label Close Date
+            input(type='date', name='endDate', required)
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-plus
+            span Add Term
+
+    .card
+      .card-header
+        h2 Academic Years
+        span.count-badge #{pagination.total}
+      .card-body
+        if years.length
+          each yr in years
+            .year-block(class=yr.isCurrent ? 'year-current' : '')
+              .year-header
+                .year-title
+                  i.fas.fa-calendar-alt
+                  strong #{yr.name}
+                  if yr.isCurrent
+                    span.current-badge Current
+                .year-dates #{yr.startDate} → #{yr.endDate}
+                .year-actions
+                  if !yr.isCurrent
+                    form(method='POST', action=`/admin/academic-years/${yr.id}/set-current`, style='display:inline')
+                      button.btn.btn-sm.btn-outline(type='submit') Set Current
+                  form(method='POST', action=`/admin/academic-years/${yr.id}/delete`, style='display:inline')
+                    button.btn.btn-sm.btn-danger(type='submit', onclick='return confirm("Delete this year and all its terms?")') 
+                      i.fas.fa-trash
+
+              if yr.terms && yr.terms.length
+                table.data-table.term-table
+                  thead
+                    tr
+                      th Term
+                      th Open Date
+                      th Close Date
+                      th School Days
+                      th Status
+                      th Actions
+                  tbody
+                    each term in yr.terms
+                      - const start = new Date(term.startDate); const end = new Date(term.endDate); const diffDays = Math.round((end-start)/(1000*60*60*24))+1; const weekdays = Math.floor(diffDays * 5/7)
+                      tr
+                        td
+                          span.term-badge #{term.name}
+                        td #{term.startDate}
+                        td #{term.endDate}
+                        td
+                          span.school-days ~#{weekdays} days
+                        td
+                          span(class=`status-dot ${term.isOpen ? 'active' : 'inactive'}`) #{term.isOpen ? 'Open' : 'Closed'}
+                        td
+                          .action-group
+                            form(method='POST', action=`/admin/terms/${term.id}/toggle`, style='display:inline')
+                              button.btn.btn-sm(class=term.isOpen?'btn-warning':'btn-success', type='submit') #{term.isOpen ? 'Close' : 'Open'}
+                            form(method='POST', action=`/admin/terms/${term.id}/delete`, style='display:inline')
+                              button.btn.btn-sm.btn-danger(type='submit', onclick='return confirm("Delete term?")') 
+                                i.fas.fa-trash
+              else
+                p.text-muted.pl-1 No terms added yet for #{yr.name}
+        else
+          .empty-state
+            i.fas.fa-calendar-alt
+            p No academic years yet. Add one to get started.
+
+        if pagination.pages > 1
+          include ../partials/pagination

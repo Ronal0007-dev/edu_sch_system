@@ -1,0 +1,60 @@
+extends ../layout
+
+block content
+  .app-shell
+    aside.sidebar.sidebar-teacher
+      .sidebar-brand
+        .brand-icon
+          i.fas.fa-chalkboard-teacher
+        .brand-text
+          span.brand-name EduTrack
+          span.brand-sub Teacher Portal
+      nav.sidebar-nav
+        .nav-section
+          span.nav-label Overview
+          a.nav-item(href='/teacher/dashboard', class=title==='Teacher Dashboard'?'active':'')
+            i.fas.fa-home
+            span Dashboard
+        .nav-section
+          span.nav-label Attendance
+          a.nav-item(href='/teacher/attendance', class=title==='Take Attendance'?'active':'')
+            i.fas.fa-calendar-check
+            span Take Attendance
+          a.nav-item(href='/teacher/attendance/history', class=title==='Attendance History'?'active':'')
+            i.fas.fa-history
+            span History
+        .nav-section
+          span.nav-label Examinations
+          a.nav-item(href='/teacher/marks', class=title==='Enter Marks'?'active':'')
+            i.fas.fa-pen-alt
+            span Enter Marks
+          a.nav-item(href='/teacher/report-cards', class=title==='Report Cards'?'active':'')
+            i.fas.fa-file-alt
+            span Report Cards
+        .nav-section
+          span.nav-label Account
+          a.nav-item(href='/auth/logout')
+            i.fas.fa-sign-out-alt
+            span Logout
+
+    .main-content
+      header.top-bar
+        .top-bar-left
+          h1.page-title #{title}
+        .top-bar-right
+          .teacher-badge
+            i.fas.fa-user-tie
+            span #{teacher ? teacher.fullName || teacher : 'Teacher'}
+
+      .content-area
+        if error && error.length
+          each msg in error
+            .alert.alert-error
+              i.fas.fa-exclamation-circle
+              span #{msg}
+        if success && success.length
+          each msg in success
+            .alert.alert-success
+              i.fas.fa-check-circle
+              span #{msg}
+        block body

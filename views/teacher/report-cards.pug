@@ -1,0 +1,61 @@
+extends ../partials/teacher-layout
+
+block body
+  .filter-bar
+    .form-row
+      .form-group
+        label Term
+        select#termSel
+          if currentYear && currentYear.terms && currentYear.terms.length
+            each t in currentYear.terms
+              option(value=t.name) #{t.name}
+          else
+            option(value='Term 1') Term 1
+            option(value='Term 2') Term 2
+            option(value='Term 3') Term 3
+      .form-group
+        label Year
+        select#yearSel
+          if currentYear
+            option(value=currentYear.name) #{currentYear.name} (Current)
+          each yr in academicYears
+            if !currentYear || yr.id !== currentYear.id
+              option(value=yr.name) #{yr.name}
+
+  each cls in classes
+    .card.mb-4
+      .card-header
+        h2 #{cls.name}
+        i.fas.fa-users
+      .card-body
+        if cls.students && cls.students.length
+          .students-grid
+            each student in cls.students
+              .student-card-mini
+                .student-avatar-lg #{student.fullName.charAt(0)}
+                .student-info-mini
+                  strong #{student.fullName}
+                  span #{student.gender}
+                .card-actions
+                  a.btn.btn-sm.btn-primary.report-link(href=`/teacher/report-card/${student.id}`, data-student=student.id)
+                    i.fas.fa-eye
+                    span View Card
+        else
+          p.text-muted No students in #{cls.name}
+
+  script.
+    const termSel = document.getElementById('termSel');
+    const yearSel = document.getElementById('yearSel');
+
+    function updateLinks() {
+      const term = encodeURIComponent(termSel.value);
+      const year = encodeURIComponent(yearSel.value);
+      document.querySelectorAll('.report-link').forEach(a => {
+        const sid = a.dataset.student;
+        a.href = `/teacher/report-card/${sid}?term=${term}&year=${year}`;
+      });
+    }
+
+    termSel.addEventListener('change', updateLinks);
+    yearSel.addEventListener('change', updateLinks);
+    updateLinks();

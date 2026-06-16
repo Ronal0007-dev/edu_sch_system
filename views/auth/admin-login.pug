@@ -1,0 +1,38 @@
+extends ../layout
+
+block content
+  .auth-page
+    .auth-card
+      .auth-header
+        .auth-icon
+          i.fas.fa-user-shield
+        h1 Admin Login
+        p School Management System
+      if error && error.length
+        each msg in error
+          .alert.alert-error
+            i.fas.fa-exclamation-circle
+            span #{msg}
+      if success && success.length
+        each msg in success
+          .alert.alert-success
+            i.fas.fa-check-circle
+            span #{msg}
+      form.auth-form(method='POST', action='/auth/admin/login')
+        .form-group
+          label Username
+          .input-wrap
+            i.fas.fa-user
+            input(type='text', name='username', required, placeholder='Enter username')
+        .form-group
+          label Password
+          .input-wrap
+            i.fas.fa-lock
+            input(type='password', name='password', required, placeholder='Enter password')
+        button.btn.btn-primary.btn-full(type='submit')
+          i.fas.fa-sign-in-alt
+          span Login as Admin
+      .auth-footer
+        a(href='/auth/teacher/login') Are you a teacher? Login here →
+        br
+        a(href='/') ← Back to Home

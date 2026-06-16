@@ -1,0 +1,58 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Assign Teacher to Subjects
+        i.fas.fa-link
+      .card-body
+        form(method='POST', action='/admin/assignments/teacher-subject')
+          .form-group
+            label Select Teacher
+            select(name='teacherId', required)
+              option(value='') Choose teacher
+              each teacher in teachers
+                option(value=teacher.id) #{teacher.fullName}
+          .form-group
+            label Select Class
+            select(name='classId', required)
+              option(value='') Choose class
+              each cls in classes
+                option(value=cls.id) #{cls.name}
+          .form-group
+            label Select Subjects (hold Ctrl/Cmd for multiple)
+            select(name='subjectIds', required, multiple, style='height:150px')
+              each subject in subjects
+                option(value=subject.id) #{subject.name} (#{subject.class ? subject.class.name : ''})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-link
+            span Assign
+
+    .card
+      .card-header
+        h2 Current Teacher-Subject Assignments
+        span.count-badge #{assignments.length}
+      .card-body
+        if assignments.length
+          table.data-table
+            thead
+              tr
+                th Teacher
+                th Subject
+                th Class
+                th Actions
+            tbody
+              each a in assignments
+                tr
+                  td #{a.teacher ? a.teacher.fullName : '-'}
+                  td #{a.subject ? a.subject.name : '-'}
+                  td #{a.class ? a.class.name : '-'}
+                  td
+                    form(method='POST', action=`/admin/assignments/teacher-subject/${a.id}/remove`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove?")')
+                        i.fas.fa-unlink
+        else
+          .empty-state
+            i.fas.fa-link
+            p No teacher-subject assignments yet.

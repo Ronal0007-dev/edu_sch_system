@@ -1,0 +1,30 @@
+extends layout
+
+block content
+  .landing
+    .landing-hero
+      .hero-content
+        .hero-logo
+          i.fas.fa-graduation-cap
+        h1.hero-title EduTrack
+        p.hero-sub School Attendance & Examination Management System
+        .hero-actions
+          a.btn.btn-primary(href='/auth/admin/login')
+            i.fas.fa-user-shield
+            span Admin Portal
+          a.btn.btn-secondary(href='/auth/teacher/login')
+            i.fas.fa-chalkboard-teacher
+            span Teacher Portal
+      .hero-features
+        .feature-card
+          i.fas.fa-calendar-check
+          h3 Smart Attendance
+          p Weekends and public holidays automatically excluded
+        .feature-card
+          i.fas.fa-chart-bar
+          h3 Grading System
+          p Weighted and unweighted grading with automatic grade calculation
+        .feature-card
+          i.fas.fa-file-alt
+          h3 Report Cards
+          p Printable student report cards with all subjects

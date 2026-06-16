@@ -1,0 +1,54 @@
+extends ../layout
+
+block content
+  .print-page
+    .no-print.print-controls
+      button.btn.btn-primary(onclick='window.print()')
+        i.fas.fa-print
+        span Print
+      a.btn.btn-outline(href='javascript:history.back()') ← Back
+
+    .print-doc
+      .print-header
+        .print-logo
+          i.fas.fa-graduation-cap
+        div
+          h1 EduTrack School
+          h2 Daily Attendance Sheet
+          p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; Date: #{date} &nbsp;|&nbsp; Printed: #{new Date().toLocaleDateString()}
+
+      table.print-table
+        thead
+          tr
+            th #
+            th Student Name
+            th Gender
+            th Status
+            th Remarks
+        tbody
+          each s, i in summary
+            tr(class=s.status==='absent'?'row-absent':s.status==='sick'?'row-sick':'')
+              td #{i + 1}
+              td #{s.student.fullName}
+              td #{s.student.gender}
+              td
+                span(class=`status-badge ${s.status}`) #{s.status}
+              td &nbsp;
+
+      .print-stats
+        span Present: #{summary.filter(s=>s.status==='present').length}
+        span Absent: #{summary.filter(s=>s.status==='absent').length}
+        span Sick: #{summary.filter(s=>s.status==='sick').length}
+        span Total: #{summary.length}
+
+      .print-footer
+        .sig-grid
+          .sig-box
+            p ___________________________
+            p Class Teacher
+          .sig-box
+            p ___________________________
+            p Head Teacher
+          .sig-box
+            p ___________________________
+            p Date

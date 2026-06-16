@@ -1,0 +1,85 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Teacher
+        i.fas.fa-user-plus
+      .card-body
+        form(method='POST', action='/admin/teachers')
+          .form-group
+            label Full Name
+            input(type='text', name='fullName', required, placeholder='e.g. John Doe')
+          .form-group
+            label Phone Number
+            input(type='text', name='phone', required, placeholder='e.g. 0712345678')
+          .form-group
+            label Email Address
+            input(type='email', name='email', required, placeholder='teacher@school.edu')
+          .form-group
+            label Department
+            select(name='departmentId', required)
+              option(value='') Select department
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
+          .form-hint
+            i.fas.fa-key
+            span Default password: PhoneNumber + DepartmentCode (e.g. 0712345678EYC)
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Add Teacher
+
+    .card
+      .card-header
+        h2 All Teachers
+        span.count-badge #{teachers.length}
+      .card-body
+        if teachers.length
+          table.data-table
+            thead
+              tr
+                th Name
+                th Phone
+                th Email
+                th Department
+                th Role
+                th Status
+                th Actions
+            tbody
+              each teacher in teachers
+                tr
+                  td
+                    .teacher-name
+                      i.fas.fa-user-circle
+                      span #{teacher.fullName}
+                  td #{teacher.phone}
+                  td #{teacher.email}
+                  td #{teacher.department ? teacher.department.code : '-'}
+                  td
+                    span(class=`role-badge role-${teacher.role}`) #{teacher.role.replace('_', ' ').toUpperCase()}
+                  td
+                    span(class=`status-dot ${teacher.isActive ? 'active' : 'inactive'}`) #{teacher.isActive ? 'Active' : 'Inactive'}
+                  td.actions-cell
+                    .action-group
+                      //- Role management
+                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/role`)
+                        select.select-sm(name='role')
+                          option(value='teacher', selected=teacher.role==='teacher') Teacher
+                          option(value='class_teacher', selected=teacher.role==='class_teacher') Class Teacher
+                          option(value='head_of_dept', selected=teacher.role==='head_of_dept') Head of Dept
+                          option(value='admin', selected=teacher.role==='admin') Admin
+                        button.btn.btn-sm.btn-outline(type='submit') Set Role
+                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/revoke-role`)
+                        button.btn.btn-sm.btn-warning(type='submit') Revoke
+                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
+                        button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
+                          | #{teacher.isActive ? 'Deactivate' : 'Activate'}
+        else
+          .empty-state
+            i.fas.fa-chalkboard-teacher
+            p No teachers added yet.
+
+        if pagination && pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination

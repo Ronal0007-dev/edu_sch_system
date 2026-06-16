@@ -1,0 +1,91 @@
+extends ../layout
+
+block content
+  .app-shell
+    aside.sidebar
+      .sidebar-brand
+        .brand-icon
+          i.fas.fa-graduation-cap
+        .brand-text
+          span.brand-name EduTrack
+          span.brand-sub Admin Panel
+      nav.sidebar-nav
+        .nav-section
+          span.nav-label Overview
+          a.nav-item(href='/admin/dashboard', class=title==='Admin Dashboard'?'active':'')
+            i.fas.fa-tachometer-alt
+            span Dashboard
+        .nav-section
+          span.nav-label Academic
+          a.nav-item(href='/admin/academic-years', class=title==='Academic Years'?'active':'')
+            i.fas.fa-calendar-alt
+            span Academic Years
+        .nav-section
+          span.nav-label Setup
+          a.nav-item(href='/admin/departments', class=title==='Departments'?'active':'')
+            i.fas.fa-building
+            span Departments
+          a.nav-item(href='/admin/teachers', class=title==='Teachers'?'active':'')
+            i.fas.fa-chalkboard-teacher
+            span Teachers
+          a.nav-item(href='/admin/classes', class=title==='Classes'?'active':'')
+            i.fas.fa-door-open
+            span Classes
+          a.nav-item(href='/admin/streams', class=title==='Streams'?'active':'')
+            i.fas.fa-code-branch
+            span Streams
+          a.nav-item(href='/admin/subjects', class=title==='Subjects'?'active':'')
+            i.fas.fa-book
+            span Subjects
+          a.nav-item(href='/admin/students', class=title==='Students'?'active':'')
+            i.fas.fa-user-graduate
+            span Students
+        .nav-section
+          span.nav-label Assignments
+          a.nav-item(href='/admin/assignments/teacher-class', class=title==='Assign Teachers to Classes'?'active':'')
+            i.fas.fa-link
+            span Teacher → Class
+          a.nav-item(href='/admin/assignments/class-subject', class=title==='Assign Subjects to Classes'?'active':'')
+            i.fas.fa-link
+            span Class → Subject
+          a.nav-item(href='/admin/assignments/teacher-subject', class=title==='Assign Teachers to Subjects'?'active':'')
+            i.fas.fa-link
+            span Teacher → Subject
+        .nav-section
+          span.nav-label Reports
+          a.nav-item(href='/admin/reports/attendance', class=title==='Attendance Report'?'active':'')
+            i.fas.fa-calendar-check
+            span Attendance
+          a.nav-item(href='/admin/reports/examination', class=title==='Examination Report'?'active':'')
+            i.fas.fa-chart-bar
+            span Examination
+        .nav-section
+          span.nav-label System
+          a.nav-item(href='/admin/holidays', class=title==='Public Holidays'?'active':'')
+            i.fas.fa-umbrella-beach
+            span Holidays
+          a.nav-item(href='/auth/logout')
+            i.fas.fa-sign-out-alt
+            span Logout
+
+    .main-content
+      header.top-bar
+        .top-bar-left
+          h1.page-title #{title}
+        .top-bar-right
+          .admin-badge
+            i.fas.fa-user-shield
+            span #{admin ? admin.username : 'Admin'}
+
+      .content-area
+        if error && error.length
+          each msg in error
+            .alert.alert-error
+              i.fas.fa-exclamation-circle
+              span #{msg}
+        if success && success.length
+          each msg in success
+            .alert.alert-success
+              i.fas.fa-check-circle
+              span #{msg}
+        block body

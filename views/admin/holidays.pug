@@ -1,0 +1,50 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Public Holiday
+        i.fas.fa-umbrella-beach
+      .card-body
+        form(method='POST', action='/admin/holidays')
+          .form-group
+            label Holiday Name
+            input(type='text', name='name', required, placeholder='e.g. Independence Day')
+          .form-group
+            label Date
+            input(type='date', name='date', required)
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-plus
+            span Add Holiday
+
+    .card
+      .card-header
+        h2 Public Holidays
+        span.count-badge #{holidays.length}
+      .card-body
+        if holidays.length
+          table.data-table
+            thead
+              tr
+                th Holiday
+                th Date
+                th Day
+                th Actions
+            tbody
+              each h in holidays
+                tr
+                  td
+                    i.fas.fa-flag.mr-2
+                    | #{h.name}
+                  td #{h.date}
+                  td
+                    span.day-badge #{new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long'})}
+                  td
+                    form(method='POST', action=`/admin/holidays/${h.id}/delete`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove holiday?")')
+                        i.fas.fa-trash
+        else
+          .empty-state
+            i.fas.fa-calendar
+            p No holidays added.

@@ -1,0 +1,77 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Student
+        i.fas.fa-user-plus
+      .card-body
+        form(method='POST', action='/admin/students')
+          .form-group
+            label Full Name
+            input(type='text', name='fullName', required, placeholder='Student full name')
+          .form-group
+            label Gender
+            select(name='gender', required)
+              option(value='') Select gender
+              option(value='Male') Male
+              option(value='Female') Female
+          .form-group
+            label Class
+            select(name='classId', required, id='classSelect')
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id) #{cls.name}
+          .form-group
+            label Stream (Optional)
+            select(name='streamId', id='streamSelect')
+              option(value='') Select stream
+              each stream in streams
+                option(value=stream.id, data-class=stream.classId) #{stream.name}
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Add Student
+
+    .card
+      .card-header
+        h2 All Students
+        span.count-badge #{students.filter(s=>s.isActive).length}
+      .card-body
+        if students.length
+          table.data-table
+            thead
+              tr
+                th #
+                th Name
+                th Gender
+                th Class
+                th Stream
+                th Actions
+            tbody
+              each student, i in students
+                if student.isActive
+                  tr
+                    td #{i + 1}
+                    td #{student.fullName}
+                    td #{student.gender}
+                    td #{student.class ? student.class.name : '-'}
+                    td #{student.stream ? student.stream.name : '-'}
+                    td
+                      form(method='POST', action=`/admin/students/${student.id}/delete`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this student?")')
+                          i.fas.fa-user-minus
+        else
+          .empty-state
+            i.fas.fa-user-graduate
+            p No students added yet.
+
+  script.
+    document.getElementById('classSelect').addEventListener('change', function() {
+      const classId = this.value;
+      const opts = document.querySelectorAll('#streamSelect option');
+      opts.forEach(o => {
+        if (!o.value || o.dataset.class == classId) o.style.display = '';
+        else o.style.display = 'none';
+      });
+    });

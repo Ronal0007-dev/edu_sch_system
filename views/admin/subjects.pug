@@ -1,0 +1,53 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Subject
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/subjects')
+          .form-group
+            label Subject Name
+            input(type='text', name='name', required, placeholder='e.g. Mathematics, English')
+          .form-group
+            label Class
+            select(name='classId', required)
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Subject
+
+    .card
+      .card-header
+        h2 All Subjects
+        span.count-badge #{subjects.length}
+      .card-body
+        if subjects.length
+          table.data-table
+            thead
+              tr
+                th Name
+                th Class
+                th Actions
+            tbody
+              each subject in subjects
+                tr
+                  td
+                    span.badge.badge-subject #{subject.name}
+                  td #{subject.class ? subject.class.name : '-'}
+                  td
+                    form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this subject?")')
+                        i.fas.fa-trash
+        else
+          .empty-state
+            i.fas.fa-book
+            p No subjects added yet.
+
+        if pagination && pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination

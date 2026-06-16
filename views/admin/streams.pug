@@ -1,0 +1,53 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Stream
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/streams')
+          .form-group
+            label Stream Name
+            input(type='text', name='name', required, placeholder='e.g. A, B, East, West')
+          .form-group
+            label Class
+            select(name='classId', required)
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Stream
+
+    .card
+      .card-header
+        h2 All Streams
+        span.count-badge #{streams.length}
+      .card-body
+        if streams.length
+          table.data-table
+            thead
+              tr
+                th Name
+                th Class
+                th Actions
+            tbody
+              each stream in streams
+                tr
+                  td
+                    span.badge.badge-stream #{stream.name}
+                  td #{stream.class ? stream.class.name : '-'}
+                  td
+                    form(method='POST', action=`/admin/streams/${stream.id}/delete`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this stream?")')
+                        i.fas.fa-trash
+        else
+          .empty-state
+            i.fas.fa-code-branch
+            p No streams added yet.
+
+        if pagination && pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination

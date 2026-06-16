@@ -1,0 +1,69 @@
+extends ../partials/admin-layout
+
+block body
+  .card.mb-4
+    .card-header
+      h2 Filter Attendance Report
+      i.fas.fa-filter
+    .card-body
+      form.filter-form(method='GET', action='/admin/reports/attendance')
+        .form-row
+          .form-group
+            label Select Class
+            select(name='classId', required)
+              option(value='') Select class
+              each cls in classes
+                option(value=cls.id, selected=selectedClass==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-search
+            span View Report
+
+  if report
+    .report-toolbar.no-print
+      h2 Attendance Summary — #{className}
+      .toolbar-actions
+        a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}`, target='_blank')
+          i.fas.fa-print
+          span Print Attendance
+
+    .card.mb-4
+      .card-header
+        h2 Student Summary
+        i.fas.fa-chart-bar
+      .card-body
+        if report.summary.length
+          table.data-table
+            thead
+              tr
+                th #
+                th Student
+                th Present
+                th Absent
+                th Sick
+                th School Days
+                th Attended
+                th Attendance %
+            tbody
+              each s, i in report.summary
+                - const pct = s.schoolDays > 0 ? Math.round((s.present / s.schoolDays) * 100) : 0
+                tr
+                  td #{i + 1}
+                  td #{s.student.fullName}
+                  td
+                    span.status-count.present #{s.present}
+                  td
+                    span.status-count.absent #{s.absent}
+                  td
+                    span.status-count.sick #{s.sick}
+                  td #{s.schoolDays}
+                  td #{s.total}
+                  td
+                    .progress-bar
+                      .progress-fill(style=`width:${pct}%`, class=pct>=75?'good':pct>=50?'warn':'bad')
+                    span #{pct}%
+
+          if pagination && pagination.pages > 1
+            - const query = {classId: selectedClass}
+            include ../partials/pagination
+        else
+          .empty-state No attendance records found.

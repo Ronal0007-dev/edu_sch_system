@@ -1,0 +1,50 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Assign Teacher to Classes
+        i.fas.fa-link
+      .card-body
+        form(method='POST', action='/admin/assignments/teacher-class')
+          .form-group
+            label Select Teacher
+            select(name='teacherId', required)
+              option(value='') Choose teacher
+              each teacher in teachers
+                option(value=teacher.id) #{teacher.fullName} (#{teacher.department ? teacher.department.code : ''})
+          .form-group
+            label Select Classes (hold Ctrl/Cmd for multiple)
+            select(name='classIds', required, multiple, style='height:150px')
+              each cls in classes
+                option(value=cls.id) #{cls.name} — #{cls.department ? cls.department.code : ''}
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-link
+            span Assign
+
+    .card
+      .card-header
+        h2 Current Assignments
+        span.count-badge #{assignments.length}
+      .card-body
+        if assignments.length
+          table.data-table
+            thead
+              tr
+                th Teacher
+                th Class
+                th Actions
+            tbody
+              each a in assignments
+                tr
+                  td #{a.teacher ? a.teacher.fullName : '-'}
+                  td #{a.class ? a.class.name : '-'}
+                  td
+                    form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/remove`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this assignment?")')
+                        i.fas.fa-unlink
+        else
+          .empty-state
+            i.fas.fa-link
+            p No teacher-class assignments yet.

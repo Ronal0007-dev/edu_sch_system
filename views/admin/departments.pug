@@ -1,0 +1,60 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Add Department
+        i.fas.fa-plus
+      .card-body
+        form(method='POST', action='/admin/departments')
+          .form-group
+            label Department Name
+            input(type='text', name='name', required, placeholder='e.g. Early Years Centre')
+          .form-group
+            label Department Code
+            select(name='code', required)
+              option(value='') Select code
+              option(value='EYC') EYC — Early Years Centre
+              option(value='Primary') Primary
+              option(value='Secondary') Secondary
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Department
+
+    .card
+      .card-header
+        h2 All Departments
+        span.count-badge #{departments.length}
+      .card-body
+        if departments.length
+          table.data-table
+            thead
+              tr
+                th #
+                th Name
+                th Code
+                th Classes
+                th Teachers
+                th Actions
+            tbody
+              each dept, i in departments
+                tr
+                  td #{i + 1}
+                  td #{dept.name}
+                  td
+                    span(class=`dept-badge badge-${dept.code.toLowerCase()}`) #{dept.code}
+                  td #{dept.classes ? dept.classes.length : 0}
+                  td #{dept.teachers ? dept.teachers.length : 0}
+                  td
+                    form(method='POST', action=`/admin/departments/${dept.id}/delete`, style='display:inline')
+                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this department?")')
+                        i.fas.fa-trash
+        else
+          .empty-state
+            i.fas.fa-building
+            p No departments added yet.
+
+        if pagination && pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination

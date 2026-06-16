@@ -1,0 +1,144 @@
+extends ../layout
+
+block content
+  .report-card-page
+    .report-card-controls.no-print
+      a.btn.btn-outline(href='javascript:history.back()')
+        i.fas.fa-arrow-left
+        span Back
+      button.btn.btn-primary(onclick='window.print()')
+        i.fas.fa-print
+        span Print Report Card
+      .term-selector.no-print
+        form(method='GET', action=`/teacher/report-card/${student.id}`)
+          .form-row
+            .form-group
+              label Term
+              select(name='term')
+                if currentYear && currentYear.terms && currentYear.terms.length
+                  each t in currentYear.terms
+                    option(value=t.name, selected=term===t.name) #{t.name}
+                else
+                  option(value='Term 1', selected=term==='Term 1') Term 1
+                  option(value='Term 2', selected=term==='Term 2') Term 2
+                  option(value='Term 3', selected=term==='Term 3') Term 3
+            .form-group
+              label Year
+              select(name='year')
+                if currentYear
+                  option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name} (Current)
+                each yr in academicYears
+                  if !currentYear || yr.id !== currentYear.id
+                    option(value=yr.name, selected=year===yr.name) #{yr.name}
+            button.btn.btn-sm.btn-outline(type='submit') Load
+
+    .report-card
+      .report-card-header
+        .school-info
+          .school-logo-img
+            img(src='/images/logo.png', alt='School Logo' style='max-width:80px;')
+          div
+            h2 Canon Andrea Mwaka School
+            p "Never tire of doing what is right" - 2 Thessalonians 3:13
+        .report-meta
+          h2 STUDENT REPORT CARD
+          p #{term} — #{year}
+
+      .student-details-section
+        .detail-row
+          .detail-item
+            label Student Name:
+            strong #{student.fullName}
+          .detail-item
+            label Class:
+            strong #{student.class ? student.class.name : '-'}
+          .detail-item
+            label Stream:
+            strong #{student.stream ? student.stream.name : 'N/A'}
+          .detail-item
+            label Gender:
+            strong #{student.gender}
+          .detail-item
+            label Attendance:
+            - const attPct = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+            strong #{presentDays}/#{totalDays} days (#{attPct}%)
+          .detail-item
+            label Term:
+            strong #{term} - #{year}
+
+      .marks-section
+        table.report-table
+          thead
+            tr
+              th Subject
+              th H/W
+              th G/W
+              th QZ
+              th C/W
+              th U/T
+              th F/E
+              th Total
+              th Grade
+              th Remarks
+          tbody
+            each m in marks
+              tr
+                td.subject-cell #{m.subject ? m.subject.name : '-'}
+                td #{m.homework}
+                td #{m.groupWork}
+                td #{m.quiz}
+                td #{m.classWork}
+                td #{m.unitTest}
+                td #{m.finalExam}
+                td
+                  strong #{m.totalScore ? m.totalScore.toFixed(1) : '-'}
+                td
+                  span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
+                td #{getRemark(m.grade)}
+          if marks.length
+            tfoot
+              tr.summary-row
+                td(colspan=7) Class Average
+                - const avg = marks.reduce((s,m)=>s+(m.totalScore||0),0)/marks.length
+                td
+                  strong #{avg.toFixed(1)}
+                - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
+                td
+                  span(class=`grade-badge grade-${g}`) #{g}
+                td —
+
+        if !marks.length
+          .empty-state(style='padding:1rem') No marks recorded for #{term}.
+
+      .grading-key
+        h4 Grading Key:
+        .grade-key-grid
+          span.grade-badge.grade-A A — Excellent (90-100)
+          span.grade-badge.grade-B B — Very Good (80-89)
+          span.grade-badge.grade-C C — Good (70-79)
+          span.grade-badge.grade-D D — Satisfactory (60-69)
+          span.grade-badge.grade-F F — Fail (0-59)
+      
+      .grading-key
+        h4 Abreviations:
+        .grade-key-grid
+          span.grade-badge.grade-A H/W — Homework
+          span.grade-badge.grade-B G/W — Group Work
+          span.grade-badge.grade-C QZ — Quiz
+          span.grade-badge.grade-D C/W — Class Work
+          span.grade-badge.grade-F U/T — Unit Test
+          span.grade-badge.grade-F F/E — Final Exam
+
+      .report-card-footer
+        .signature-area
+          .sig-box
+            p ___________________________
+            p Class Teacher
+          .sig-box
+            p ___________________________
+            p Parent / Guardian
+          .sig-box
+            p ___________________________
+            p Head Teacher
+
+      .print-date Generated: #{new Date().toLocaleDateString()}

@@ -1,0 +1,10 @@
+.pagination
+  if pagination.page > 1
+    a.page-btn(href=`?${new URLSearchParams({...query, page: pagination.page - 1}).toString()}`)
+      i.fas.fa-chevron-left
+      span Prev
+  .page-info Page #{pagination.page} of #{pagination.pages} (#{pagination.total} total)
+  if pagination.page < pagination.pages
+    a.page-btn(href=`?${new URLSearchParams({...query, page: pagination.page + 1}).toString()}`)
+      span Next
+      i.fas.fa-chevron-right
