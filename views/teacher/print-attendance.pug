@@ -10,10 +10,9 @@ block content
 
     .print-doc
       .print-header
-        .print-logo
-          i.fas.fa-graduation-cap
+        img(src='/images/logo.png', alt='School Logo' style='max-width:80px;')
         div
-          h1 EduTrack School
+          h1 Canon Andrea Mwaka School
           h2 Daily Attendance Sheet
           p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; Date: #{date} &nbsp;|&nbsp; Printed: #{new Date().toLocaleDateString()}
 

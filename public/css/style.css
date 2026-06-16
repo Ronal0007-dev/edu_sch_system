@@ -191,7 +191,7 @@ a:hover { text-decoration: underline; }
 .role-class_teacher { background: #eff6ff; color: #1d4ed8; }
 .role-head_of_dept { background: #fdf4ff; color: #9333ea; }
 .role-admin { background: #fff7ed; color: #c2410c; }
-.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .9rem; }
+.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .7rem; }
 .grade-A { background: #dcfce7; color: #15803d; }
 .grade-B { background: #dbeafe; color: #1d4ed8; }
 .grade-C { background: #fef9c3; color: #a16207; }
