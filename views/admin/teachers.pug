@@ -75,6 +75,10 @@ block body
                       form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
                         button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
                           | #{teacher.isActive ? 'Deactivate' : 'Activate'}
+                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/reset-password`, onclick='return confirm("Send password reset email to " + "#{teacher.fullName}" + "?")')
+                        button.btn.btn-sm.btn-outline(type='submit', title='Send reset link to teacher email')
+                          i.fas.fa-envelope
+                          span Reset Pwd
         else
           .empty-state
             i.fas.fa-chalkboard-teacher

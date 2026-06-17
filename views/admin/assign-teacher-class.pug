@@ -10,15 +10,25 @@ block body
         form(method='POST', action='/admin/assignments/teacher-class')
           .form-group
             label Select Teacher
-            select(name='teacherId', required)
+            select(name='teacherId', required, id='teacherSel')
               option(value='') Choose teacher
               each teacher in teachers
                 option(value=teacher.id) #{teacher.fullName} (#{teacher.department ? teacher.department.code : ''})
+
           .form-group
             label Select Classes (hold Ctrl/Cmd for multiple)
-            select(name='classIds', required, multiple, style='height:150px')
+            select(name='classIds', required, multiple, id='classSel', style='height:160px')
               each cls in classes
                 option(value=cls.id) #{cls.name} — #{cls.department ? cls.department.code : ''}
+
+          .form-group
+            label Set as Class Teacher for
+            select(name='classTeacherId', id='ctSel')
+              option(value='') — None (regular teacher) —
+            .form-hint
+              i.fas.fa-info-circle
+              span Only one class teacher per class. Selecting a class here marks that assignment as Class Teacher.
+
           button.btn.btn-primary(type='submit')
             i.fas.fa-link
             span Assign
@@ -26,7 +36,7 @@ block body
     .card
       .card-header
         h2 Current Assignments
-        span.count-badge #{assignments.length}
+        span.count-badge #{pagination.total}
       .card-body
         if assignments.length
           table.data-table
@@ -34,17 +44,63 @@ block body
               tr
                 th Teacher
                 th Class
+                th Role
                 th Actions
             tbody
               each a in assignments
                 tr
-                  td #{a.teacher ? a.teacher.fullName : '-'}
-                  td #{a.class ? a.class.name : '-'}
                   td
-                    form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/remove`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this assignment?")')
-                        i.fas.fa-unlink
+                    .teacher-name
+                      i.fas.fa-user-circle
+                      span #{a.teacher ? a.teacher.fullName : '-'}
+                  td
+                    span.badge.badge-class #{a.class ? a.class.name : '-'}
+                  td
+                    if a.isClassTeacher
+                      span.role-badge.role-class_teacher CLASS TEACHER
+                    else
+                      span.text-muted Teacher
+                  td
+                    .action-group
+                      if a.isClassTeacher
+                        form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/unset-class-teacher`, style='display:inline')
+                          button.btn.btn-sm.btn-warning(type='submit', title='Remove class teacher role')
+                            i.fas.fa-user-minus
+                            span Unset CT
+                      else
+                        form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/set-class-teacher`, style='display:inline')
+                          button.btn.btn-sm.btn-outline(type='submit', title='Make class teacher')
+                            i.fas.fa-chalkboard-teacher
+                            span Set as CT
+                      form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/remove`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this assignment?")')
+                          i.fas.fa-unlink
         else
           .empty-state
             i.fas.fa-link
             p No teacher-class assignments yet.
+
+        if pagination.pages > 1
+          - const query = {}
+          include ../partials/pagination
+
+  script.
+    // When classes are selected, populate the "Set as Class Teacher for" dropdown
+    const classSel = document.getElementById('classSel');
+    const ctSel = document.getElementById('ctSel');
+
+    // All classes data
+    const allClasses = [
+      !{JSON.stringify(classes.map(c => ({id: c.id, name: c.name})))}
+    ];
+
+    classSel.addEventListener('change', function() {
+      const selected = [...this.selectedOptions].map(o => ({ id: o.value, name: o.text }));
+      ctSel.innerHTML = '<option value="">— None (regular teacher) —</option>';
+      selected.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        ctSel.appendChild(opt);
+      });
+    });

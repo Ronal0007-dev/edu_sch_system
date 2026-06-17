@@ -1,0 +1,169 @@
+extends ../partials/teacher-layout
+
+block body
+  if !ctClasses.length
+    .alert.alert-warning
+      i.fas.fa-exclamation-triangle
+      span You are not assigned as a Class Teacher for any class. Ask the admin to assign you.
+
+  else
+    .filter-bar
+      form.filter-form(method='GET', action='/teacher/comments')
+        .form-row
+          .form-group
+            label My Class (as Class Teacher)
+            select(name='classId', required)
+              option(value='') Choose class
+              each cls in ctClasses
+                option(value=cls.id, selected=selectedClass && selectedClass.id==cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          .form-group
+            label Term
+            select(name='term')
+              if currentYear && currentYear.terms && currentYear.terms.length
+                each t in currentYear.terms
+                  option(value=t.name, selected=term===t.name) #{t.name}
+              else
+                option(value='Term 1', selected=term==='Term 1') Term 1
+                option(value='Term 2', selected=term==='Term 2') Term 2
+                option(value='Term 3', selected=term==='Term 3') Term 3
+          .form-group
+            label Academic Year
+            select(name='year')
+              if currentYear
+                option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name} (Current)
+              each yr in academicYears
+                if !currentYear || yr.id !== currentYear.id
+                  option(value=yr.name, selected=year===yr.name) #{yr.name}
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-filter
+            span Load Students
+
+  if selectedClass && students.length
+    .comments-header
+      h2
+        i.fas.fa-comment-alt
+        | Report Comments — #{selectedClass.name} | #{term} | #{year}
+      p.text-muted Click "AI Generate" to auto-generate a comment based on marks and attendance, then edit as needed before saving.
+
+    form(method='POST', action='/teacher/comments/save')
+      input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='term', value=term)
+      input(type='hidden', name='academicYear', value=year)
+
+      .comments-list
+        each student in students
+          - const existing = existingComments[student.id]
+          - const att = student.attendance || {}
+          - const attPct = att.total > 0 ? Math.round((att.present / att.total) * 100) : 0
+          - const avgScore = student.marks && student.marks.length ? (student.marks.reduce((s,m)=>s+(m.totalScore||0),0)/student.marks.length).toFixed(1) : null
+
+          .comment-card(id=`card-${student.id}`)
+            .comment-student-info
+              .student-avatar-lg #{student.fullName.charAt(0)}
+              .comment-student-details
+                strong #{student.fullName}
+                .student-meta
+                  span.meta-item
+                    i.fas.fa-calendar-check
+                    | #{att.present}/#{att.total} days (#{attPct}%)
+                  if avgScore
+                    span.meta-item
+                      i.fas.fa-chart-bar
+                      | Avg: #{avgScore}%
+                  if student.marks && student.marks.length
+                    .marks-mini
+                      each m in student.marks
+                        span.mark-mini-badge(class=`grade-badge grade-${m.grade}`) #{m.subject ? m.subject.name : ''}: #{m.grade}
+
+            .comment-input-area
+              .comment-actions-top
+                button.btn.btn-sm.btn-ai.disabled(
+                  type='button',
+                  class='ai-gen-btn',
+                  id=`gen-btn-${student.id}`,
+                  data-student=student.id,
+                  data-class=selectedClass.id,
+                  data-term=term,
+                  data-year=year
+                )
+                  i.fas.fa-magic
+                  span AI Generate
+                if existing
+                  span.existing-tag
+                    i.fas.fa-check-circle
+                    span Saved
+              .comment-error(id=`err-${student.id}`, style='display:none')
+              textarea.comment-textarea(
+                name=`comment_${student.id}`,
+                id=`comment-${student.id}`,
+                rows=3,
+                placeholder='Enter class teacher comment for this student...'
+              ) #{existing ? existing.comment : ''}
+
+      .form-actions.sticky-actions
+        button.btn.btn-primary.btn-lg(type='submit')
+          i.fas.fa-save
+          span Save All Comments
+
+  else if selectedClass && students.length === 0
+    .empty-state
+      i.fas.fa-user-slash
+      p No students in this class.
+
+  else if ctClasses.length && !selectedClass
+    .empty-state
+      i.fas.fa-hand-pointer
+      p Select a class above to manage report comments.
+
+  script.
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.ai-gen-btn');
+      if (!btn) return;
+      e.preventDefault();
+      const studentId = btn.dataset.student;
+      const classId = btn.dataset.class;
+      const term = btn.dataset.term;
+      const year = btn.dataset.year;
+      generateComment(btn, studentId, classId, term, year);
+    });
+
+    async function generateComment(btn, studentId, classId, term, year) {
+      const textarea = document.getElementById('comment-' + studentId);
+      const card = document.getElementById('card-' + studentId);
+      const errDiv = document.getElementById('err-' + studentId);
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+      card.classList.add('generating');
+      if (errDiv) errDiv.style.display = 'none';
+
+      try {
+        const resp = await fetch('/teacher/comments/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId: studentId, classId: classId, term: term, academicYear: year })
+        });
+
+        let data;
+        const rawText = await resp.text();
+        try { data = JSON.parse(rawText); }
+        catch(e) { throw new Error('Server error: ' + rawText.substring(0, 200)); }
+
+        if (data.comment) {
+          textarea.value = data.comment;
+          textarea.classList.add('comment-generated');
+          setTimeout(function() { textarea.classList.remove('comment-generated'); }, 2500);
+        } else {
+          const errMsg = data.error || 'Unknown error';
+          if (errDiv) { errDiv.textContent = '⚠ ' + errMsg; errDiv.style.display = 'block'; }
+          console.error('AI generate error:', errMsg);
+        }
+      } catch (err) {
+        if (errDiv) { errDiv.textContent = '⚠ ' + err.message; errDiv.style.display = 'block'; }
+        console.error('Fetch error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic"></i> AI Generate';
+        card.classList.remove('generating');
+      }
+    }

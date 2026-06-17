@@ -18,7 +18,10 @@ const Teacher = sequelize.define('Teacher', {
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: { type: DataTypes.ENUM('teacher', 'class_teacher', 'head_of_dept', 'admin'), defaultValue: 'teacher' },
   departmentId: { type: DataTypes.INTEGER, allowNull: false },
-  isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+  isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+  mustChangePassword: { type: DataTypes.BOOLEAN, defaultValue: true },
+  resetToken: { type: DataTypes.STRING(255), allowNull: true },
+  resetTokenExpiry: { type: DataTypes.DATE, allowNull: true }
 }, { tableName: 'teachers', timestamps: true });
 
 Teacher.prototype.validatePassword = async function(password) {
@@ -91,8 +94,24 @@ const Student = sequelize.define('Student', {
 const TeacherClass = sequelize.define('TeacherClass', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   teacherId: { type: DataTypes.INTEGER, allowNull: false },
-  classId: { type: DataTypes.INTEGER, allowNull: false }
+  classId: { type: DataTypes.INTEGER, allowNull: false },
+  isClassTeacher: { type: DataTypes.BOOLEAN, defaultValue: false }
 }, { tableName: 'teacher_classes', timestamps: true });
+
+// ─── Report Comment ───────────────────────────────────────────────────────────
+const ReportComment = sequelize.define('ReportComment', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  studentId: { type: DataTypes.INTEGER, allowNull: false },
+  classId: { type: DataTypes.INTEGER, allowNull: false },
+  teacherId: { type: DataTypes.INTEGER, allowNull: false },
+  term: { type: DataTypes.ENUM('Term 1', 'Term 2', 'Term 3'), allowNull: false },
+  academicYear: { type: DataTypes.STRING(9), allowNull: false },
+  comment: { type: DataTypes.TEXT, allowNull: false }
+}, {
+  tableName: 'report_comments',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['studentId', 'classId', 'term', 'academicYear'] }]
+});
 
 // ─── Teacher-Subject Assignment ───────────────────────────────────────────────
 const TeacherSubject = sequelize.define('TeacherSubject', {
@@ -185,6 +204,11 @@ Class.belongsToMany(Subject, { through: ClassSubject, foreignKey: 'classId', as:
 Teacher.belongsToMany(Subject, { through: TeacherSubject, foreignKey: 'teacherId', as: 'subjects' });
 Subject.belongsToMany(Teacher, { through: TeacherSubject, foreignKey: 'subjectId', as: 'teachers' });
 
+ReportComment.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
+ReportComment.belongsTo(Class, { foreignKey: 'classId', as: 'class' });
+ReportComment.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
+Student.hasMany(ReportComment, { foreignKey: 'studentId', as: 'comments' });
+
 // Join table belongsTo (needed for include in list views)
 TeacherClass.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
 TeacherClass.belongsTo(Class, { foreignKey: 'classId', as: 'class' });
@@ -218,6 +242,7 @@ module.exports = {
   Stream,
   Subject,
   Student,
+  ReportComment,
   TeacherClass,
   TeacherSubject,
   ClassSubject,

@@ -27,6 +27,24 @@ block body
       .stat-info
         h3 #{teacher && teacher.teacherSubjects ? teacher.teacherSubjects.length : 0}
         p My Subjects
+    if teacher && teacher.classTeacherClasses && teacher.classTeacherClasses.length
+      .stat-card
+        .stat-icon.depts
+          i.fas.fa-chalkboard-teacher
+        .stat-info
+          h3 #{teacher.classTeacherClasses.length}
+          p Class Teacher
+
+  if teacher && teacher.classTeacherClasses && teacher.classTeacherClasses.length
+    .alert.alert-info
+      i.fas.fa-chalkboard-teacher
+      span You are Class Teacher for: 
+      each ctc, i in teacher.classTeacherClasses
+        strong #{ctc.name}
+        if i < teacher.classTeacherClasses.length - 1
+          | , 
+      | &nbsp;—&nbsp;
+      a(href='/teacher/comments') Manage Report Comments →
 
   .dashboard-grid
     .card

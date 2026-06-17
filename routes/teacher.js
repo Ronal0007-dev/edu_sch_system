@@ -6,7 +6,7 @@ const { requireTeacher } = require('../middleware/auth');
 const { calculateScore, getGrade, getRemark } = require('../utils/grading');
 const {
   AcademicYear, Term, Teacher, Class, Student, Stream, Subject,
-  Attendance, Mark, TeacherClass, TeacherSubject, PublicHoliday
+  Attendance, Mark, TeacherClass, TeacherSubject, PublicHoliday, ReportComment
 } = require('../models');
 
 router.use(requireTeacher);
@@ -39,7 +39,12 @@ router.get('/dashboard', async (req, res) => {
       where: { teacherId: req.session.teacher.id },
       include: [{ model: Class, as: 'class', include: ['department', 'students'] }]
     });
-    const assignedClasses = teacherClassRows.map(tc => tc.class).filter(Boolean);
+    const assignedClasses = teacherClassRows.map(tc => ({
+      ...tc.class.toJSON(),
+      isClassTeacher: tc.isClassTeacher,
+      assignmentId: tc.id
+    })).filter(c => c.id);
+    const classTeacherClasses = assignedClasses.filter(c => c.isClassTeacher);
     const teacherSubjectRows = await TeacherSubject.findAll({
       where: { teacherId: req.session.teacher.id },
       include: [{ model: Subject, as: 'subject' }, { model: Class, as: 'class' }]
@@ -59,7 +64,7 @@ router.get('/dashboard', async (req, res) => {
 
     res.render('teacher/dashboard', {
       title: 'Teacher Dashboard',
-      teacher: { ...teacher.toJSON(), classes: assignedClasses, teacherSubjects: teacherSubjectRows },
+      teacher: { ...teacher.toJSON(), classes: assignedClasses, teacherSubjects: teacherSubjectRows, classTeacherClasses },
       today, canTakeAttendance, isWeekend, holiday, recentAttendance, currentYear,
       error: req.flash('error'), success: req.flash('success')
     });
@@ -261,8 +266,12 @@ router.get('/report-card/:studentId', async (req, res) => {
     const presentDays = attendance.filter(a => a.status === 'present').length;
     const totalDays = attendance.length;
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
+    const reportComment = await ReportComment.findOne({
+      where: { studentId: req.params.studentId, classId: student.classId, term, academicYear: year }
+    });
     res.render('teacher/report-card', {
       title: 'Student Report Card', student, marks, term, year, presentDays, totalDays,
+      reportComment: reportComment ? reportComment.toJSON() : null,
       getRemark, currentYear, academicYears, teacher: req.session.teacher,
       error: req.flash('error'), success: req.flash('success')
     });
@@ -279,12 +288,225 @@ router.get('/report-cards', async (req, res) => {
     where: { teacherId: req.session.teacher.id },
     include: [{ model: Class, as: 'class', include: ['students'] }]
   });
-  const classes = teacherClassRows.map(tc => tc.class).filter(Boolean);
+  const classes = teacherClassRows.map(tc => ({
+    ...tc.class.toJSON(),
+    isClassTeacher: tc.isClassTeacher
+  })).filter(c => c.id);
   const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
   res.render('teacher/report-cards', {
     title: 'Report Cards', classes, currentYear, academicYears,
     teacher: req.session.teacher, error: req.flash('error'), success: req.flash('success')
   });
+});
+
+// ── Report Comments (Class Teacher only) ──────────────────────────────────────
+router.get('/comments', async (req, res) => {
+  const currentYear = await getCurrentYear();
+
+  // Find classes where this teacher is class teacher
+  const ctRows = await TeacherClass.findAll({
+    where: { teacherId: req.session.teacher.id, isClassTeacher: true },
+    include: [{ model: Class, as: 'class', include: ['department'] }]
+  });
+  const ctClasses = ctRows.map(r => ({ ...r.class.toJSON(), isClassTeacher: true }));
+
+  const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+  const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+  const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
+
+  let students = [], selectedClass = null, existingComments = {}, classMarks = {};
+
+  if (req.query.classId) {
+    selectedClass = ctClasses.find(c => c.id == req.query.classId);
+    if (!selectedClass) {
+      req.flash('error', 'You are not the class teacher for this class');
+      return res.redirect('/teacher/comments');
+    }
+
+    students = await Student.findAll({
+      where: { classId: req.query.classId, isActive: true },
+      include: ['stream'],
+      order: [['fullName', 'ASC']]
+    });
+
+    // Load existing comments
+    const comments = await ReportComment.findAll({
+      where: { classId: req.query.classId, term, academicYear: year }
+    });
+    comments.forEach(c => { existingComments[c.studentId] = c; });
+
+    // Load marks summary per student for AI context
+    const marks = await Mark.findAll({
+      where: { classId: req.query.classId, term, academicYear: year },
+      include: ['subject']
+    });
+    marks.forEach(m => {
+      if (!classMarks[m.studentId]) classMarks[m.studentId] = [];
+      classMarks[m.studentId].push(m.toJSON());
+    });
+
+    // Load attendance per student
+    const attendance = await Attendance.findAll({
+      where: { classId: req.query.classId }
+    });
+    const attMap = {};
+    students.forEach(s => {
+      const recs = attendance.filter(a => a.studentId === s.id);
+      attMap[s.id] = {
+        present: recs.filter(r => r.status === 'present').length,
+        absent: recs.filter(r => r.status === 'absent').length,
+        sick: recs.filter(r => r.status === 'sick').length,
+        total: recs.length
+      };
+    });
+
+    students = students.map(s => ({ ...s.toJSON(), attendance: attMap[s.id] || { present: 0, absent: 0, sick: 0, total: 0 }, marks: classMarks[s.id] || [] }));
+  }
+
+  res.render('teacher/comments', {
+    title: 'Report Comments',
+    ctClasses, selectedClass, students, existingComments,
+    term, year, currentYear, academicYears,
+    teacher: req.session.teacher,
+    error: req.flash('error'), success: req.flash('success')
+  });
+});
+
+router.post('/comments/save', async (req, res) => {
+  try {
+    const { classId, term, academicYear } = req.body;
+
+    // Verify this teacher is class teacher for this class
+    const ctRow = await TeacherClass.findOne({
+      where: { teacherId: req.session.teacher.id, classId, isClassTeacher: true }
+    });
+    if (!ctRow) throw new Error('You are not the class teacher for this class');
+
+    const students = await Student.findAll({ where: { classId, isActive: true } });
+    for (const student of students) {
+      const comment = req.body[`comment_${student.id}`];
+      if (comment && comment.trim()) {
+        await ReportComment.upsert({
+          studentId: student.id, classId, teacherId: req.session.teacher.id,
+          term, academicYear, comment: comment.trim()
+        });
+      }
+    }
+    req.flash('success', 'Comments saved successfully');
+  } catch (err) {
+    req.flash('error', 'Error: ' + err.message);
+  }
+  res.redirect(`/teacher/comments?classId=${req.body.classId}&term=${req.body.term}&year=${req.body.academicYear}`);
+});
+
+// ── AI Generate Comment for one student ───────────────────────────────────────
+router.post('/comments/generate', async (req, res) => {
+  try {
+    const { studentId, classId, term, academicYear } = req.body;
+
+    // Coerce to integers for reliable DB matching
+    const studentIdInt = parseInt(studentId);
+    const classIdInt = parseInt(classId);
+
+    if (!studentIdInt || !classIdInt || !term || !academicYear) {
+      return res.status(400).json({ error: 'Missing required fields: studentId, classId, term, academicYear' });
+    }
+
+    // Verify class teacher — use parseInt to avoid string/int mismatch
+    const ctRow = await TeacherClass.findOne({
+      where: { teacherId: parseInt(req.session.teacher.id), classId: classIdInt, isClassTeacher: true }
+    });
+    if (!ctRow) {
+      return res.status(403).json({ error: 'You are not the class teacher for this class' });
+    }
+
+    const student = await Student.findByPk(studentIdInt);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const marks = await Mark.findAll({
+      where: { studentId: studentIdInt, classId: classIdInt, term, academicYear },
+      include: ['subject']
+    });
+    const attendance = await Attendance.findAll({
+      where: { studentId: studentIdInt, classId: classIdInt }
+    });
+    const present = attendance.filter(a => a.status === 'present').length;
+    const absent = attendance.filter(a => a.status === 'absent').length;
+    const sick = attendance.filter(a => a.status === 'sick').length;
+    const total = attendance.length;
+    const attPct = total > 0 ? Math.round((present / total) * 100) : 0;
+
+    const marksInfo = marks.length > 0
+      ? marks.map(m => {
+          const subj = m.subject ? m.subject.name : 'Unknown';
+          return `${subj}: ${m.totalScore ? m.totalScore.toFixed(1) : 'N/A'} (${m.grade || 'N/A'})`;
+        }).join(', ')
+      : 'No marks recorded yet';
+
+    const avgScore = marks.length > 0
+      ? marks.reduce((s, m) => s + (m.totalScore || 0), 0) / marks.length
+      : null;
+
+    // Build first name from full name
+    const firstName = student.fullName.split(' ')[0];
+
+    const prompt = `You are a class teacher writing a brief end-of-term report card comment for a student. Be encouraging, honest, and professional. Keep it to 2-3 sentences maximum. Do not use bullet points or headers.
+
+Student name: ${student.fullName} (use first name "${firstName}" in the comment)
+Term: ${term}, Academic Year: ${academicYear}
+Attendance: ${present} present, ${absent} absent, ${sick} sick out of ${total} recorded days (${attPct}% attendance rate)
+Subject results: ${marksInfo}
+${avgScore !== null ? `Overall average score: ${avgScore.toFixed(1)}%` : ''}
+
+Write only the report card comment text, nothing else.`;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey || apiKey === 'your_anthropic_api_key_here') {
+      return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured in your .env file' });
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 250,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error('Anthropic API error:', response.status, errBody);
+      let friendlyError = `API error (${response.status})`;
+      try {
+        const parsed = JSON.parse(errBody);
+        if (parsed.error && parsed.error.message) friendlyError = parsed.error.message;
+      } catch(e) {}
+      return res.status(500).json({ error: friendlyError });
+    }
+
+    const data = await response.json();
+    const comment = data.content && data.content[0] && data.content[0].text
+      ? data.content[0].text.trim()
+      : null;
+
+    if (!comment) {
+      console.error('Unexpected API response:', JSON.stringify(data));
+      return res.status(500).json({ error: 'No comment returned by AI. Response: ' + JSON.stringify(data) });
+    }
+
+    res.json({ comment });
+  } catch (err) {
+    console.error('Generate comment error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 module.exports = router;

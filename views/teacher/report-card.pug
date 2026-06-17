@@ -36,10 +36,10 @@ block content
       .report-card-header
         .school-info
           .school-logo-img
-            img(src='/images/logo.png', alt='School Logo' style='max-width:80px;')
+            img(src='/images/logo.png', alt='School Logo' width='80')
           div
-            h2 Canon Andrea Mwaka School
-            p "Never tire of doing what is right" - 2 Thessalonians 3:13
+            h1 Canon Andrea Mwaka School
+            p "Never tire of doing what is right" 2 Thessalonians 3:13
         .report-meta
           h2 STUDENT REPORT CARD
           p #{term} — #{year}
@@ -77,7 +77,7 @@ block content
               th C/W
               th U/T
               th F/E
-              th Score
+              th Total
               th Grade
               th Remarks
           tbody
@@ -110,6 +110,13 @@ block content
         if !marks.length
           .empty-state(style='padding:1rem') No marks recorded for #{term}.
 
+      if reportComment && reportComment.comment
+        .class-teacher-comment
+          h4
+            i.fas.fa-comment-alt
+            |  Class Teacher's Comment
+          p.comment-text #{reportComment.comment}
+
       .grading-key
         h4 Grading Key:
         .grade-key-grid
@@ -118,17 +125,15 @@ block content
           span.grade-badge.grade-C C — Good (70-79)
           span.grade-badge.grade-D D — Satisfactory (60-69)
           span.grade-badge.grade-F F — Fail (0-59)
-      
       .grading-key
-        h4 Abreviations:
+        h4 Assessment Key:
         .grade-key-grid
-          span.grade-badge.grade-A H/W — Homework
-          span.grade-badge.grade-B G/W — Group Work
-          span.grade-badge.grade-C QZ — Quiz
-          span.grade-badge.grade-D C/W — Class Work
-          span.grade-badge.grade-F U/T — Unit Test
-          span.grade-badge.grade-F F/E — Final Exam
-
+          span.grade-badge.grade-A H/W - Homework
+          span.grade-badge.grade-B G/W - Group Work
+          span.grade-badge.grade-C QZ - Quiz
+          span.grade-badge.grade-D C/W - Class Work
+          span.grade-badge.grade-F U/T - Unit Test
+          span.grade-badge.grade-F F/E - Final Exam
       .report-card-footer
         .signature-area
           .sig-box

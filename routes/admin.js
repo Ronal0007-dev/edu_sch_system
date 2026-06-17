@@ -5,9 +5,12 @@ const moment = require('moment');
 const { Op } = require('sequelize');
 const { requireAdmin } = require('../middleware/auth');
 const { getRemark } = require('../utils/grading');
+const { sendPasswordResetEmail } = require('../utils/mailer');
+const crypto = require('crypto');
 const {
   AcademicYear, Term, Department, Teacher, Class, Stream, Subject, Student,
-  TeacherClass, TeacherSubject, ClassSubject, Attendance, Mark, PublicHoliday
+  TeacherClass, TeacherSubject, ClassSubject, Attendance, Mark, PublicHoliday,
+  ReportComment
 } = require('../models');
 
 router.use(requireAdmin);
@@ -388,12 +391,39 @@ router.get('/assignments/teacher-class', async (req, res) => {
 
 router.post('/assignments/teacher-class', async (req, res) => {
   try {
-    const { teacherId, classIds } = req.body;
+    const { teacherId, classIds, classTeacherId } = req.body;
     const ids = Array.isArray(classIds) ? classIds : [classIds];
     for (const classId of ids) {
-      await TeacherClass.findOrCreate({ where: { teacherId, classId } });
+      const [row] = await TeacherClass.findOrCreate({ where: { teacherId, classId } });
+      const isClassTeacher = classTeacherId === classId;
+      if (isClassTeacher) {
+        // Only one class teacher per class — clear previous
+        await TeacherClass.update({ isClassTeacher: false }, { where: { classId } });
+        await row.update({ isClassTeacher: true });
+      }
     }
     req.flash('success', 'Teacher assigned to class(es)');
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/assignments/teacher-class');
+});
+
+router.post('/assignments/teacher-class/:id/set-class-teacher', async (req, res) => {
+  try {
+    const row = await TeacherClass.findByPk(req.params.id);
+    if (row) {
+      // Clear existing class teacher for that class
+      await TeacherClass.update({ isClassTeacher: false }, { where: { classId: row.classId } });
+      await row.update({ isClassTeacher: true });
+      req.flash('success', 'Class teacher set');
+    }
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/assignments/teacher-class');
+});
+
+router.post('/assignments/teacher-class/:id/unset-class-teacher', async (req, res) => {
+  try {
+    await TeacherClass.update({ isClassTeacher: false }, { where: { id: req.params.id } });
+    req.flash('success', 'Class teacher role removed');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect('/admin/assignments/teacher-class');
 });
@@ -655,10 +685,12 @@ router.get('/reports/print-all-report-cards', async (req, res) => {
       const attendance = await Attendance.findAll({ where: { studentId: student.id } });
       const presentDays = attendance.filter(a => a.status === 'present').length;
       const totalDays = attendance.length;
-      // Use plain objects so Pug can access nested associations reliably
+      const reportComment = await ReportComment.findOne({
+        where: { studentId: student.id, classId, term: term || 'Term 1', academicYear: year || '2024/2025' }
+      });
       const studentPlain = student.toJSON();
       const marksPlain = marks.map(m => m.toJSON());
-      return { student: studentPlain, marks: marksPlain, presentDays, totalDays };
+      return { student: studentPlain, marks: marksPlain, presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null };
     }));
 
     res.render('admin/print-all-report-cards', {
@@ -670,6 +702,23 @@ router.get('/reports/print-all-report-cards', async (req, res) => {
     req.flash('error', err.message);
     res.redirect('/admin/reports/examination');
   }
+});
+
+// ── Admin Reset Teacher Password ─────────────────────────────────────────────
+router.post('/teachers/:id/reset-password', async (req, res) => {
+  try {
+    const teacher = await Teacher.findByPk(req.params.id);
+    if (!teacher) throw new Error('Teacher not found');
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await teacher.update({ resetToken: token, resetTokenExpiry: expiry, mustChangePassword: true });
+    await sendPasswordResetEmail(teacher, token);
+    req.flash('success', `Password reset link sent to ${teacher.email}`);
+  } catch (err) {
+    req.flash('error', 'Error: ' + err.message);
+  }
+  res.redirect('/admin/teachers');
 });
 
 module.exports = router;

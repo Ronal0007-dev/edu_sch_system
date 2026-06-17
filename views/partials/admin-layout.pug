@@ -7,7 +7,7 @@ block content
         .brand-icon
           i.fas.fa-graduation-cap
         .brand-text
-          span.brand-name EduTrack
+          span.brand-name CAMS
           span.brand-sub Admin Panel
       nav.sidebar-nav
         .nav-section
@@ -64,6 +64,9 @@ block content
           a.nav-item(href='/admin/holidays', class=title==='Public Holidays'?'active':'')
             i.fas.fa-umbrella-beach
             span Holidays
+          a.nav-item(href='/auth/admin/change-password')
+            i.fas.fa-lock
+            span Change Password
           a.nav-item(href='/auth/logout')
             i.fas.fa-sign-out-alt
             span Logout
@@ -73,7 +76,7 @@ block content
         .top-bar-left
           h1.page-title #{title}
         .top-bar-right
-          .admin-badge
+          a.admin-badge(href='/auth/admin/change-password', style='text-decoration:none')
             i.fas.fa-user-shield
             span #{admin ? admin.username : 'Admin'}
 

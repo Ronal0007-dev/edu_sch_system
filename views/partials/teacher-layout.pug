@@ -7,7 +7,7 @@ block content
         .brand-icon
           i.fas.fa-chalkboard-teacher
         .brand-text
-          span.brand-name EduTrack
+          span.brand-name CAMS
           span.brand-sub Teacher Portal
       nav.sidebar-nav
         .nav-section
@@ -31,8 +31,14 @@ block content
           a.nav-item(href='/teacher/report-cards', class=title==='Report Cards'?'active':'')
             i.fas.fa-file-alt
             span Report Cards
+          a.nav-item(href='/teacher/comments', class=title==='Report Comments'?'active':'')
+            i.fas.fa-comment-alt
+            span Report Comments
         .nav-section
           span.nav-label Account
+          a.nav-item(href='/auth/teacher/change-password')
+            i.fas.fa-lock
+            span Change Password
           a.nav-item(href='/auth/logout')
             i.fas.fa-sign-out-alt
             span Logout
