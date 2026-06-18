@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const moment = require('moment');
 const { Op } = require('sequelize');
 const { requireAdmin } = require('../middleware/auth');
-const { getRemark } = require('../utils/grading');
+const { getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis } = require('../utils/grading');
 const { sendPasswordResetEmail } = require('../utils/mailer');
 const crypto = require('crypto');
 const {
@@ -54,14 +54,10 @@ router.get('/dashboard', async (req, res) => {
       AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] })
     ]);
 
-    // Build attendance ratio per class for pie chart
-    const attendanceData = await Promise.all(classes.map(async cls => {
-      const [present, absent, sick] = await Promise.all([
-        Attendance.count({ where: { classId: cls.id, status: 'present' } }),
-        Attendance.count({ where: { classId: cls.id, status: 'absent' } }),
-        Attendance.count({ where: { classId: cls.id, status: 'sick' } }),
-      ]);
-      return { name: cls.name, present, absent, sick, total: present + absent + sick };
+    // Build student enrollment per class for pie chart
+    const attendanceData = classes.map(cls => ({
+      name: cls.name,
+      total: cls.students ? cls.students.length : 0
     }));
 
     // Safe flash read
@@ -313,12 +309,45 @@ router.post('/streams/:id/delete', async (req, res) => {
 router.get('/subjects', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const [{ count, rows: subjects }, classes] = await Promise.all([
-    Subject.findAndCountAll({ include: ['class'], limit, offset: (page - 1) * limit }),
-    Class.findAll({ include: ['department'] })
-  ]);
+  const departments = await Department.findAll({ order: [['name', 'ASC']] });
+
+  // Filter by dept → class cascade
+  const selectedDeptId = req.query.deptId || '';
+  const selectedClassId = req.query.classId || '';
+
+  let classes = [];
+  if (selectedDeptId) {
+    classes = await Class.findAll({ where: { departmentId: selectedDeptId }, include: ['department'] });
+  }
+
+  // Build subject query with optional class filter
+  const subjectWhere = {};
+  if (selectedClassId) subjectWhere.classId = selectedClassId;
+  else if (selectedDeptId && classes.length) {
+    subjectWhere.classId = classes.map(c => c.id);
+  }
+
+  const { count, rows: subjects } = await Subject.findAndCountAll({
+    where: Object.keys(subjectWhere).length ? subjectWhere : {},
+    include: [{ model: Class, as: 'class', include: ['department'] }],
+    order: [['name', 'ASC']],
+    limit, offset: (page - 1) * limit
+  });
+
+  // For the form: all classes if no dept selected, filtered if dept selected
+  const allClasses = await Class.findAll({ include: ['department'], order: [['name', 'ASC']] });
+
+  // Build dept→classes map for cascade JS
+  const deptClassMap = {};
+  allClasses.forEach(c => {
+    const did = c.departmentId;
+    if (!deptClassMap[did]) deptClassMap[did] = [];
+    deptClassMap[did].push({ id: c.id, name: c.name });
+  });
+
   res.render('admin/subjects', {
-    title: 'Subjects', subjects, classes,
+    title: 'Subjects', subjects, departments, classes, allClasses, deptClassMap,
+    selectedDeptId, selectedClassId,
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
   });
@@ -344,13 +373,35 @@ router.post('/subjects/:id/delete', async (req, res) => {
 router.get('/students', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const [{ count, rows: students }, classes, streams] = await Promise.all([
-    Student.findAndCountAll({ where: { isActive: true }, include: ['class', 'stream'], order: [['fullName', 'ASC']], limit, offset: (page - 1) * limit }),
-    Class.findAll({ include: ['department'] }),
+  const [departments, allClasses, allStreams] = await Promise.all([
+    Department.findAll({ order: [['name', 'ASC']] }),
+    Class.findAll({ include: ['department'], order: [['name', 'ASC']] }),
     Stream.findAll({ include: ['class'] })
   ]);
+
+  // Build cascade maps
+  const deptClassMap = {};
+  allClasses.forEach(c => {
+    const did = c.departmentId;
+    if (!deptClassMap[did]) deptClassMap[did] = [];
+    deptClassMap[did].push({ id: c.id, name: c.name });
+  });
+  const classStreamMap = {};
+  allStreams.forEach(s => {
+    if (!classStreamMap[s.classId]) classStreamMap[s.classId] = [];
+    classStreamMap[s.classId].push({ id: s.id, name: s.name });
+  });
+
+  const { count, rows: students } = await Student.findAndCountAll({
+    where: { isActive: true },
+    include: ['class', 'stream'],
+    order: [['fullName', 'ASC']],
+    limit, offset: (page - 1) * limit
+  });
+
   res.render('admin/students', {
-    title: 'Students', students, classes, streams,
+    title: 'Students', students,
+    departments, allClasses, allStreams, deptClassMap, classStreamMap,
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
   });
@@ -476,14 +527,64 @@ router.post('/assignments/class-subject/:id/remove', async (req, res) => {
 router.get('/assignments/teacher-subject', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const [teachers, subjects, classes, { count, rows: assignments }] = await Promise.all([
-    Teacher.findAll({ where: { isActive: true } }),
-    Subject.findAll({ include: ['class'] }),
-    Class.findAll({ include: ['department'] }),
-    TeacherSubject.findAndCountAll({ include: [{ model: Teacher, as: 'teacher' }, { model: Subject, as: 'subject' }, { model: Class, as: 'class' }], limit, offset: (page - 1) * limit })
+  const selectedDeptId = req.query.deptId || '';
+  const selectedClassId = req.query.classId || '';
+
+  const [teachers, departments, allClasses] = await Promise.all([
+    Teacher.findAll({ where: { isActive: true }, include: ['department'], order: [['fullName', 'ASC']] }),
+    Department.findAll({ order: [['name', 'ASC']] }),
+    Class.findAll({ include: ['department'], order: [['name', 'ASC']] })
   ]);
+
+  // Classes filtered by dept for the form select
+  const classes = selectedDeptId
+    ? allClasses.filter(c => c.departmentId == selectedDeptId)
+    : allClasses;
+
+  // Subjects filtered by class for the form select
+  const subjects = selectedClassId
+    ? await Subject.findAll({ where: { classId: selectedClassId }, include: ['class'] })
+    : selectedDeptId
+      ? await Subject.findAll({ where: { classId: classes.map(c => c.id) }, include: ['class'] })
+      : await Subject.findAll({ include: ['class'] });
+
+  // Assignments filtered by dept/class
+  const assignWhere = {};
+  if (selectedClassId) assignWhere.classId = selectedClassId;
+  else if (selectedDeptId && classes.length) assignWhere.classId = classes.map(c => c.id);
+
+  const { count, rows: assignments } = await TeacherSubject.findAndCountAll({
+    where: Object.keys(assignWhere).length ? assignWhere : {},
+    include: [
+      { model: Teacher, as: 'teacher' },
+      { model: Subject, as: 'subject' },
+      { model: Class, as: 'class', include: ['department'] }
+    ],
+    order: [[{ model: Class, as: 'class' }, 'name', 'ASC']],
+    limit, offset: (page - 1) * limit
+  });
+
+  // dept→classes map for cascade JS
+  const deptClassMap = {};
+  allClasses.forEach(c => {
+    const did = c.departmentId;
+    if (!deptClassMap[did]) deptClassMap[did] = [];
+    deptClassMap[did].push({ id: c.id, name: c.name });
+  });
+
+  // class→subjects map for cascade JS
+  const classSubjectMap = {};
+  const allSubjects = await Subject.findAll({ include: ['class'] });
+  allSubjects.forEach(s => {
+    if (!classSubjectMap[s.classId]) classSubjectMap[s.classId] = [];
+    classSubjectMap[s.classId].push({ id: s.id, name: s.name });
+  });
+
   res.render('admin/assign-teacher-subject', {
-    title: 'Assign Teachers to Subjects', teachers, subjects, classes, assignments,
+    title: 'Assign Teachers to Subjects',
+    teachers, departments, classes, subjects, assignments, allClasses,
+    deptClassMap, classSubjectMap,
+    selectedDeptId, selectedClassId,
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
   });
@@ -670,37 +771,120 @@ router.get('/reports/examination', async (req, res) => {
   });
 });
 
-// ── Print All Report Cards for a Class ────────────────────────────────────────
+// ── Helper: build class student reports ───────────────────────────────────────
+async function buildClassReports(classId, term, year) {
+  const cls = await Class.findByPk(classId, { include: ['department'] });
+  const students = await Student.findAll({ where: { classId, isActive: true }, include: ['class', 'stream'], order: [['fullName', 'ASC']] });
+  const deptCode = cls && cls.department ? cls.department.code : '';
+  const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+  const studentReports = await Promise.all(students.map(async student => {
+    const marks = await Mark.findAll({ where: { studentId: student.id, term, academicYear: year }, include: ['subject'] });
+    const attendance = await Attendance.findAll({ where: { studentId: student.id } });
+    const presentDays = attendance.filter(a => a.status === 'present').length;
+    const totalDays = attendance.length;
+    const reportComment = await ReportComment.findOne({ where: { studentId: student.id, classId, term, academicYear: year } });
+    return { student: student.toJSON(), marks: marks.map(m => m.toJSON()), presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null };
+  }));
+  return { cls: cls ? cls.toJSON() : {}, deptCode, isPrimary, studentReports };
+}
+
+// ── Print All Progressive Reports (CA) for a Class ────────────────────────────
 router.get('/reports/print-all-report-cards', async (req, res) => {
   try {
     const { classId, term, year } = req.query;
-    const cls = await Class.findByPk(classId, { include: ['department'] });
-    const students = await Student.findAll({ where: { classId, isActive: true }, include: ['class', 'stream'], order: [['fullName', 'ASC']] });
-
-    const studentReports = await Promise.all(students.map(async student => {
-      const marks = await Mark.findAll({
-        where: { studentId: student.id, term: term || 'Term 1', academicYear: year || '2024/2025' },
-        include: ['subject']
-      });
-      const attendance = await Attendance.findAll({ where: { studentId: student.id } });
-      const presentDays = attendance.filter(a => a.status === 'present').length;
-      const totalDays = attendance.length;
-      const reportComment = await ReportComment.findOne({
-        where: { studentId: student.id, classId, term: term || 'Term 1', academicYear: year || '2024/2025' }
-      });
-      const studentPlain = student.toJSON();
-      const marksPlain = marks.map(m => m.toJSON());
-      return { student: studentPlain, marks: marksPlain, presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null };
-    }));
-
-    res.render('admin/print-all-report-cards', {
-      title: `Report Cards — ${cls ? cls.name : ''}`,
-      cls, studentReports, term: term || 'Term 1', year: year || '2024/2025',
-      getRemark, admin: req.session.admin
+    if (!classId) {
+      return res.status(400).send('<h2>Missing classId parameter</h2><a href="/admin/reports/examination">Go back</a>');
+    }
+    const t = term || 'Term 1', y = year || '2024/2025';
+    const { cls, studentReports } = await buildClassReports(classId, t, y);
+    res.render('admin/print-all-progressive', {
+      title: 'Progressive Report Cards — ' + (cls.name || ''),
+      cls, studentReports, term: t, year: y, getRemark,
+      admin: req.session && req.session.admin ? req.session.admin : {}
     });
   } catch (err) {
-    req.flash('error', err.message);
-    res.redirect('/admin/reports/examination');
+    console.error('print-all-progressive error:', err);
+    res.status(500).send('<h2>Error: ' + err.message + '</h2><a href="/admin/reports/examination">Go back</a>');
+  }
+});
+
+// ── Print All Final Reports (FE) for a Class ──────────────────────────────────
+router.get('/reports/print-all-final-reports', async (req, res) => {
+  try {
+    const { classId, term, year } = req.query;
+    if (!classId) {
+      return res.status(400).send('<h2>Missing classId parameter</h2><a href="/admin/reports/examination">Go back</a>');
+    }
+    const t = term || 'Term 1', y = year || '2024/2025';
+    const { cls, deptCode, isPrimary, studentReports } = await buildClassReports(classId, t, y);
+    // Collect all unique subjects across all student marks
+    const subjectMap = {};
+    studentReports.forEach(sr => sr.marks.forEach(m => {
+      if (m.subject && !subjectMap[m.subjectId]) subjectMap[m.subjectId] = m.subject;
+    }));
+    const subjects = Object.values(subjectMap);
+    res.render('admin/print-all-final', {
+      title: 'Final Report Cards — ' + (cls.name || ''),
+      cls, deptCode, isPrimary, studentReports, subjects, term: t, year: y,
+      admin: req.session && req.session.admin ? req.session.admin : {}
+    });
+  } catch (err) {
+    console.error('print-all-final error:', err);
+    res.status(500).send('<h2>Error: ' + err.message + '</h2><a href="/admin/reports/examination">Go back</a>');
+  }
+});
+
+// ── Exam Analysis (Admin) ─────────────────────────────────────────────────────
+router.get('/reports/exam-analysis', async (req, res) => {
+  const currentYear = await getCurrentYear();
+  const classes = await Class.findAll({ include: ['department'] });
+  const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+  const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+  const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
+
+  let analysisData = null;
+  if (req.query.classId) {
+    const cls = await Class.findByPk(req.query.classId, { include: ['department'] });
+    const deptCode = cls && cls.department ? cls.department.code : '';
+    const marks = await Mark.findAll({
+      where: { classId: req.query.classId, term, academicYear: year },
+      include: ['subject', 'student']
+    });
+    const totalStudents = await Student.count({ where: { classId: req.query.classId, isActive: true } });
+    analysisData = { cls: cls ? cls.toJSON() : null, deptCode, totalStudents, subjects: buildExamAnalysis(marks.map(m => m.toJSON()), deptCode) };
+  }
+
+  res.render('admin/exam-analysis', {
+    title: 'Exam Analysis', classes, analysisData, term, year, currentYear, academicYears,
+    admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
+  });
+});
+
+// ── Admin Academic Report (print) ─────────────────────────────────────────────
+router.get('/reports/academic-report/:classId', async (req, res) => {
+  try {
+    const currentYear = await getCurrentYear();
+    const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+    const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+    const cls = await Class.findByPk(req.params.classId, { include: ['department'] });
+    const deptCode = cls && cls.department ? cls.department.code : '';
+    const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+    const students = await Student.findAll({ where: { classId: req.params.classId, isActive: true }, include: ['stream'], order: [['fullName', 'ASC']] });
+    const marks = await Mark.findAll({ where: { classId: req.params.classId, term, academicYear: year }, include: ['subject'] });
+    const marksByStudent = {};
+    marks.forEach(m => { if (!marksByStudent[m.studentId]) marksByStudent[m.studentId] = []; marksByStudent[m.studentId].push(m.toJSON()); });
+    const studentReports = students.map(s => ({ student: s.toJSON(), marks: marksByStudent[s.id] || [] }));
+    const subjectMap = {};
+    marks.forEach(m => { if (m.subject && !subjectMap[m.subjectId]) subjectMap[m.subjectId] = m.subject.toJSON(); });
+    const subjects = Object.values(subjectMap);
+    res.render('admin/academic-report', {
+      title: 'Academic Report', cls: cls ? cls.toJSON() : {}, deptCode, isPrimary, subjects, studentReports,
+      term, year, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed,
+      admin: req.session.admin
+    });
+  } catch (err) {
+    console.error('academic-report error:', err);
+    res.status(500).send('<h2>Error: ' + err.message + '</h2><a href="/admin/reports/exam-analysis">Go back</a>');
   }
 });
 

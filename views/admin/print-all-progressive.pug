@@ -1,0 +1,117 @@
+extends ../layout
+
+block content
+  .print-page
+    .no-print.print-controls
+      button.btn.btn-primary(onclick='window.print()')
+        i.fas.fa-print
+        span Print All Progressive Reports
+      a.btn.btn-outline(href='javascript:history.back()') ← Back
+      span.print-hint #{studentReports.length} report cards
+
+    each sr, idx in studentReports
+      .report-card(class=idx < studentReports.length - 1 ? 'page-break-after' : '')
+        .report-card-header
+          .school-info
+            .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='64' height='64')
+            div
+              h1 Canon Andrea Mwaka School
+              p "Never tire of doing what is right" - 2 Thessalonians 3:13
+          .report-meta
+            .report-type-badge.badge-progressive PROGRESSIVE REPORT
+            h2 Continuous Assessment
+            p #{term} — #{year}
+
+        .student-details-section
+          .detail-row
+            .detail-item
+              label Student Name:
+              strong #{sr.student.fullName}
+            .detail-item
+              label Class:
+              strong #{sr.student.class ? sr.student.class.name : '-'}
+            .detail-item
+              label Stream:
+              strong #{sr.student.stream ? sr.student.stream.name : 'N/A'}
+            .detail-item
+              label Gender:
+              strong #{sr.student.gender}
+            .detail-item
+              label Attendance:
+              - const attPct = sr.totalDays > 0 ? Math.round((sr.presentDays / sr.totalDays) * 100) : 0
+              strong #{sr.presentDays}/#{sr.totalDays} days (#{attPct}%)
+
+        .marks-section
+          table.report-table
+            thead
+              tr
+                th Subject
+                th H/W
+                th G/W
+                th QZ
+                th C/W
+                th U/T
+                th CA Total
+                th Grade
+                th Remarks
+            tbody
+              if sr.marks.length
+                each m in sr.marks
+                  tr
+                    td.subject-cell #{m.subject ? m.subject.name : '-'}
+                    td #{m.homework != null ? m.homework : '-'}
+                    td #{m.groupWork != null ? m.groupWork : '-'}
+                    td #{m.quiz != null ? m.quiz : '-'}
+                    td #{m.classWork != null ? m.classWork : '-'}
+                    td #{m.unitTest != null ? m.unitTest : '-'}
+                    td
+                      strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
+                    td
+                      span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
+                    td #{getRemark(m.grade)}
+              else
+                tr
+                  td(colspan=9, style='text-align:center;color:#64748b') No marks recorded.
+            if sr.marks.length
+              tfoot
+                tr.summary-row
+                  td(colspan=6) Overall Average
+                  - const avg = sr.marks.reduce((s,m)=>s+(m.totalScore||0),0)/sr.marks.length
+                  td
+                    strong #{avg.toFixed(1)}
+                  - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
+                  td
+                    span(class=`grade-badge grade-${g}`) #{g}
+                  td #{getRemark(g)}
+
+        .grading-key
+          h4 Grading Key (CA):
+          .grade-key-grid
+            span.grade-badge.grade-A A — Excellent (90–100)
+            span.grade-badge.grade-B B — Very Good (80–89)
+            span.grade-badge.grade-C C — Good (70–79)
+            span.grade-badge.grade-D D — Satisfactory (60–69)
+            span.grade-badge.grade-F F — Fail (0–59)
+
+        .weight-key
+          h4 Component Weights: H/W (Home Work) 10% &nbsp;|&nbsp; G/W (Group Work) 15% &nbsp;|&nbsp; QZ (Quiz) 20% &nbsp;|&nbsp; C/W (Class Work) 20% &nbsp;|&nbsp; U/T (Unit Test) 35%
+
+        if sr.reportComment && sr.reportComment.comment
+          .class-teacher-comment
+            h4
+              i.fas.fa-comment-alt
+              |  Class Teacher's Comment
+            p.comment-text #{sr.reportComment.comment}
+
+        .report-card-footer
+          .signature-area
+            .sig-box
+              p ___________________________
+              p Class Teacher
+            .sig-box
+              p ___________________________
+              p Parent / Guardian
+            .sig-box
+              p ___________________________
+              p Head Teacher

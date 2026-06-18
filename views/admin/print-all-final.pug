@@ -1,0 +1,147 @@
+extends ../layout
+
+block content
+  .print-page
+    .no-print.print-controls
+      button.btn.btn-primary(onclick='window.print()')
+        i.fas.fa-print
+        span Print All Final Reports
+      a.btn.btn-outline(href='javascript:history.back()') ← Back
+      span.print-hint #{studentReports.length} report cards
+
+    each sr, idx in studentReports
+      .report-card(class=idx < studentReports.length - 1 ? 'page-break-after' : '')
+        .report-card-header
+          .school-info
+            .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='64' height='64')
+            div
+              h1 Canon Andrea Mwaka School
+              p "Never tire of doing what is right" - 2 Thessalonians 3:13
+          .report-meta
+            .report-type-badge.badge-final FINAL REPORT
+            h2 Final Examination Results
+            p #{term} — #{year}
+
+        .student-details-section
+          .detail-row
+            .detail-item
+              label Student Name:
+              strong #{sr.student.fullName}
+            .detail-item
+              label Class:
+              strong #{sr.student.class ? sr.student.class.name : '-'}
+            .detail-item
+              label Stream:
+              strong #{sr.student.stream ? sr.student.stream.name : 'N/A'}
+            .detail-item
+              label Gender:
+              strong #{sr.student.gender}
+            .detail-item
+              label Department:
+              strong #{deptCode}
+
+        .marks-section
+          if isPrimary
+            table.report-table
+              thead
+                tr
+                  th Subject
+                  th Score (out of 50)
+                  th Classification
+                  th Result
+              tbody
+                if sr.marks.length
+                  each m in sr.marks
+                    - const fe = m.finalExam != null ? m.finalExam : null
+                    - const pg = fe===null?null:fe===0?'Unclassified':fe<=10?'Basic':fe<=20?'Aspiring':fe<=30?'Good':fe<=40?'High':'Outstanding'
+                    - const passed = fe !== null && fe >= 21
+                    tr
+                      td.subject-cell #{m.subject ? m.subject.name : '-'}
+                      td
+                        strong #{fe !== null ? fe : '—'}
+                      td
+                        if pg
+                          span(class=`prim-grade prim-${pg.toLowerCase()}`) #{pg}
+                        else
+                          | —
+                      td
+                        if fe !== null
+                          span(class=`pf-badge ${passed?'pf-pass':'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
+                        else
+                          | —
+                else
+                  tr
+                    td(colspan=4, style='text-align:center;color:#64748b') No final exam marks recorded.
+            .exam-key
+              h4 Classification (out of 50): &nbsp;
+                span.prim-grade.prim-outstanding Outstanding 41–50
+                |  &nbsp;
+                span.prim-grade.prim-high High 31–40
+                |  &nbsp;
+                span.prim-grade.prim-good Good 21–30
+                |  &nbsp;
+                span.prim-grade.prim-aspiring Aspiring 11–20
+                |  &nbsp;
+                span.prim-grade.prim-basic Basic 1–10
+                |  &nbsp;
+                span.prim-grade.prim-unclassified Unclassified 0
+
+          else
+            table.report-table
+              thead
+                tr
+                  th Subject
+                  th Score
+                  th Max Mark
+                  th Percentage
+                  th Result
+              tbody
+                if sr.marks.length
+                  each m in sr.marks
+                    - const fe = m.finalExam != null ? m.finalExam : null
+                    - const feMax = m.finalExamMax || null
+                    - const pct = fe !== null && feMax ? ((fe/feMax)*100) : null
+                    - const passed = pct !== null && pct >= 40
+                    tr
+                      td.subject-cell #{m.subject ? m.subject.name : '-'}
+                      td
+                        strong #{fe !== null ? fe : '—'}
+                      td #{feMax ? feMax : '—'}
+                      td #{pct !== null ? pct.toFixed(1)+'%' : '—'}
+                      td
+                        if fe !== null && feMax
+                          span(class=`pf-badge ${passed?'pf-pass':'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
+                        else
+                          | —
+                else
+                  tr
+                    td(colspan=5, style='text-align:center;color:#64748b') No final exam marks recorded.
+            .exam-key
+              h4 Pass Threshold: ≥ 40% of set max mark per subject
+
+        if sr.marks.length
+          .final-summary
+            - const feMarks = sr.marks.filter(m => m.finalExam != null)
+            - const passCount = isPrimary ? feMarks.filter(m => m.finalExam >= 21).length : feMarks.filter(m => m.finalExamMax && (m.finalExam/m.finalExamMax)*100 >= 40).length
+            .summary-stat
+              span.summary-label Subjects Sat:
+              span.summary-val #{feMarks.length}
+            .summary-stat
+              span.summary-label Passed:
+              span.summary-val.text-success #{passCount}
+            .summary-stat
+              span.summary-label Failed:
+              span.summary-val.text-danger #{feMarks.length - passCount}
+
+        .report-card-footer
+          .signature-area
+            .sig-box
+              p ___________________________
+              p Class Teacher
+            .sig-box
+              p ___________________________
+              p Parent / Guardian
+            .sig-box
+              p ___________________________
+              p Head Teacher

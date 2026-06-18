@@ -45,7 +45,7 @@ block body
                   span(class=`status-badge ${r.status}`) #{r.status}
 
         if pagination.pages > 1
-          - const query_pag = {classId: query.classId, date: query.date}
+          - const query = {classId: query.classId, date: query.date}
           include ../partials/pagination
 
   else if query.classId && query.date

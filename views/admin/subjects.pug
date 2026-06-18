@@ -9,36 +9,75 @@ block body
       .card-body
         form(method='POST', action='/admin/subjects')
           .form-group
-            label Subject Name
-            input(type='text', name='name', required, placeholder='e.g. Mathematics, English')
+            label
+              span.step-badge 1
+              | Department
+            select(name='_deptId', id='formDeptSel', required)
+              option(value='') Select department
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
           .form-group
-            label Class
-            select(name='classId', required)
-              option(value='') Select class
-              each cls in classes
-                option(value=cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+            label
+              span.step-badge 2
+              | Class
+            select(name='classId', id='formClassSel', required)
+              option(value='') — select department first —
+          .form-group
+            label Subject Name
+            input(type='text', name='name', required, placeholder='e.g. Mathematics')
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Save Subject
 
     .card
       .card-header
-        h2 All Subjects
-        span.count-badge #{subjects.length}
+        h2 Filter Subjects
+        i.fas.fa-filter
+      .card-body
+        form.filter-form(method='GET', action='/admin/subjects')
+          .form-row
+            .form-group
+              label Department
+              select(name='deptId', id='filterDeptSel')
+                option(value='') All Departments
+                each dept in departments
+                  option(value=dept.id, selected=selectedDeptId==dept.id.toString()) #{dept.name} (#{dept.code})
+            .form-group
+              label Class
+              select(name='classId', id='filterClassSel')
+                option(value='') All Classes
+                if selectedDeptId && classes.length
+                  each cls in classes
+                    option(value=cls.id, selected=selectedClassId==cls.id.toString()) #{cls.name}
+            button.btn.btn-primary(type='submit')
+              i.fas.fa-search
+              span Filter
+
+      .card-header(style='border-top:1px solid var(--border); margin-top:0')
+        h2 Subjects
+        span.count-badge #{pagination.total}
       .card-body
         if subjects.length
           table.data-table
             thead
               tr
-                th Name
+                th #
+                th Subject Name
                 th Class
+                th Department
                 th Actions
             tbody
-              each subject in subjects
+              each subject, i in subjects
                 tr
+                  td #{((pagination.page-1)*15)+i+1}
                   td
                     span.badge.badge-subject #{subject.name}
                   td #{subject.class ? subject.class.name : '-'}
+                  td
+                    if subject.class && subject.class.department
+                      span(class=`dept-badge badge-${subject.class.department.code.toLowerCase()}`) #{subject.class.department.code}
+                    else
+                      | -
                   td
                     form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline')
                       button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this subject?")')
@@ -46,8 +85,49 @@ block body
         else
           .empty-state
             i.fas.fa-book
-            p No subjects added yet.
+            p No subjects found.
 
-        if pagination && pagination.pages > 1
-          - const query = {}
+        if pagination.pages > 1
+          - const query = {deptId: selectedDeptId, classId: selectedClassId}
           include ../partials/pagination
+
+  script.
+    const deptClassMap = !{JSON.stringify(deptClassMap)};
+
+    // Form cascade: dept → class
+    const formDeptSel = document.getElementById('formDeptSel');
+    const formClassSel = document.getElementById('formClassSel');
+
+    function updateFormClasses() {
+      const did = formDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      formClassSel.innerHTML = '<option value="">— select class —</option>';
+      classes.forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        formClassSel.appendChild(opt);
+      });
+    }
+    formDeptSel.addEventListener('change', updateFormClasses);
+
+    // Filter cascade: dept → class
+    const filterDeptSel = document.getElementById('filterDeptSel');
+    const filterClassSel = document.getElementById('filterClassSel');
+    const savedDept = '!{selectedDeptId}';
+    const savedClass = '!{selectedClassId}';
+
+    function updateFilterClasses() {
+      const did = filterDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      filterClassSel.innerHTML = '<option value="">All Classes</option>';
+      classes.forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (String(c.id) === savedClass) opt.selected = true;
+        filterClassSel.appendChild(opt);
+      });
+    }
+    filterDeptSel.addEventListener('change', updateFilterClasses);
+    if (filterDeptSel.value) updateFilterClasses();

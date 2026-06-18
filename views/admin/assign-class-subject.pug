@@ -9,16 +9,19 @@ block body
       .card-body
         form(method='POST', action='/admin/assignments/class-subject')
           .form-group
+            label Select Department
+            select(name='departmentId', required, id='departmentSel')
+              option(value='') — Choose department —
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
+          .form-group
             label Select Class
-            select(name='classId', required)
-              option(value='') Choose class
-              each cls in classes
-                option(value=cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+            select(name='classId', required, id='classSel', disabled)
+              option(value='') — Choose class —
           .form-group
             label Select Subjects (hold Ctrl/Cmd for multiple)
-            select(name='subjectIds', required, multiple, style='height:150px')
-              each subject in subjects
-                option(value=subject.id) #{subject.name} (#{subject.class ? subject.class.name : ''})
+            select(name='subjectIds', required, multiple, id='subjectSel', style='height:150px', disabled)
+              option(value='') — Choose class first —
           button.btn.btn-primary(type='submit')
             i.fas.fa-link
             span Assign
@@ -26,9 +29,9 @@ block body
     .card
       .card-header
         h2 Current Class-Subject Assignments
-        span.count-badge #{assignments.length}
+        span.count-badge #{assignments && assignments.length ? assignments.length : 0}
       .card-body
-        if assignments.length
+        if assignments && assignments.length
           table.data-table
             thead
               tr
@@ -48,3 +51,84 @@ block body
           .empty-state
             i.fas.fa-book
             p No class-subject assignments yet.
+
+  -
+    const allClassesJson = JSON.stringify((classes || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      departmentId: c.department ? c.department.id : null,
+      departmentCode: c.department ? c.department.code : ''
+    })));
+    const allSubjectsJson = JSON.stringify((subjects || []).map(s => ({
+      id: s.id,
+      name: s.name,
+      classId: s.class ? s.class.id : null
+    })));
+
+  script.
+    const departmentSel = document.getElementById('departmentSel');
+    const classSel = document.getElementById('classSel');
+    const subjectSel = document.getElementById('subjectSel');
+
+    const allClasses = !{allClassesJson};
+    const allSubjects = !{allSubjectsJson};
+
+    function populateClasses(deptId) {
+      classSel.innerHTML = '';
+      subjectSel.innerHTML = '<option value="">— Choose class first —</option>';
+      subjectSel.disabled = true;
+
+      if (!deptId) {
+        classSel.disabled = true;
+        classSel.innerHTML = '<option value="">— Choose class —</option>';
+        return;
+      }
+
+      const filtered = (allClasses || []).filter(c => String(c.departmentId) === String(deptId));
+      if (!filtered.length) {
+        classSel.disabled = true;
+        classSel.innerHTML = '<option value="">— No classes in this department —</option>';
+        return;
+      }
+
+      classSel.innerHTML = '<option value="">— Choose class —</option>';
+      filtered.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.name} ${c.departmentCode ? '— ' + c.departmentCode : ''}`;
+        classSel.appendChild(opt);
+      });
+      classSel.disabled = false;
+    }
+
+    function populateSubjects(classId) {
+      subjectSel.innerHTML = '';
+      if (!classId) {
+        subjectSel.disabled = true;
+        subjectSel.innerHTML = '<option value="">— Choose class first —</option>';
+        return;
+      }
+
+      const filtered = (allSubjects || []).filter(s => String(s.classId) === String(classId));
+      if (!filtered.length) {
+        subjectSel.disabled = true;
+        subjectSel.innerHTML = '<option value="">— No subjects for this class —</option>';
+        return;
+      }
+
+      filtered.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        subjectSel.appendChild(opt);
+      });
+      subjectSel.disabled = false;
+    }
+
+    departmentSel.addEventListener('change', function () {
+      populateClasses(this.value);
+    });
+
+    classSel.addEventListener('change', function () {
+      populateSubjects(this.value);
+    });

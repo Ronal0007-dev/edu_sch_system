@@ -322,8 +322,8 @@ a:hover { text-decoration: underline; }
 .grading-key h4 { font-size: .8rem; color: var(--text-muted); margin-bottom: .5rem; }
 .grade-key-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
 .report-card-footer { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
-.signature-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-.sig-box { text-align: center; }
+.signature-area { display: flex; justify-content: space-between; gap: 2rem; }
+.sig-box { text-align: center; flex: 1; min-width: 180px; }
 .sig-box p { font-size: .78rem; color: var(--text-muted); margin-top: .25rem; }
 .print-date { font-size: .72rem; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 
@@ -481,3 +481,91 @@ a:hover { text-decoration: underline; }
 
 /* ─── Comment error inline ──────────────────────────────────────────────────── */
 .comment-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: var(--radius-sm); padding: .5rem .75rem; font-size: .8rem; margin-bottom: .4rem; }
+
+/* ─── Marks page sections ───────────────────────────────────────────────────── */
+.section-title { display:flex; align-items:center; gap:.75rem; font-size:1rem; font-weight:700; padding:.85rem 1.1rem; background:var(--card); border:1.5px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; margin-top:1.75rem; }
+.section-title i { color:var(--primary); }
+.section-exam { background:#fff7ed; border-color:#fed7aa; }
+.section-exam i { color:#ea580c; }
+.section-dept-badge { margin-left:auto; padding:.2rem .65rem; border-radius:4px; font-size:.75rem; font-weight:700; background:var(--primary-light); color:var(--primary); }
+.dept-secondary { background:#f0fdf4; color:#15803d; }
+.dept-primary { background:#eff6ff; color:#1d4ed8; }
+.dept-eyc { background:#fff7ed; color:#c2410c; }
+.marks-info-bar { display:flex; gap:2rem; flex-wrap:wrap; background:#f8fafc; border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.65rem 1.1rem; margin-bottom:.5rem; font-size:.82rem; }
+.info-item { display:flex; gap:.5rem; align-items:center; }
+.info-label { font-weight:700; color:var(--text-muted); }
+.info-val { color:var(--text); }
+
+/* Primary exam classification badges */
+.prim-grade { display:inline-block; padding:.2rem .6rem; border-radius:6px; font-weight:700; font-size:.82rem; }
+.prim-outstanding { background:#dcfce7; color:#15803d; }
+.prim-high { background:#dbeafe; color:#1d4ed8; }
+.prim-good { background:#fef9c3; color:#854d0e; }
+.prim-aspiring { background:#fed7aa; color:#c2410c; }
+.prim-basic { background:#fee2e2; color:#dc2626; }
+.prim-unclassified { background:#f1f5f9; color:#64748b; }
+
+/* Pass / Fail badges */
+.pf-badge { display:inline-block; padding:.15rem .55rem; border-radius:4px; font-size:.78rem; font-weight:700; }
+.pf-pass { background:#dcfce7; color:#15803d; }
+.pf-fail { background:#fee2e2; color:#dc2626; }
+
+/* FE max badge */
+.exam-max-badge { margin-left:auto; font-size:.78rem; font-weight:600; background:#fff7ed; color:#c2410c; padding:.15rem .55rem; border-radius:4px; }
+
+/* ─── Exam Analysis ──────────────────────────────────────────────────────────── */
+.analysis-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; flex-wrap:wrap; gap:.75rem; }
+.analysis-header h2 { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:.6rem; }
+.analysis-top-cards { display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.analysis-stat-card { background:var(--card); border:1.5px solid var(--border); border-radius:var(--radius); padding:1rem 1.5rem; display:flex; align-items:center; gap:1rem; min-width:160px; }
+.asi-icon { width:44px; height:44px; border-radius:10px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+.asi-dept { background:#f0fdf4; color:#15803d; }
+.asi-info h3 { font-size:1.5rem; font-weight:800; line-height:1; }
+.asi-info p { font-size:.78rem; color:var(--text-muted); margin-top:.15rem; }
+
+.subjects-analysis-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:1rem; }
+.subj-analysis-card { background:var(--card); border:1.5px solid var(--border); border-radius:var(--radius); padding:1.1rem; }
+.subj-name { font-size:.95rem; font-weight:700; margin-bottom:.85rem; color:var(--text); }
+.subj-stats { display:flex; gap:.5rem; margin-bottom:.75rem; }
+.subj-stat-item { flex:1; text-align:center; padding:.5rem .25rem; border-radius:var(--radius-sm); }
+.stat-total { background:#f1f5f9; }
+.stat-pass { background:#dcfce7; }
+.stat-fail { background:#fee2e2; }
+.stat-num { font-size:1.4rem; font-weight:800; line-height:1; }
+.stat-total .stat-num { color:var(--text); }
+.stat-pass .stat-num { color:#15803d; }
+.stat-fail .stat-num { color:#dc2626; }
+.stat-lbl { font-size:.72rem; font-weight:600; margin-top:.2rem; color:var(--text-muted); text-transform:uppercase; }
+.subj-bar { position:relative; background:#f1f5f9; border-radius:4px; height:20px; overflow:hidden; }
+.subj-bar-fill { height:100%; border-radius:4px; transition:width .4s ease; }
+.bar-good { background:#10b981; }
+.bar-bad { background:#ef4444; }
+.subj-bar-label { position:absolute; right:6px; top:50%; transform:translateY(-50%); font-size:.72rem; font-weight:700; color:#fff; }
+
+/* ─── Academic Report print ──────────────────────────────────────────────────── */
+.cell-pass { background:#dcfce7 !important; color:#15803d; font-weight:700; }
+.cell-fail { background:#fee2e2 !important; color:#dc2626; font-weight:700; }
+.exam-key { background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.75rem 1rem; margin:1rem 0; }
+.exam-key h4 { font-size:.8rem; color:var(--text-muted); font-weight:700; margin-bottom:.5rem; }
+
+/* ─── Report type badges ────────────────────────────────────────────────────── */
+.report-type-badge { display:inline-block; padding:.3rem .85rem; border-radius:6px; font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:.5rem; }
+.badge-progressive { background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; }
+.badge-final { background:#fff7ed; color:#c2410c; border:1.5px solid #fed7aa; }
+
+/* ─── Weight key display ────────────────────────────────────────────────────── */
+.weight-key { background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.65rem 1rem; margin:.75rem 0; }
+.weight-key h4 { font-size:.78rem; color:var(--text-muted); font-weight:700; margin-bottom:.4rem; }
+.weight-row-display { display:flex; gap:1rem; flex-wrap:wrap; }
+.weight-row-display span { font-size:.8rem; font-weight:600; color:var(--primary); background:var(--primary-light); padding:.15rem .55rem; border-radius:4px; }
+
+/* ─── Final summary bar ─────────────────────────────────────────────────────── */
+.final-summary { display:flex; gap:1.5rem; background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.75rem 1rem; margin:1rem 0; flex-wrap:wrap; }
+.summary-stat { display:flex; gap:.5rem; align-items:center; font-size:.88rem; }
+.summary-label { font-weight:600; color:var(--text-muted); }
+.summary-val { font-weight:800; font-size:1rem; }
+.text-success { color:#15803d; }
+.text-danger { color:#dc2626; }
+
+/* ─── Step badges in marks filter ──────────────────────────────────────────── */
+.step-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:var(--primary); color:#fff; border-radius:50%; font-size:.7rem; font-weight:800; margin-right:.35rem; flex-shrink:0; }

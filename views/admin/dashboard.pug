@@ -36,17 +36,17 @@ block body
   .dashboard-grid
     .card
       .card-header
-        h2 Attendance Ratio by Class
+        h2 Students per Class
         i.fas.fa-chart-pie
       .card-body
         if attendanceData && attendanceData.length && attendanceData.some(d => d.total > 0)
           .chart-container
-            canvas#attendancePieChart(width='320', height='320')
+            canvas#enrollmentPieChart(style='width:300px;height:300px;display:block;margin:0 auto')
           .chart-legend#pieLegend
         else
           .empty-state
             i.fas.fa-chart-pie
-            p No attendance data yet.
+            p No class enrollment data yet.
 
     .card
       .card-header
@@ -71,7 +71,7 @@ block body
                     span.count-badge #{cls.students ? cls.students.length : 0}
                   td
                     a.btn.btn-sm(href=`/admin/reports/attendance?classId=${cls.id}`) Attendance
-                    a.btn.btn-sm.btn-outline(href=`/admin/reports/examination?classId=${cls.id}`) Exams
+                    a.btn.btn-sm.btn-outline(href=`/admin/reports/exam-analysis?classId=${cls.id}`) Exam Analysis
         else
           .empty-state
             i.fas.fa-inbox
@@ -116,77 +116,89 @@ block body
       a.action-card(href='/admin/students')
         i.fas.fa-user-graduate
         span Add Student
+      a.action-card(href='/admin/reports/exam-analysis')
+        i.fas.fa-chart-bar
+        span Exam Analysis
       a.action-card(href='/admin/holidays')
         i.fas.fa-umbrella-beach
         span Manage Holidays
 
   script.
-    const rawData = !{JSON.stringify(attendanceData || [])};
-    const canvas = document.getElementById('attendancePieChart');
-    if (canvas && rawData.length) {
-      const ctx = canvas.getContext('2d');
-      const W = canvas.width, H = canvas.height;
-      const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 20;
+    document.addEventListener('DOMContentLoaded', function() {
+      var rawData = !{JSON.stringify(attendanceData || [])};
+      var canvas = document.getElementById('enrollmentPieChart');
+      if (!canvas) return;
 
-      // Colors per class
-      const palette = ['#1a56db','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
-      const classes = rawData.filter(d => d.total > 0);
-      const totalAll = classes.reduce((s, d) => s + d.total, 0);
+      // Set actual pixel dimensions
+      var SIZE = 300;
+      canvas.width = SIZE;
+      canvas.height = SIZE;
 
-      if (totalAll === 0) { canvas.style.display='none'; return; }
+      var items = rawData.filter(function(d) { return d.total > 0; });
+      if (!items.length) { canvas.style.display = 'none'; return; }
 
-      let startAngle = -Math.PI / 2;
-      classes.forEach((cls, i) => {
-        const slice = (cls.total / totalAll) * Math.PI * 2;
+      var totalAll = items.reduce(function(s, d) { return s + d.total; }, 0);
+      if (totalAll === 0) { canvas.style.display = 'none'; return; }
+
+      var ctx = canvas.getContext('2d');
+      var cx = SIZE / 2, cy = SIZE / 2;
+      var outerR = SIZE / 2 - 16;
+      var innerR = outerR * 0.50;
+      var palette = ['#1a56db','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#14b8a6'];
+
+      var startAngle = -Math.PI / 2;
+      items.forEach(function(item, i) {
+        var slice = (item.total / totalAll) * Math.PI * 2;
+        // Outer arc
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+        ctx.arc(cx, cy, outerR, startAngle, startAngle + slice);
         ctx.closePath();
         ctx.fillStyle = palette[i % palette.length];
         ctx.fill();
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.stroke();
-
-        // Label on large slices
+        // Label on slices large enough
         if (slice > 0.3) {
-          const midAngle = startAngle + slice / 2;
-          const lx = cx + (r * 0.65) * Math.cos(midAngle);
-          const ly = cy + (r * 0.65) * Math.sin(midAngle);
-          ctx.fillStyle = '#fff';
-          ctx.font = 'bold 11px sans-serif';
+          var mid = startAngle + slice / 2;
+          var lx = cx + (outerR * 0.70) * Math.cos(mid);
+          var ly = cy + (outerR * 0.70) * Math.sin(mid);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 12px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          const pct = Math.round((cls.total / totalAll) * 100);
-          ctx.fillText(pct + '%', lx, ly);
+          ctx.fillText(item.total, lx, ly);
         }
         startAngle += slice;
       });
 
-      // Draw center circle (donut)
+      // Punch out donut hole
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
+      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
       ctx.fill();
+
+      // Centre text
       ctx.fillStyle = '#1e293b';
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Attendance', cx, cy - 8);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Students', cx, cy - 9);
       ctx.font = '12px sans-serif';
       ctx.fillStyle = '#64748b';
-      ctx.fillText(totalAll + ' records', cx, cy + 10);
+      ctx.fillText(totalAll + ' total', cx, cy + 11);
 
-      // Legend
-      const legend = document.getElementById('pieLegend');
+      // Build legend
+      var legend = document.getElementById('pieLegend');
       if (legend) {
-        classes.forEach((cls, i) => {
-          const item = document.createElement('div');
-          item.className = 'legend-item-chart';
-          const pct = totalAll > 0 ? Math.round((cls.present / cls.total) * 100) : 0;
-          item.innerHTML = `<span class="legend-dot" style="background:${palette[i % palette.length]}"></span>
-            <span class="legend-label">${cls.name}</span>
-            <span class="legend-pct">${pct}% present</span>`;
-          legend.appendChild(item);
+        items.forEach(function(item, i) {
+          var el = document.createElement('div');
+          el.className = 'legend-item-chart';
+          el.innerHTML = '<span class="legend-dot" style="background:' + palette[i % palette.length] + '"></span>'
+            + '<span class="legend-label">' + item.name + '</span>'
+            + '<span class="legend-pct">' + item.total + ' (' + Math.round((item.total / totalAll) * 100) + '%)</span>';
+          legend.appendChild(el);
         });
       }
-    }
+    });

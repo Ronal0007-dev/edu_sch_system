@@ -162,8 +162,12 @@ const Mark = sequelize.define('Mark', {
   quiz: { type: DataTypes.FLOAT, defaultValue: 0 },
   classWork: { type: DataTypes.FLOAT, defaultValue: 0 },
   unitTest: { type: DataTypes.FLOAT, defaultValue: 0 },
+  // finalExam is separate from CA — not included in totalScore/grade
   finalExam: { type: DataTypes.FLOAT, defaultValue: 0 },
+  // For secondary: teacher sets the max mark for this subject's final exam
+  finalExamMax: { type: DataTypes.FLOAT, defaultValue: null, allowNull: true },
   gradingMethod: { type: DataTypes.ENUM('weighted', 'unweighted'), defaultValue: 'weighted' },
+  // CA total (excludes finalExam)
   totalScore: { type: DataTypes.FLOAT },
   grade: { type: DataTypes.STRING(2) },
   enteredBy: { type: DataTypes.INTEGER }

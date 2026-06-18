@@ -4,30 +4,40 @@ block body
   .two-col-layout
     .card.form-card
       .card-header
-        h2 Assign Teacher to Classes
+        h2 Assign Teacher to Class
         i.fas.fa-link
       .card-body
         form(method='POST', action='/admin/assignments/teacher-class')
           .form-group
             label Select Teacher
-            select(name='teacherId', required, id='teacherSel')
+            select(name='teacherId', required)
               option(value='') Choose teacher
               each teacher in teachers
                 option(value=teacher.id) #{teacher.fullName} (#{teacher.department ? teacher.department.code : ''})
 
           .form-group
-            label Select Classes (hold Ctrl/Cmd for multiple)
-            select(name='classIds', required, multiple, id='classSel', style='height:160px')
-              each cls in classes
-                option(value=cls.id) #{cls.name} — #{cls.department ? cls.department.code : ''}
+            label
+              span.step-badge 1
+              | Department
+            select(id='formDeptSel', required)
+              option(value='') Select department
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
 
           .form-group
-            label Set as Class Teacher for
+            label
+              span.step-badge 2
+              | Class
+            select(name='classIds', id='formClassSel', required)
+              option(value='') — select department first —
+
+          .form-group
+            label Set as Class Teacher?
             select(name='classTeacherId', id='ctSel')
-              option(value='') — None (regular teacher) —
+              option(value='') — No (regular teacher) —
             .form-hint
               i.fas.fa-info-circle
-              span Only one class teacher per class. Selecting a class here marks that assignment as Class Teacher.
+              span Select the class above to set as class teacher. Only one class teacher allowed per class.
 
           button.btn.btn-primary(type='submit')
             i.fas.fa-link
@@ -35,6 +45,29 @@ block body
 
     .card
       .card-header
+        h2 Filter Assignments
+        i.fas.fa-filter
+      .card-body
+        form.filter-form(method='GET', action='/admin/assignments/teacher-class')
+          .form-row
+            .form-group
+              label Department
+              select(name='deptId', id='filterDeptSel')
+                option(value='') All Departments
+                each dept in departments
+                  option(value=dept.id, selected=selectedDeptId==dept.id.toString()) #{dept.name} (#{dept.code})
+            .form-group
+              label Class
+              select(name='classId', id='filterClassSel')
+                option(value='') All Classes
+                if selectedDeptId && filteredClasses.length
+                  each cls in filteredClasses
+                    option(value=cls.id, selected=selectedClassId==cls.id.toString()) #{cls.name}
+            button.btn.btn-primary(type='submit')
+              i.fas.fa-search
+              span Filter
+
+      .card-header(style='border-top:1px solid var(--border)')
         h2 Current Assignments
         span.count-badge #{pagination.total}
       .card-body
@@ -44,6 +77,7 @@ block body
               tr
                 th Teacher
                 th Class
+                th Department
                 th Role
                 th Actions
             tbody
@@ -56,6 +90,11 @@ block body
                   td
                     span.badge.badge-class #{a.class ? a.class.name : '-'}
                   td
+                    if a.class && a.class.department
+                      span(class=`dept-badge badge-${a.class.department.code.toLowerCase()}`) #{a.class.department.code}
+                    else
+                      | -
+                  td
                     if a.isClassTeacher
                       span.role-badge.role-class_teacher CLASS TEACHER
                     else
@@ -64,43 +103,81 @@ block body
                     .action-group
                       if a.isClassTeacher
                         form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/unset-class-teacher`, style='display:inline')
-                          button.btn.btn-sm.btn-warning(type='submit', title='Remove class teacher role')
+                          button.btn.btn-sm.btn-warning(type='submit')
                             i.fas.fa-user-minus
                             span Unset CT
                       else
                         form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/set-class-teacher`, style='display:inline')
-                          button.btn.btn-sm.btn-outline(type='submit', title='Make class teacher')
+                          button.btn.btn-sm.btn-outline(type='submit')
                             i.fas.fa-chalkboard-teacher
-                            span Set as CT
+                            span Set CT
                       form(method='POST', action=`/admin/assignments/teacher-class/${a.id}/remove`, style='display:inline')
                         button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this assignment?")')
                           i.fas.fa-unlink
         else
           .empty-state
             i.fas.fa-link
-            p No teacher-class assignments yet.
+            p No assignments found.
 
         if pagination.pages > 1
-          - const query = {}
+          - const query = {deptId: selectedDeptId, classId: selectedClassId}
           include ../partials/pagination
 
   script.
-    // When classes are selected, populate the "Set as Class Teacher for" dropdown
-    const classSel = document.getElementById('classSel');
-    const ctSel = document.getElementById('ctSel');
+    const deptClassMap = !{JSON.stringify(deptClassMap)};
 
-    // All classes data
-    const allClasses = [
-      !{JSON.stringify(classes.map(c => ({id: c.id, name: c.name})))}
-    ];
+    // ── Form cascade: Dept → Class → CT select ──────────────────────────────
+    const formDeptSel  = document.getElementById('formDeptSel');
+    const formClassSel = document.getElementById('formClassSel');
+    const ctSel        = document.getElementById('ctSel');
 
-    classSel.addEventListener('change', function() {
-      const selected = [...this.selectedOptions].map(o => ({ id: o.value, name: o.text }));
-      ctSel.innerHTML = '<option value="">— None (regular teacher) —</option>';
-      selected.forEach(c => {
+    function updateFormClasses() {
+      const did = formDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      formClassSel.innerHTML = '<option value="">— select class —</option>';
+      classes.forEach(function(c) {
         const opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = c.name;
-        ctSel.appendChild(opt);
+        formClassSel.appendChild(opt);
       });
-    });
+      updateCtSelect();
+    }
+
+    function updateCtSelect() {
+      const cid = formClassSel.value;
+      const text = formClassSel.options[formClassSel.selectedIndex]
+        ? formClassSel.options[formClassSel.selectedIndex].text : '';
+      ctSel.innerHTML = '<option value="">— No (regular teacher) —</option>';
+      if (cid) {
+        const opt = document.createElement('option');
+        opt.value = cid;
+        opt.textContent = 'Yes — Class Teacher of ' + text;
+        ctSel.appendChild(opt);
+      }
+    }
+
+    formDeptSel.addEventListener('change', updateFormClasses);
+    formClassSel.addEventListener('change', updateCtSelect);
+
+    // ── Filter cascade: Dept → Class ────────────────────────────────────────
+    const filterDeptSel  = document.getElementById('filterDeptSel');
+    const filterClassSel = document.getElementById('filterClassSel');
+    const savedDept  = '!{selectedDeptId}';
+    const savedClass = '!{selectedClassId}';
+
+    function updateFilterClasses() {
+      const did = filterDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      filterClassSel.innerHTML = '<option value="">All Classes</option>';
+      classes.forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (String(c.id) === savedClass) opt.selected = true;
+        filterClassSel.appendChild(opt);
+      });
+    }
+
+    filterDeptSel.addEventListener('change', updateFilterClasses);
+    if (filterDeptSel.value) updateFilterClasses();

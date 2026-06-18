@@ -1,0 +1,83 @@
+extends ../partials/admin-layout
+
+block body
+  .filter-bar
+    form.filter-form(method='GET', action='/admin/reports/exam-analysis')
+      .form-row
+        .form-group
+          label Class
+          select(name='classId', required)
+            option(value='') Select class
+            each cls in classes
+              option(value=cls.id, selected=analysisData && analysisData.cls && analysisData.cls.id==cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+        .form-group
+          label Term
+          select(name='term')
+            if currentYear && currentYear.terms && currentYear.terms.length
+              each t in currentYear.terms
+                option(value=t.name, selected=term===t.name) #{t.name}
+            else
+              option(value='Term 1', selected=term==='Term 1') Term 1
+              option(value='Term 2', selected=term==='Term 2') Term 2
+              option(value='Term 3', selected=term==='Term 3') Term 3
+        .form-group
+          label Academic Year
+          select(name='year')
+            if currentYear
+              option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name} (Current)
+            each yr in academicYears
+              if !currentYear || yr.id !== currentYear.id
+                option(value=yr.name, selected=year===yr.name) #{yr.name}
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-search
+          span Load Analysis
+
+  if analysisData && analysisData.subjects
+    .analysis-header
+      h2
+        i.fas.fa-chart-bar
+        | Final Exam Analysis — #{analysisData.cls ? analysisData.cls.name : ''} | #{term}
+      .toolbar-actions
+        a.btn.btn-primary(href=`/admin/reports/academic-report/${analysisData.cls ? analysisData.cls.id : ''}?term=${term}&year=${year}`, target='_blank')
+          i.fas.fa-print
+          span Print Academic Report
+
+    .analysis-top-cards
+      .analysis-stat-card
+        .asi-icon
+          i.fas.fa-users
+        .asi-info
+          h3 #{analysisData.totalStudents}
+          p Total Students
+      .analysis-stat-card
+        .asi-icon.asi-dept
+          i.fas.fa-building
+        .asi-info
+          h3 #{analysisData.deptCode}
+          p Department
+
+    if analysisData.subjects.length
+      .subjects-analysis-grid
+        each subj in analysisData.subjects
+          .subj-analysis-card
+            .subj-name #{subj.subject ? subj.subject.name : 'Unknown'}
+            .subj-stats
+              .subj-stat-item.stat-total
+                .stat-num #{subj.total}
+                .stat-lbl Total Sat
+              .subj-stat-item.stat-pass
+                .stat-num #{subj.pass}
+                .stat-lbl Pass
+              .subj-stat-item.stat-fail
+                .stat-num #{subj.fail}
+                .stat-lbl Fail
+            .subj-bar
+              - const passPct = subj.total > 0 ? Math.round((subj.pass/subj.total)*100) : 0
+              .subj-bar-fill(style=`width:${passPct}%`, class=passPct>=50?'bar-good':'bar-bad')
+              span.subj-bar-label #{passPct}% Pass Rate
+    else
+      .empty-state No final exam marks recorded yet.
+  else
+    .empty-state
+      i.fas.fa-hand-pointer
+      p Select a class above to view final exam analysis.

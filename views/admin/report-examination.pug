@@ -38,8 +38,11 @@ block body
       span &nbsp;
       .toolbar-actions
         a.btn.btn-primary(href=`/admin/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}`, target='_blank')
-          i.fas.fa-print
-          span Print All Report Cards
+          i.fas.fa-chart-line
+          span Print All Progressive
+        a.btn.btn-outline(href=`/admin/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+          i.fas.fa-file-alt
+          span Print All Final
 
   if report
     .card

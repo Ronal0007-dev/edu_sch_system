@@ -3,7 +3,7 @@ const router = express.Router();
 const moment = require('moment');
 const { Op } = require('sequelize');
 const { requireTeacher } = require('../middleware/auth');
-const { calculateScore, getGrade, getRemark } = require('../utils/grading');
+const { calculateScore, getGrade, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis } = require('../utils/grading');
 const {
   AcademicYear, Term, Teacher, Class, Student, Stream, Subject,
   Attendance, Mark, TeacherClass, TeacherSubject, PublicHoliday, ReportComment
@@ -187,34 +187,42 @@ router.get('/marks', async (req, res) => {
     ]
   });
 
-  // Build unique subjects list (deduped by subject id) for first select
-  const subjectMap = new Map();
+  // Build unique departments from teacher's assignments
+  const deptMap = new Map();
   teacherSubjectRows.forEach(ts => {
-    if (ts.subject && !subjectMap.has(ts.subject.id)) {
-      subjectMap.set(ts.subject.id, ts.subject);
+    if (ts.class && ts.class.department) {
+      const dept = ts.class.department;
+      if (!deptMap.has(dept.id)) deptMap.set(dept.id, dept.toJSON ? dept.toJSON() : dept);
     }
   });
-  const uniqueSubjects = [...subjectMap.values()];
+  const uniqueDepts = [...deptMap.values()];
 
-  // Build unique classes list filtered by selected subject
-  const selectedSubjectId = req.query.subjectId;
-  const classesForSubject = selectedSubjectId
-    ? teacherSubjectRows.filter(ts => ts.subject && ts.subject.id == selectedSubjectId).map(ts => ts.class).filter(Boolean)
-    : [];
-
-  // Deduplicate classes
-  const classMap = new Map();
-  classesForSubject.forEach(c => { if (c) classMap.set(c.id, c); });
-  const uniqueClasses = [...classMap.values()];
+  // Build subject→class map keyed by dept+subject for cascading selects
+  // subjectClassMap[deptId][subjectId] = [{id, name}, ...]
+  const cascadeMap = {};
+  teacherSubjectRows.forEach(ts => {
+    if (!ts.class || !ts.class.department || !ts.subject) return;
+    const deptId = ts.class.department.id;
+    const subjId = ts.subject.id;
+    if (!cascadeMap[deptId]) cascadeMap[deptId] = {};
+    if (!cascadeMap[deptId][subjId]) cascadeMap[deptId][subjId] = { subject: ts.subject.toJSON ? ts.subject.toJSON() : ts.subject, classes: [] };
+    const cls = ts.class.toJSON ? ts.class.toJSON() : ts.class;
+    if (!cascadeMap[deptId][subjId].classes.find(c => c.id === cls.id)) {
+      cascadeMap[deptId][subjId].classes.push(cls);
+    }
+  });
 
   const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
 
   let students = [], selectedSubject = null, selectedClass = null, existingMarks = {};
+  let deptCode = '', selectedDeptId = req.query.deptId || '';
 
   if (req.query.subjectId && req.query.classId) {
     selectedSubject = await Subject.findByPk(req.query.subjectId);
-    selectedClass = await Class.findByPk(req.query.classId);
+    selectedClass = await Class.findByPk(req.query.classId, { include: ['department'] });
+    deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : '';
+    if (!selectedDeptId && selectedClass && selectedClass.department) selectedDeptId = String(selectedClass.department.id);
     students = await Student.findAll({
       where: { classId: req.query.classId, isActive: true },
       include: ['stream'], order: [['fullName', 'ASC']]
@@ -225,8 +233,9 @@ router.get('/marks', async (req, res) => {
 
   res.render('teacher/marks', {
     title: 'Enter Marks',
-    teacherSubjectRows, uniqueSubjects, uniqueClasses,
+    teacherSubjectRows, uniqueDepts, cascadeMap,
     students, selectedSubject, selectedClass, existingMarks,
+    deptCode, selectedDeptId,
     term, year, currentYear,
     teacher: req.session.teacher,
     error: req.flash('error'), success: req.flash('success')
@@ -235,50 +244,94 @@ router.get('/marks', async (req, res) => {
 
 router.post('/marks/save', async (req, res) => {
   try {
-    const { classId, subjectId, term, academicYear } = req.body;
-    const studentIds = Object.keys(req.body).filter(k => k.startsWith('hw_')).map(k => k.replace('hw_', ''));
-    for (const studentId of studentIds) {
-      const homework = parseFloat(req.body[`hw_${studentId}`]) || 0;
-      const groupWork = parseFloat(req.body[`gw_${studentId}`]) || 0;
-      const quiz = parseFloat(req.body[`qz_${studentId}`]) || 0;
-      const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
-      const unitTest = parseFloat(req.body[`ut_${studentId}`]) || 0;
-      const finalExam = parseFloat(req.body[`fe_${studentId}`]) || 0;
-      const method = req.body[`method_${studentId}`] || 'weighted';
-      const totalScore = calculateScore({ homework, classWork, groupWork, quiz, unitTest, finalExam }, method);
-      const grade = getGrade(totalScore);
-      await Mark.upsert({ studentId, subjectId, classId, term, academicYear, homework, groupWork, quiz, classWork, unitTest, finalExam, gradingMethod: method, totalScore, grade, enteredBy: req.session.teacher.id });
+    const { classId, subjectId, term, academicYear, section } = req.body;
+    if (section === 'fe') {
+      // Save Final Exam scores only
+      const feIds = Object.keys(req.body).filter(k => k.startsWith('fe_')).map(k => k.replace('fe_',''));
+      for (const studentId of feIds) {
+        const finalExam = parseFloat(req.body[`fe_${studentId}`]);
+        if (isNaN(finalExam)) continue;
+        const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
+        // Upsert — only update FE fields, keep CA fields
+        const [mark] = await Mark.findOrCreate({
+          where: { studentId, subjectId, classId, term, academicYear },
+          defaults: { homework:0, groupWork:0, quiz:0, classWork:0, unitTest:0, totalScore:0, grade:'F', enteredBy: req.session.teacher.id }
+        });
+        const updateData = { finalExam, enteredBy: req.session.teacher.id };
+        if (finalExamMax !== null) updateData.finalExamMax = finalExamMax;
+        await mark.update(updateData);
+      }
+      req.flash('success', 'Final Exam marks saved');
+    } else {
+      // Save CA scores
+      const studentIds = Object.keys(req.body).filter(k => k.startsWith('hw_')).map(k => k.replace('hw_',''));
+      for (const studentId of studentIds) {
+        const homework  = parseFloat(req.body[`hw_${studentId}`]) || 0;
+        const groupWork = parseFloat(req.body[`gw_${studentId}`]) || 0;
+        const quiz      = parseFloat(req.body[`qz_${studentId}`]) || 0;
+        const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
+        const unitTest  = parseFloat(req.body[`ut_${studentId}`]) || 0;
+        const method    = req.body[`method_${studentId}`] || 'weighted';
+        const totalScore = calculateScore({ homework, groupWork, quiz, classWork, unitTest }, method);
+        const grade = getGrade(totalScore);
+        await Mark.upsert({ studentId, subjectId, classId, term, academicYear, homework, groupWork, quiz, classWork, unitTest, gradingMethod: method, totalScore, grade, enteredBy: req.session.teacher.id });
+      }
+      req.flash('success', 'CA marks saved successfully');
     }
-    req.flash('success', 'Marks saved successfully');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect(`/teacher/marks?subjectId=${req.body.subjectId}&classId=${req.body.classId}&term=${req.body.term}&year=${req.body.academicYear}`);
 });
 
-// ── Report Card (single student) ──────────────────────────────────────────────
-router.get('/report-card/:studentId', async (req, res) => {
+// ── Helper: load student report data ─────────────────────────────────────────
+async function loadStudentReportData(studentId, term, year) {
+  const student = await Student.findByPk(studentId, { include: [{ model: Class, as: 'class', include: ['department'] }, 'stream'] });
+  const marks = await Mark.findAll({ where: { studentId, term, academicYear: year }, include: ['subject'] });
+  const attendance = await Attendance.findAll({ where: { studentId } });
+  const presentDays = attendance.filter(a => a.status === 'present').length;
+  const totalDays = attendance.length;
+  const reportComment = await ReportComment.findOne({ where: { studentId, classId: student.classId, term, academicYear: year } });
+  const deptCode = student.class && student.class.department ? student.class.department.code : '';
+  const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+  return { student: student.toJSON(), marks: marks.map(m => m.toJSON()), presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null, deptCode, isPrimary };
+}
+
+// ── Progressive Report Card (CA only) ────────────────────────────────────────
+router.get('/progressive-report/:studentId', async (req, res) => {
   try {
     const currentYear = await getCurrentYear();
-    const student = await Student.findByPk(req.params.studentId, { include: ['class', 'stream'] });
     const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
     const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
-    const marks = await Mark.findAll({ where: { studentId: req.params.studentId, term, academicYear: year }, include: ['subject'] });
-    const attendance = await Attendance.findAll({ where: { studentId: req.params.studentId } });
-    const presentDays = attendance.filter(a => a.status === 'present').length;
-    const totalDays = attendance.length;
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
-    const reportComment = await ReportComment.findOne({
-      where: { studentId: req.params.studentId, classId: student.classId, term, academicYear: year }
-    });
-    res.render('teacher/report-card', {
-      title: 'Student Report Card', student, marks, term, year, presentDays, totalDays,
-      reportComment: reportComment ? reportComment.toJSON() : null,
-      getRemark, currentYear, academicYears, teacher: req.session.teacher,
-      error: req.flash('error'), success: req.flash('success')
+    const data = await loadStudentReportData(req.params.studentId, term, year);
+    res.render('teacher/progressive-report', {
+      title: 'Progressive Report Card', ...data, term, year, getRemark, currentYear, academicYears, teacher: req.session.teacher
     });
   } catch (err) {
     req.flash('error', err.message);
-    res.redirect('/teacher/marks');
+    res.redirect('/teacher/report-cards');
   }
+});
+
+// ── Final Report Card (Final Exam only) ───────────────────────────────────────
+router.get('/final-report/:studentId', async (req, res) => {
+  try {
+    const currentYear = await getCurrentYear();
+    const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+    const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+    const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
+    const data = await loadStudentReportData(req.params.studentId, term, year);
+    res.render('teacher/final-report', {
+      title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, currentYear, academicYears, teacher: req.session.teacher
+    });
+  } catch (err) {
+    req.flash('error', err.message);
+    res.redirect('/teacher/report-cards');
+  }
+});
+
+// ── Keep old /report-card route as redirect to progressive ────────────────────
+router.get('/report-card/:studentId', (req, res) => {
+  res.redirect(`/teacher/progressive-report/${req.params.studentId}?${new URLSearchParams(req.query).toString()}`);
 });
 
 // ── Report Cards List ──────────────────────────────────────────────────────────
@@ -297,6 +350,71 @@ router.get('/report-cards', async (req, res) => {
     title: 'Report Cards', classes, currentYear, academicYears,
     teacher: req.session.teacher, error: req.flash('error'), success: req.flash('success')
   });
+});
+
+// ── Exam Analysis Dashboard ───────────────────────────────────────────────────
+router.get('/exam-analysis', async (req, res) => {
+  const currentYear = await getCurrentYear();
+  const teacherClassRows = await TeacherClass.findAll({
+    where: { teacherId: req.session.teacher.id },
+    include: [{ model: Class, as: 'class', include: ['department'] }]
+  });
+  const classes = teacherClassRows.map(tc => ({ ...tc.class.toJSON(), isClassTeacher: tc.isClassTeacher })).filter(c => c.id);
+  const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+  const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+  const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
+
+  let analysisData = [];
+  if (req.query.classId) {
+    const cls = classes.find(c => c.id == req.query.classId) || await Class.findByPk(req.query.classId, { include: ['department'] }).then(c => c ? c.toJSON() : null);
+    const deptCode = cls && cls.department ? cls.department.code : '';
+    const marks = await Mark.findAll({
+      where: { classId: req.query.classId, term, academicYear: year },
+      include: ['subject', 'student']
+    });
+    const totalStudents = await Student.count({ where: { classId: req.query.classId, isActive: true } });
+    analysisData = { cls, deptCode, totalStudents, subjects: buildExamAnalysis(marks.map(m => m.toJSON()), deptCode) };
+  }
+
+  res.render('teacher/exam-analysis', {
+    title: 'Exam Analysis', classes, analysisData, term, year, currentYear, academicYears,
+    teacher: req.session.teacher,
+    error: req.flash('error'), success: req.flash('success')
+  });
+});
+
+// ── Academic Report (Final Exam only — printable) ─────────────────────────────
+router.get('/academic-report/:classId', async (req, res) => {
+  try {
+    const currentYear = await getCurrentYear();
+    const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+    const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
+    const cls = await Class.findByPk(req.params.classId, { include: ['department'] });
+    const deptCode = cls && cls.department ? cls.department.code : '';
+    const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+    const students = await Student.findAll({ where: { classId: req.params.classId, isActive: true }, include: ['stream'], order: [['fullName', 'ASC']] });
+    const marks = await Mark.findAll({
+      where: { classId: req.params.classId, term, academicYear: year },
+      include: ['subject']
+    });
+    // Group marks by student
+    const marksByStudent = {};
+    marks.forEach(m => { if (!marksByStudent[m.studentId]) marksByStudent[m.studentId] = []; marksByStudent[m.studentId].push(m.toJSON()); });
+    const studentReports = students.map(s => ({ student: s.toJSON(), marks: marksByStudent[s.id] || [] }));
+    // Get unique subjects
+    const subjectMap = {};
+    marks.forEach(m => { if (m.subject && !subjectMap[m.subjectId]) subjectMap[m.subjectId] = m.subject.toJSON(); });
+    const subjects = Object.values(subjectMap);
+
+    res.render('teacher/academic-report', {
+      title: 'Academic Report', cls, deptCode, isPrimary, subjects, studentReports,
+      term, year, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed,
+      teacher: req.session.teacher
+    });
+  } catch (err) {
+    req.flash('error', err.message);
+    res.redirect('/teacher/exam-analysis');
+  }
 });
 
 // ── Report Comments (Class Teacher only) ──────────────────────────────────────

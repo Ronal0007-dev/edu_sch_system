@@ -1,10 +1,11 @@
+- const buildUrl = (p) => { const params = Object.assign({}, query || {}, {page: p}); return '?' + Object.keys(params).filter(k => params[k] !== undefined && params[k] !== '').map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&'); }
 .pagination
   if pagination.page > 1
-    a.page-btn(href=`?${new URLSearchParams({...query, page: pagination.page - 1}).toString()}`)
+    a.page-btn(href=buildUrl(pagination.page - 1))
       i.fas.fa-chevron-left
       span Prev
   .page-info Page #{pagination.page} of #{pagination.pages} (#{pagination.total} total)
   if pagination.page < pagination.pages
-    a.page-btn(href=`?${new URLSearchParams({...query, page: pagination.page + 1}).toString()}`)
+    a.page-btn(href=buildUrl(pagination.page + 1))
       span Next
       i.fas.fa-chevron-right

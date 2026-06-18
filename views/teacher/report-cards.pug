@@ -26,36 +26,54 @@ block body
     .card.mb-4
       .card-header
         h2 #{cls.name}
-        i.fas.fa-users
+        .toolbar-actions
+          if cls.isClassTeacher
+            span.role-badge.role-class_teacher Class Teacher
       .card-body
         if cls.students && cls.students.length
-          .students-grid
-            each student in cls.students
-              .student-card-mini
-                .student-avatar-lg #{student.fullName.charAt(0)}
-                .student-info-mini
-                  strong #{student.fullName}
-                  span #{student.gender}
-                .card-actions
-                  a.btn.btn-sm.btn-primary.report-link(href=`/teacher/report-card/${student.id}`, data-student=student.id)
-                    i.fas.fa-eye
-                    span View Card
+          table.data-table
+            thead
+              tr
+                th #
+                th Student
+                th Stream
+                th Progressive Report
+                th Final Report
+            tbody
+              each student, i in cls.students
+                tr
+                  td #{i+1}
+                  td
+                    .student-mini
+                      .mini-avatar #{student.fullName.charAt(0)}
+                      div
+                        strong #{student.fullName}
+                        small #{student.gender}
+                  td #{student.stream ? student.stream.name : '-'}
+                  td
+                    a.btn.btn-sm.btn-primary.prog-link(href=`/teacher/progressive-report/${student.id}`, data-student=student.id)
+                      i.fas.fa-chart-line
+                      span CA Report
+                  td
+                    a.btn.btn-sm.btn-outline.final-link(href=`/teacher/final-report/${student.id}`, data-student=student.id)
+                      i.fas.fa-file-alt
+                      span Final Report
         else
           p.text-muted No students in #{cls.name}
 
   script.
     const termSel = document.getElementById('termSel');
     const yearSel = document.getElementById('yearSel');
-
     function updateLinks() {
       const term = encodeURIComponent(termSel.value);
       const year = encodeURIComponent(yearSel.value);
-      document.querySelectorAll('.report-link').forEach(a => {
-        const sid = a.dataset.student;
-        a.href = `/teacher/report-card/${sid}?term=${term}&year=${year}`;
+      document.querySelectorAll('.prog-link').forEach(a => {
+        a.href = '/teacher/progressive-report/' + a.dataset.student + '?term=' + term + '&year=' + year;
+      });
+      document.querySelectorAll('.final-link').forEach(a => {
+        a.href = '/teacher/final-report/' + a.dataset.student + '?term=' + term + '&year=' + year;
       });
     }
-
     termSel.addEventListener('change', updateLinks);
     yearSel.addEventListener('change', updateLinks);
     updateLinks();
