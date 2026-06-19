@@ -12,7 +12,7 @@ block body
             label Select Teacher
             select(name='teacherId', required)
               option(value='') Choose teacher
-              each teacher in teachers
+              each teacher in (teachers || [])
                 option(value=teacher.id) #{teacher.fullName} (#{teacher.department ? teacher.department.code : ''})
 
           .form-group
@@ -21,7 +21,7 @@ block body
               | Department
             select(id='formDeptSel', required)
               option(value='') Select department
-              each dept in departments
+              each dept in (departments || [])
                 option(value=dept.id) #{dept.name} (#{dept.code})
 
           .form-group
@@ -54,14 +54,14 @@ block body
               label Department
               select(name='deptId', id='filterDeptSel')
                 option(value='') All Departments
-                each dept in departments
+                each dept in (departments || [])
                   option(value=dept.id, selected=selectedDeptId==dept.id.toString()) #{dept.name} (#{dept.code})
             .form-group
               label Class
               select(name='classId', id='filterClassSel')
                 option(value='') All Classes
                 if selectedDeptId && filteredClasses.length
-                  each cls in filteredClasses
+                  each cls in (filteredClasses || [])
                     option(value=cls.id, selected=selectedClassId==cls.id.toString()) #{cls.name}
             button.btn.btn-primary(type='submit')
               i.fas.fa-search
@@ -81,7 +81,7 @@ block body
                 th Role
                 th Actions
             tbody
-              each a in assignments
+              each a in (assignments || [])
                 tr
                   td
                     .teacher-name

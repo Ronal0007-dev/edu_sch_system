@@ -14,7 +14,7 @@ block body
               | Department
             select(name='_deptId', id='formDeptSel', required)
               option(value='') Select department
-              each dept in departments
+              each dept in (departments || [])
                 option(value=dept.id) #{dept.name} (#{dept.code})
           .form-group
             label
@@ -40,7 +40,7 @@ block body
               label Department
               select(name='deptId', id='filterDeptSel')
                 option(value='') All Departments
-                each dept in departments
+                each dept in (departments || [])
                   option(value=dept.id, selected=selectedDeptId==dept.id.toString()) #{dept.name} (#{dept.code})
             .form-group
               label Class
@@ -67,7 +67,7 @@ block body
                 th Department
                 th Actions
             tbody
-              each subject, i in subjects
+              each subject, i in (subjects || [])
                 tr
                   td #{((pagination.page-1)*15)+i+1}
                   td

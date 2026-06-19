@@ -88,7 +88,6 @@ async function start() {
     await sequelize.sync({ alter: true });
     console.log('✅ Models synced');
     app.listen(PORT, () => {
-      console.log(`🚀 EduTrack running at http://localhost:${PORT}`);
       console.log(`   Admin login: http://localhost:${PORT}/auth/admin/login`);
       console.log(`   Teacher login: http://localhost:${PORT}/auth/teacher/login`);
     });

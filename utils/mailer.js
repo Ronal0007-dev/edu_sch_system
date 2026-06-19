@@ -39,12 +39,12 @@ async function sendPasswordResetEmail(teacher, resetToken) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🎓 EduTrack School</h1>
+          <h1>🎓 Canon Andrea Mwaka School</h1>
           <p>Password Reset Request</p>
         </div>
         <div class="body">
           <h2>Hello, ${teacher.fullName}</h2>
-          <p>A password reset was requested for your EduTrack teacher account. Click the button below to set a new password:</p>
+          <p>A password reset was requested for your Canon Andrea Mwaka School teacher account. Click the button below to set a new password:</p>
           <p style="text-align:center">
             <a href="${resetUrl}" class="btn">Reset My Password</a>
           </p>
@@ -55,7 +55,7 @@ async function sendPasswordResetEmail(teacher, resetToken) {
           </div>
         </div>
         <div class="footer">
-          EduTrack School Management System · Do not reply to this email
+          Canon Andrea Mwaka School Management System · Do not reply to this email
         </div>
       </div>
     </body>
@@ -63,9 +63,9 @@ async function sendPasswordResetEmail(teacher, resetToken) {
   `;
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'EduTrack School <noreply@school.edu>',
+    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <noreply@school.edu>',
     to: `${teacher.fullName} <${teacher.email}>`,
-    subject: 'EduTrack — Password Reset Request',
+    subject: 'Canon Andrea Mwaka School — Password Reset Request',
     html
   });
 }

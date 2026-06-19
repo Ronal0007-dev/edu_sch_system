@@ -23,7 +23,7 @@ block body
               | Department
             select(id='formDeptSel', required)
               option(value='') Select department
-              each dept in departments
+              each dept in (departments || [])
                 option(value=dept.id) #{dept.name} (#{dept.code})
           .form-group
             label
@@ -36,17 +36,43 @@ block body
               span.step-badge 3
               | Stream (Optional)
             select(name='streamId', id='formStreamSel')
-              option(value='') — select class first —
+              option(value='') — no stream —
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Add Student
 
     .card
       .card-header
-        h2 All Students
+        h2 Filter Students
+        i.fas.fa-filter
+      .card-body
+        form.filter-form(method='GET', action='/admin/students')
+          .form-row
+            .form-group
+              label Department
+              select(name='deptId', id='filterDeptSel')
+                option(value='') All Departments
+                each dept in (departments || [])
+                  option(value=dept.id, selected=selectedDeptId==dept.id.toString()) #{dept.name} (#{dept.code})
+            .form-group
+              label Class
+              select(name='classId', id='filterClassSel')
+                option(value='') All Classes
+                if selectedDeptId
+                  each cls in (allClasses || [])
+                    if String(cls.departmentId) == String(selectedDeptId)
+                      option(value=cls.id, selected=String(selectedClassId)==String(cls.id)) #{cls.name}
+            button.btn.btn-primary(type='submit')
+              i.fas.fa-search
+              span Filter
+            if selectedDeptId || selectedClassId
+              a.btn.btn-outline(href='/admin/students') Clear
+
+      .card-header(style='border-top:1px solid var(--border)')
+        h2 Students
         span.count-badge #{pagination.total}
       .card-body
-        if students.length
+        if students && students.length
           table.data-table
             thead
               tr
@@ -57,7 +83,7 @@ block body
                 th Stream
                 th Actions
             tbody
-              each student, i in students
+              each student, i in (students || [])
                 tr
                   td #{((pagination.page-1)*15)+i+1}
                   td #{student.fullName}
@@ -71,16 +97,17 @@ block body
         else
           .empty-state
             i.fas.fa-user-graduate
-            p No students added yet.
+            p No students found.
 
         if pagination.pages > 1
-          - const query = {}
+          - const query = {deptId: selectedDeptId, classId: selectedClassId}
           include ../partials/pagination
 
   script.
-    const deptClassMap   = !{JSON.stringify(deptClassMap)};
-    const classStreamMap = !{JSON.stringify(classStreamMap)};
+    const deptClassMap   = !{JSON.stringify(deptClassMap || {})};
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
 
+    // ── Add form cascade ─────────────────────────────────────────────────────
     const formDeptSel   = document.getElementById('formDeptSel');
     const formClassSel  = document.getElementById('formClassSel');
     const formStreamSel = document.getElementById('formStreamSel');
@@ -101,7 +128,7 @@ block body
     function updateStreams() {
       const cid = formClassSel.value;
       const streams = classStreamMap[cid] || [];
-      formStreamSel.innerHTML = '<option value="">— no stream / optional —</option>';
+      formStreamSel.innerHTML = '<option value="">— no stream —</option>';
       streams.forEach(function(s) {
         const opt = document.createElement('option');
         opt.value = s.id;
@@ -112,3 +139,25 @@ block body
 
     formDeptSel.addEventListener('change', updateClasses);
     formClassSel.addEventListener('change', updateStreams);
+
+    // ── Filter cascade ───────────────────────────────────────────────────────
+    const filterDeptSel  = document.getElementById('filterDeptSel');
+    const filterClassSel = document.getElementById('filterClassSel');
+    const savedDept  = '!{selectedDeptId}';
+    const savedClass = '!{selectedClassId}';
+
+    function updateFilterClasses() {
+      const did = filterDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      filterClassSel.innerHTML = '<option value="">All Classes</option>';
+      classes.forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (String(c.id) === savedClass) opt.selected = true;
+        filterClassSel.appendChild(opt);
+      });
+    }
+
+    filterDeptSel.addEventListener('change', updateFilterClasses);
+    if (filterDeptSel.value) updateFilterClasses();
