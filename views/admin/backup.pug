@@ -1,0 +1,53 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Manual Backup
+        i.fas.fa-database
+      .card-body
+        .info-box(style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:1rem;margin-bottom:1rem')
+          p(style='font-size:.85rem;color:#166534;margin:0')
+            i.fas.fa-shield-alt(style='margin-right:.4rem')
+            | Automatic backups run every Sunday at 2:00 AM and are emailed to:
+          p(style='font-weight:700;color:#15803d;margin:.4rem 0 0;font-size:.9rem') #{backupEmail}
+
+        .info-box(style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:1rem;margin-bottom:1.25rem')
+          p(style='font-size:.82rem;color:#1d4ed8;margin:0')
+            i.fas.fa-info-circle(style='margin-right:.4rem')
+            | The last 4 backups are kept locally. Older files are automatically pruned.
+
+        form(method='POST', action='/admin/backup/run')
+          button.btn.btn-primary.btn-full(type='submit')
+            i.fas.fa-download
+            span Run Backup Now
+          p.form-hint(style='margin-top:.75rem')
+            i.fas.fa-clock
+            | This may take a moment. The backup will be emailed after completion.
+
+    .card
+      .card-header
+        h2 Backup History
+        span.count-badge #{backupFiles.length}
+      .card-body
+        if backupFiles.length
+          table.data-table
+            thead
+              tr
+                th File Name
+                th Size
+                th Created
+            tbody
+              each f in backupFiles
+                tr
+                  td
+                    i.fas.fa-file-archive(style='color:#1a56db;margin-right:.4rem')
+                    | #{f.name}
+                  td #{f.size}
+                  td #{f.date}
+        else
+          .empty-state
+            i.fas.fa-database
+            p No backup files found yet.
+            p Run a manual backup or wait for the automatic Sunday backup.

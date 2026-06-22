@@ -40,6 +40,9 @@ block content
           a.nav-item(href='/admin/students', class=title==='Students'?'active':'')
             i.fas.fa-user-graduate
             span Students
+          a.nav-item(href='/admin/students/import', class=title==='Import Students (CSV)'?'active':'')
+            i.fas.fa-file-csv
+            span Import CSV
         .nav-section
           span.nav-label Assignments
           a.nav-item(href='/admin/assignments/teacher-class', class=title==='Assign Teachers to Classes'?'active':'')
@@ -67,6 +70,9 @@ block content
           a.nav-item(href='/admin/holidays', class=title==='Public Holidays'?'active':'')
             i.fas.fa-umbrella-beach
             span Holidays
+          a.nav-item(href='/admin/backup', class=title==='Database Backup'?'active':'')
+            i.fas.fa-database
+            span DB Backup
           a.nav-item(href='/auth/admin/change-password')
             i.fas.fa-lock
             span Change Password

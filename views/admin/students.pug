@@ -70,7 +70,11 @@ block body
 
       .card-header(style='border-top:1px solid var(--border)')
         h2 Students
-        span.count-badge #{pagination.total}
+        .header-actions
+          span.count-badge #{pagination.total}
+          a.btn.btn-sm.btn-outline(href='/admin/students/import')
+            i.fas.fa-file-csv
+            span Import CSV
       .card-body
         if students && students.length
           table.data-table

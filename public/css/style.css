@@ -191,7 +191,7 @@ a:hover { text-decoration: underline; }
 .role-class_teacher { background: #eff6ff; color: #1d4ed8; }
 .role-head_of_dept { background: #fdf4ff; color: #9333ea; }
 .role-admin { background: #fff7ed; color: #c2410c; }
-.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .7rem; }
+.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .9rem; }
 .grade-A { background: #dcfce7; color: #15803d; }
 .grade-B { background: #dbeafe; color: #1d4ed8; }
 .grade-C { background: #fef9c3; color: #a16207; }
@@ -322,8 +322,8 @@ a:hover { text-decoration: underline; }
 .grading-key h4 { font-size: .8rem; color: var(--text-muted); margin-bottom: .5rem; }
 .grade-key-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
 .report-card-footer { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
-.signature-area { display: flex; justify-content: space-between; gap: 2rem; }
-.sig-box { text-align: center; flex: 1; min-width: 180px; }
+.signature-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.sig-box { text-align: center; }
 .sig-box p { font-size: .78rem; color: var(--text-muted); margin-top: .25rem; }
 .print-date { font-size: .72rem; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 
@@ -569,3 +569,40 @@ a:hover { text-decoration: underline; }
 
 /* ─── Step badges in marks filter ──────────────────────────────────────────── */
 .step-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; background:var(--primary); color:#fff; border-radius:50%; font-size:.7rem; font-weight:800; margin-right:.35rem; flex-shrink:0; }
+
+/* ─── CSV Import ────────────────────────────────────────────────────────────── */
+.file-drop-zone { border:2px dashed var(--border); border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; cursor:pointer; transition:var(--transition); background:#fafbfc; }
+.file-drop-zone:hover, .file-drop-zone.drag-over { border-color:var(--primary); background:var(--primary-light); }
+.file-drop-zone.has-file { border-color:var(--success); background:#f0fdf4; }
+.file-drop-zone i { font-size:2.5rem; color:var(--text-muted); display:block; margin-bottom:.75rem; }
+.file-drop-zone p { margin:.4rem 0; font-size:.88rem; color:var(--text-muted); }
+.file-selected { font-size:.82rem; font-weight:600; margin-top:.5rem !important; }
+
+.format-guide { font-size:.875rem; }
+.guide-intro { color:var(--text-muted); margin-bottom:.85rem; }
+.example-csv { margin-top:1.25rem; }
+.example-csv h4, .tips h4 { font-size:.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:.5rem; }
+.csv-preview { background:#0f172a; color:#e2e8f0; border-radius:var(--radius-sm); padding:.85rem 1rem; font-size:.8rem; font-family:monospace; line-height:1.6; overflow-x:auto; }
+.tip-list { padding-left:1.25rem; color:var(--text-muted); font-size:.82rem; }
+.tip-list li { margin-bottom:.3rem; }
+
+/* Import results */
+.import-results-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; }
+.import-stat { display:flex; align-items:center; gap:1rem; padding:1.25rem; border-radius:var(--radius); border:1.5px solid var(--border); }
+.import-stat.stat-success { background:#f0fdf4; border-color:#bbf7d0; }
+.import-stat.stat-skip { background:#fff7ed; border-color:#fed7aa; }
+.import-stat.stat-error { background:#fef2f2; border-color:#fecaca; }
+.import-stat-icon { font-size:1.6rem; }
+.stat-success .import-stat-icon { color:#16a34a; }
+.stat-skip .import-stat-icon { color:#d97706; }
+.stat-error .import-stat-icon { color:#dc2626; }
+.import-stat-info h3 { font-size:1.75rem; font-weight:800; margin:0; line-height:1; }
+.import-stat-info p { font-size:.8rem; color:var(--text-muted); margin:.2rem 0 0; }
+.import-actions { display:flex; gap:1rem; }
+
+.errors-list { display:flex; flex-direction:column; gap:.4rem; max-height:400px; overflow-y:auto; }
+.error-item { display:flex; align-items:flex-start; gap:.6rem; padding:.55rem .85rem; background:#fef2f2; border-radius:var(--radius-sm); font-size:.82rem; color:#991b1b; }
+.error-item i { color:#dc2626; flex-shrink:0; margin-top:.1rem; }
+
+/* Header actions inline */
+.header-actions { display:flex; align-items:center; gap:.75rem; }

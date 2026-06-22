@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const { startScheduler } = require('./utils/scheduler');
 const session = require('express-session');
 const flash = require('express-flash');
 const methodOverride = require('method-override');
@@ -90,6 +91,8 @@ async function start() {
     app.listen(PORT, () => {
       console.log(`   Admin login: http://localhost:${PORT}/auth/admin/login`);
       console.log(`   Teacher login: http://localhost:${PORT}/auth/teacher/login`);
+      // Start weekly backup scheduler
+      startScheduler();
     });
   } catch (err) {
     console.error('❌ Startup error:', err.message);

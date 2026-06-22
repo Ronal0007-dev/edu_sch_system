@@ -63,7 +63,7 @@ async function sendPasswordResetEmail(teacher, resetToken) {
   `;
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <noreply@school.edu>',
+    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <cams.admission228@gmail.com>',
     to: `${teacher.fullName} <${teacher.email}>`,
     subject: 'Canon Andrea Mwaka School — Password Reset Request',
     html

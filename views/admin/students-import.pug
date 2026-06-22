@@ -1,0 +1,136 @@
+extends ../partials/admin-layout
+
+block body
+  .two-col-layout
+    .card.form-card
+      .card-header
+        h2 Import Students from CSV
+        i.fas.fa-file-csv
+      .card-body
+        form(method='POST', action='/admin/students/import', enctype='multipart/form-data')
+          .form-group
+            label Select Department
+            select(name='departmentId', required)
+              option(value='') — Choose department —
+              each dept in departments
+                option(value=dept.id) #{dept.name} (#{dept.code})
+          .form-group
+            label CSV File
+            .file-drop-zone#dropZone
+              i.fas.fa-cloud-upload-alt
+              p Drag & drop your CSV file here, or
+              label.btn.btn-outline(for='csvFile') Browse File
+              input(type='file', name='csvFile', id='csvFile', accept='.csv', required, style='display:none')
+              p.file-selected#fileSelected No file chosen
+          .form-hint
+            i.fas.fa-info-circle
+            span Max file size: 5 MB. Up to 500+ students per import.
+          button.btn.btn-primary.btn-full(type='submit', id='importBtn')
+            i.fas.fa-upload
+            span Import Students
+
+    .card
+      .card-header
+        h2 CSV Format Guide
+        i.fas.fa-question-circle
+      .card-body
+        .format-guide
+          p.guide-intro Required columns (header names are flexible):
+
+          table.data-table
+            thead
+              tr
+                th Column
+                th Accepted Headers
+                th Example Values
+                th Required
+            tbody
+              tr
+                td
+                  strong Full Name
+                td
+                  code fullName, full_name, name, student_name
+                td John Doe
+                td
+                  span.badge.badge-class Yes
+              tr
+                td
+                  strong Gender
+                td
+                  code gender, sex
+                td Male / Female / M / F
+                td
+                  span.badge.badge-class Yes
+              tr
+                td
+                  strong Class
+                td
+                  code class, class_name, className
+                td Grade 1, Form 3
+                td
+                  span.badge.badge-class Yes
+              tr
+                td
+                  strong Stream
+                td
+                  code stream, stream_name
+                td A, B, East
+                td
+                  span.text-muted Optional
+
+          .example-csv
+            h4 Example CSV:
+            pre.csv-preview.
+              fullName,gender,class,stream
+              Jane Doe,Female,Grade 1,A
+              John Smith,Male,Grade 2,B
+              Mary Johnson,F,Grade 1,
+              Peter Omondi,M,Grade 3,East
+
+          .tips
+            h4 Tips:
+            ul.tip-list
+              li Class names must exactly match classes already in the system for the selected department
+              li Stream is optional — leave the column blank or omit it
+              li Duplicate students (same name + class) are skipped automatically
+              li The first row must be the header row
+              li Save your Excel file as CSV (UTF-8) before uploading
+
+          a.btn.btn-outline(href='/admin/students/import-template', style='margin-top:1rem')
+            i.fas.fa-download
+            span Download Template CSV
+
+  script.
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('csvFile');
+    const fileSelected = document.getElementById('fileSelected');
+    const importBtn = document.getElementById('importBtn');
+
+    fileInput.addEventListener('change', function() {
+      if (this.files[0]) {
+        fileSelected.textContent = this.files[0].name + ' (' + (this.files[0].size/1024).toFixed(1) + ' KB)';
+        fileSelected.style.color = '#15803d';
+        dropZone.classList.add('has-file');
+      }
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.csv')) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileSelected.textContent = file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
+        fileSelected.style.color = '#15803d';
+        dropZone.classList.add('has-file');
+      }
+    });
+
+    document.querySelector('form').addEventListener('submit', function() {
+      importBtn.disabled = true;
+      importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing... please wait';
+    });

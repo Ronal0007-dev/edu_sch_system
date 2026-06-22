@@ -1,0 +1,50 @@
+extends ../partials/admin-layout
+
+block body
+  .card.mb-4
+    .card-header
+      h2 Import Results
+      i.fas.fa-chart-bar
+    .card-body
+      .import-results-grid
+        .import-stat.stat-success
+          .import-stat-icon
+            i.fas.fa-user-check
+          .import-stat-info
+            h3 #{results.inserted}
+            p Students Imported
+        .import-stat.stat-skip
+          .import-stat-icon
+            i.fas.fa-forward
+          .import-stat-info
+            h3 #{results.skipped}
+            p Skipped (Duplicates)
+        .import-stat.stat-error
+          .import-stat-icon
+            i.fas.fa-exclamation-triangle
+          .import-stat-info
+            h3 #{results.errors.length}
+            p Errors
+
+      .import-actions
+        a.btn.btn-primary(href='/admin/students')
+          i.fas.fa-users
+          span View All Students
+        a.btn.btn-outline(href='/admin/students/import')
+          i.fas.fa-upload
+          span Import More
+
+  if results.errors.length
+    .card
+      .card-header
+        h2 Errors & Warnings
+        span.count-badge #{results.errors.length}
+      .card-body
+        .errors-list
+          each err in results.errors
+            .error-item
+              i.fas.fa-exclamation-circle
+              span #{err}
+        .form-hint(style='margin-top:1rem')
+          i.fas.fa-info-circle
+          span Fix the issues above in your CSV file and re-import. Successfully imported students are already saved.
