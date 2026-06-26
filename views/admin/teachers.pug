@@ -16,7 +16,7 @@ block body
             input(type='text', name='phone', required, placeholder='e.g. 0712345678')
           .form-group
             label Email Address
-            input(type='email', name='email', required, placeholder='teacher@dodomacams.org')
+            input(type='email', name='email', required, placeholder='teacher@school.edu')
           .form-group
             label Department
             select(name='departmentId', required)
@@ -75,6 +75,9 @@ block body
                       form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
                         button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
                           | #{teacher.isActive ? 'Deactivate' : 'Activate'}
+                      a.btn.btn-sm.btn-outline(href=`/admin/teachers/edit/${teacher.id}`)
+                        i.fas.fa-edit
+                        span Edit
                       form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/reset-password`, onclick='return confirm("Send password reset email to " + "#{teacher.fullName}" + "?")')
                         button.btn.btn-sm.btn-outline(type='submit', title='Send reset link to teacher email')
                           i.fas.fa-envelope

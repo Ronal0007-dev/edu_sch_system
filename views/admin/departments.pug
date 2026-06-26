@@ -25,13 +25,13 @@ block body
     .card
       .card-header
         h2 All Departments
-        span.count-badge #{departments.length}
+        span.count-badge #{pagination.total}
       .card-body
         if departments.length
           table.data-table
             thead
               tr
-                th #
+                th # 
                 th Name
                 th Code
                 th Classes
@@ -39,17 +39,33 @@ block body
                 th Actions
             tbody
               each dept, i in departments
-                tr
-                  td #{i + 1}
-                  td #{dept.name}
-                  td
-                    span(class=`dept-badge badge-${dept.code.toLowerCase()}`) #{dept.code}
+                tr(id='dept-row-'+dept.id)
+                  td #{i+1}
+                  td.editable-cell
+                    span.display-val #{dept.name}
+                    input.edit-input(type='text', value=dept.name, name='name', style='display:none')
+                  td.editable-cell
+                    span.display-val #{dept.code}
+                    select.edit-input(name='code', style='display:none')
+                      option(value='EYC', selected=dept.code==='EYC') EYC
+                      option(value='Primary', selected=dept.code==='Primary') Primary
+                      option(value='Secondary', selected=dept.code==='Secondary') Secondary
                   td #{dept.classes ? dept.classes.length : 0}
                   td #{dept.teachers ? dept.teachers.length : 0}
                   td
-                    form(method='POST', action=`/admin/departments/${dept.id}/delete`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this department?")')
-                        i.fas.fa-trash
+                    .action-group
+                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=dept.id)
+                        i.fas.fa-edit
+                        span Edit
+                      form.save-form(method='POST', action=`/admin/departments/${dept.id}/edit`, style='display:none', data-id=dept.id)
+                        button.btn.btn-sm.btn-primary(type='submit')
+                          i.fas.fa-check
+                          span Save
+                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=dept.id)
+                          i.fas.fa-times
+                      form(method='POST', action=`/admin/departments/${dept.id}/delete`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this department?")')
+                          i.fas.fa-trash
         else
           .empty-state
             i.fas.fa-building
@@ -58,3 +74,32 @@ block body
         if pagination && pagination.pages > 1
           - const query = {}
           include ../partials/pagination
+
+  script.
+    document.querySelectorAll('.edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('dept-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelectorAll('.edit-input').forEach(function(el) {
+          el.style.display = 'inline-block';
+          el.name = el.name; // keep name for form submission
+        });
+        this.style.display = 'none';
+        const saveForm = row.querySelector('.save-form');
+        saveForm.style.display = 'inline-flex';
+        // Move inputs inside save form so they submit
+        const inputs = row.querySelectorAll('.edit-input');
+        inputs.forEach(function(inp) { saveForm.insertBefore(inp, saveForm.firstChild); });
+      });
+    });
+    document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('dept-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = ''; });
+        row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelector('.edit-btn').style.display = '';
+        row.querySelector('.save-form').style.display = 'none';
+      });
+    });

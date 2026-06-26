@@ -24,7 +24,7 @@ block body
     .card
       .card-header
         h2 All Streams
-        span.count-badge #{streams.length}
+        span.count-badge #{pagination.total}
       .card-body
         if streams.length
           table.data-table
@@ -35,14 +35,30 @@ block body
                 th Actions
             tbody
               each stream in streams
-                tr
+                tr(id='str-row-'+stream.id)
+                  td.editable-cell
+                    span.display-val
+                      span.badge.badge-stream #{stream.name}
+                    input.edit-input(type='text', value=stream.name, name='name', style='display:none')
+                  td.editable-cell
+                    span.display-val #{stream.class ? stream.class.name : '-'}
+                    select.edit-input(name='classId', style='display:none')
+                      each cls in classes
+                        option(value=cls.id, selected=stream.classId==cls.id) #{cls.name}
                   td
-                    span.badge.badge-stream #{stream.name}
-                  td #{stream.class ? stream.class.name : '-'}
-                  td
-                    form(method='POST', action=`/admin/streams/${stream.id}/delete`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this stream?")')
-                        i.fas.fa-trash
+                    .action-group
+                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=stream.id)
+                        i.fas.fa-edit
+                        span Edit
+                      form.save-form(method='POST', action=`/admin/streams/${stream.id}/edit`, style='display:none', data-id=stream.id)
+                        button.btn.btn-sm.btn-primary(type='submit')
+                          i.fas.fa-check
+                          span Save
+                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=stream.id)
+                          i.fas.fa-times
+                      form(method='POST', action=`/admin/streams/${stream.id}/delete`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this stream?")')
+                          i.fas.fa-trash
         else
           .empty-state
             i.fas.fa-code-branch
@@ -51,3 +67,27 @@ block body
         if pagination && pagination.pages > 1
           - const query = {}
           include ../partials/pagination
+
+  script.
+    document.querySelectorAll('.edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('str-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'inline-block'; });
+        this.style.display = 'none';
+        const saveForm = row.querySelector('.save-form');
+        saveForm.style.display = 'inline-flex';
+        row.querySelectorAll('.edit-input').forEach(function(inp) { saveForm.insertBefore(inp, saveForm.firstChild); });
+      });
+    });
+    document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('str-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = ''; });
+        row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelector('.edit-btn').style.display = '';
+        row.querySelector('.save-form').style.display = 'none';
+      });
+    });

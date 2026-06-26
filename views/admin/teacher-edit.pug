@@ -1,0 +1,43 @@
+extends ../partials/admin-layout
+
+block body
+  .card(style='max-width:600px;margin:0 auto')
+    .card-header
+      h2 Edit Teacher
+      i.fas.fa-user-edit
+    .card-body
+      if error && error.length
+        each msg in error
+          .alert.alert-error
+            i.fas.fa-exclamation-circle
+            span #{msg}
+      if success && success.length
+        each msg in success
+          .alert.alert-success
+            i.fas.fa-check-circle
+            span #{msg}
+
+      form(method='POST', action=`/admin/teachers/edit/${teacher.id}`)
+        .form-group
+          label Full Name
+          input(type='text', name='fullName', required, value=teacher.fullName, placeholder='Full name')
+        .form-group
+          label Phone Number
+          input(type='text', name='phone', required, value=teacher.phone, placeholder='e.g. 0712345678')
+        .form-group
+          label Email Address
+          input(type='email', name='email', required, value=teacher.email, placeholder='teacher@school.edu')
+        .form-group
+          label Department
+          select(name='departmentId', required)
+            option(value='') Select department
+            each dept in departments
+              option(value=dept.id, selected=teacher.departmentId==dept.id) #{dept.name} (#{dept.code})
+        .form-hint
+          i.fas.fa-info-circle
+          span Changing the department does not reset the teacher's password.
+        .form-actions
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Changes
+          a.btn.btn-outline(href='/admin/teachers') Cancel

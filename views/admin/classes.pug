@@ -24,7 +24,7 @@ block body
     .card
       .card-header
         h2 All Classes
-        span.count-badge #{classes.length}
+        span.count-badge #{pagination.total}
       .card-body
         if classes.length
           table.data-table
@@ -37,16 +37,32 @@ block body
                 th Actions
             tbody
               each cls in classes
-                tr
-                  td
-                    span.badge.badge-class #{cls.name}
-                  td #{cls.department ? cls.department.code : '-'}
+                tr(id='cls-row-'+cls.id)
+                  td.editable-cell
+                    span.display-val
+                      span.badge.badge-class #{cls.name}
+                    input.edit-input(type='text', value=cls.name, name='name', style='display:none')
+                  td.editable-cell
+                    span.display-val #{cls.department ? cls.department.code : '-'}
+                    select.edit-input(name='departmentId', style='display:none')
+                      each dept in departments
+                        option(value=dept.id, selected=cls.departmentId==dept.id) #{dept.name}
                   td #{cls.streams ? cls.streams.length : 0}
                   td #{cls.students ? cls.students.length : 0}
                   td
-                    form(method='POST', action=`/admin/classes/${cls.id}/delete`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this class?")')
-                        i.fas.fa-trash
+                    .action-group
+                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=cls.id, data-prefix='cls')
+                        i.fas.fa-edit
+                        span Edit
+                      form.save-form(method='POST', action=`/admin/classes/${cls.id}/edit`, style='display:none', data-id=cls.id, data-prefix='cls')
+                        button.btn.btn-sm.btn-primary(type='submit')
+                          i.fas.fa-check
+                          span Save
+                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=cls.id, data-prefix='cls')
+                          i.fas.fa-times
+                      form(method='POST', action=`/admin/classes/${cls.id}/delete`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this class?")')
+                          i.fas.fa-trash
         else
           .empty-state
             i.fas.fa-door-open
@@ -55,3 +71,30 @@ block body
         if pagination && pagination.pages > 1
           - const query = {}
           include ../partials/pagination
+
+  script.
+    function setupInlineEdit(prefix, rowPrefix) {
+      document.querySelectorAll('[data-prefix="' + prefix + '"].edit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const id = this.dataset.id;
+          const row = document.getElementById(rowPrefix + '-row-' + id);
+          row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = 'none'; });
+          row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'inline-block'; });
+          this.style.display = 'none';
+          const saveForm = row.querySelector('.save-form');
+          saveForm.style.display = 'inline-flex';
+          row.querySelectorAll('.edit-input').forEach(function(inp) { saveForm.insertBefore(inp, saveForm.firstChild); });
+        });
+      });
+      document.querySelectorAll('[data-prefix="' + prefix + '"].cancel-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const id = this.dataset.id;
+          const row = document.getElementById(rowPrefix + '-row-' + id);
+          row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = ''; });
+          row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'none'; });
+          row.querySelector('[data-prefix="' + prefix + '"].edit-btn').style.display = '';
+          row.querySelector('.save-form').style.display = 'none';
+        });
+      });
+    }
+    setupInlineEdit('cls', 'cls');

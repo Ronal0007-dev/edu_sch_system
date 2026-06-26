@@ -606,3 +606,7 @@ a:hover { text-decoration: underline; }
 
 /* Header actions inline */
 .header-actions { display:flex; align-items:center; gap:.75rem; }
+
+/* ─── Inline edit ────────────────────────────────────────────────────────────── */
+.editable-cell .edit-input { padding:.3rem .5rem; border:1.5px solid var(--primary); border-radius:var(--radius-sm); font-size:.85rem; width:auto; min-width:100px; }
+.save-form { display:inline-flex; align-items:center; gap:.35rem; flex-wrap:wrap; }

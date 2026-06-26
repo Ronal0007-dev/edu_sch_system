@@ -15,7 +15,7 @@ function createTransport() {
 
 async function sendPasswordResetEmail(teacher, resetToken) {
   const transporter = createTransport();
-  const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/auth/teacher/reset-password/${resetToken}`;
+  const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/auth/teacher/reset-password/${resetToken}?email=${encodeURIComponent(teacher.email)}`;
 
   const html = `
     <!DOCTYPE html>
@@ -44,7 +44,7 @@ async function sendPasswordResetEmail(teacher, resetToken) {
         </div>
         <div class="body">
           <h2>Hello, ${teacher.fullName}</h2>
-          <p>A password reset was requested for your Canon Andrea Mwaka School teacher account. Click the button below to set a new password:</p>
+          <p>A password reset was requested by you ${teacher.fullName}, Canon Andrea Mwaka teacher account. Click the button below to set a new password:</p>
           <p style="text-align:center">
             <a href="${resetUrl}" class="btn">Reset My Password</a>
           </p>
@@ -63,7 +63,7 @@ async function sendPasswordResetEmail(teacher, resetToken) {
   `;
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <cams.admission228@gmail.com>',
+    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <noreply@school.edu>',
     to: `${teacher.fullName} <${teacher.email}>`,
     subject: 'Canon Andrea Mwaka School — Password Reset Request',
     html

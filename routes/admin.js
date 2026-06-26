@@ -209,6 +209,15 @@ router.post('/departments/:id/delete', async (req, res) => {
   res.redirect('/admin/departments');
 });
 
+router.post('/departments/:id/edit', async (req, res) => {
+  try {
+    const { name, code } = req.body;
+    await Department.update({ name, code }, { where: { id: req.params.id } });
+    req.flash('success', 'Department updated');
+  } catch (err) { req.flash('error', err.message); }
+  res.redirect('/admin/departments');
+});
+
 // ── Teachers ───────────────────────────────────────────────────────────────────
 router.get('/teachers', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -227,13 +236,50 @@ router.get('/teachers', async (req, res) => {
 router.post('/teachers', async (req, res) => {
   try {
     const { fullName, phone, email, departmentId } = req.body;
+    // Validate unique email
+    const existing = await Teacher.findOne({ where: { email } });
+    if (existing) throw new Error('A teacher with this email already exists');
+    const existingPhone = await Teacher.findOne({ where: { phone } });
+    if (existingPhone) throw new Error('A teacher with this phone number already exists');
     const dept = await Department.findByPk(departmentId);
-    const defaultPassword = `${phone}${dept ? dept.code : departmentId}`;
+    if (!dept) throw new Error('Invalid department selected');
+    const defaultPassword = phone + dept.code;
     const hash = await bcrypt.hash(defaultPassword, 10);
     await Teacher.create({ fullName, phone, email, password: hash, departmentId });
     req.flash('success', `Teacher created. Default password: ${defaultPassword}`);
-  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  } catch (err) { req.flash('error', err.message); }
   res.redirect('/admin/teachers');
+});
+
+// Edit must be defined BEFORE :id/role, :id/toggle etc to avoid Express matching 'edit' as an :id
+router.get('/teachers/edit/:id', async (req, res) => {
+  try {
+    const [teacher, departments] = await Promise.all([
+      Teacher.findByPk(req.params.id, { include: ['department'] }),
+      Department.findAll({ order: [['name', 'ASC']] })
+    ]);
+    if (!teacher) { req.flash('error', 'Teacher not found'); return res.redirect('/admin/teachers'); }
+    res.render('admin/teacher-edit', {
+      title: 'Edit Teacher', teacher: teacher.toJSON(), departments,
+      admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
+    });
+  } catch (err) { req.flash('error', err.message); res.redirect('/admin/teachers'); }
+});
+
+router.post('/teachers/edit/:id', async (req, res) => {
+  try {
+    const { fullName, phone, email, departmentId } = req.body;
+    const teacher = await Teacher.findByPk(req.params.id);
+    if (!teacher) throw new Error('Teacher not found');
+    // Unique checks excluding self
+    const dupEmail = await Teacher.findOne({ where: { email, id: { [Op.ne]: req.params.id } } });
+    if (dupEmail) throw new Error('Email is already used by another teacher');
+    const dupPhone = await Teacher.findOne({ where: { phone, id: { [Op.ne]: req.params.id } } });
+    if (dupPhone) throw new Error('Phone number is already used by another teacher');
+    await teacher.update({ fullName, phone, email, departmentId });
+    req.flash('success', `Teacher "${fullName}" updated successfully`);
+    res.redirect('/admin/teachers');
+  } catch (err) { req.flash('error', err.message); res.redirect('/admin/teachers/edit/' + req.params.id); }
 });
 
 router.post('/teachers/:id/role', async (req, res) => {
@@ -260,6 +306,9 @@ router.post('/teachers/:id/toggle', async (req, res) => {
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect('/admin/teachers');
 });
+
+// placeholder so python replace works cleanly
+
 
 // ── Classes ────────────────────────────────────────────────────────────────────
 router.get('/classes', async (req, res) => {
@@ -292,6 +341,15 @@ router.post('/classes/:id/delete', async (req, res) => {
   res.redirect('/admin/classes');
 });
 
+router.post('/classes/:id/edit', async (req, res) => {
+  try {
+    const { name, departmentId } = req.body;
+    await Class.update({ name, departmentId }, { where: { id: req.params.id } });
+    req.flash('success', 'Class updated');
+  } catch (err) { req.flash('error', err.message); }
+  res.redirect('/admin/classes');
+});
+
 // ── Streams ────────────────────────────────────────────────────────────────────
 router.get('/streams', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -320,6 +378,15 @@ router.post('/streams/:id/delete', async (req, res) => {
     await Stream.destroy({ where: { id: req.params.id } });
     req.flash('success', 'Stream deleted');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/streams');
+});
+
+router.post('/streams/:id/edit', async (req, res) => {
+  try {
+    const { name, classId } = req.body;
+    await Stream.update({ name, classId }, { where: { id: req.params.id } });
+    req.flash('success', 'Stream updated');
+  } catch (err) { req.flash('error', err.message); }
   res.redirect('/admin/streams');
 });
 
@@ -394,6 +461,15 @@ router.post('/subjects/:id/delete', async (req, res) => {
     await Subject.destroy({ where: { id: req.params.id } });
     req.flash('success', 'Subject deleted');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/subjects');
+});
+
+router.post('/subjects/:id/edit', async (req, res) => {
+  try {
+    const { name, classId } = req.body;
+    await Subject.update({ name, classId }, { where: { id: req.params.id } });
+    req.flash('success', 'Subject updated');
+  } catch (err) { req.flash('error', err.message); }
   res.redirect('/admin/subjects');
 });
 
@@ -1180,11 +1256,13 @@ router.post('/teachers/:id/reset-password', async (req, res) => {
     const teacher = await Teacher.findByPk(req.params.id);
     if (!teacher) throw new Error('Teacher not found');
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    await teacher.update({ resetToken: token, resetTokenExpiry: expiry, mustChangePassword: true });
-    await sendPasswordResetEmail(teacher, token);
-    req.flash('success', `Password reset link sent to ${teacher.email}`);
+    // Generate HMAC-bound token (30 min expiry, single use)
+    const raw   = crypto.randomBytes(32).toString('hex');
+    const bound = require('crypto').createHmac('sha256', teacher.email.toLowerCase()).update(raw).digest('hex');
+    const expiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    await teacher.update({ resetToken: bound, resetTokenExpiry: expiry, mustChangePassword: true });
+    await sendPasswordResetEmail(teacher, raw);
+    req.flash('success', `Password reset link sent to ${teacher.email} (expires in 30 minutes)`);
   } catch (err) {
     req.flash('error', 'Error: ' + err.message);
   }

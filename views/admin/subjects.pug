@@ -12,7 +12,7 @@ block body
             label
               span.step-badge 1
               | Department
-            select(name='_deptId', id='formDeptSel', required)
+            select(id='formDeptSel', required)
               option(value='') Select department
               each dept in (departments || [])
                 option(value=dept.id) #{dept.name} (#{dept.code})
@@ -53,7 +53,7 @@ block body
               i.fas.fa-search
               span Filter
 
-      .card-header(style='border-top:1px solid var(--border); margin-top:0')
+      .card-header(style='border-top:1px solid var(--border)')
         h2 Subjects
         span.count-badge #{pagination.total}
       .card-body
@@ -67,21 +67,37 @@ block body
                 th Department
                 th Actions
             tbody
-              each subject, i in (subjects || [])
-                tr
+              each subject, i in subjects
+                tr(id='subj-row-'+subject.id)
                   td #{((pagination.page-1)*15)+i+1}
-                  td
-                    span.badge.badge-subject #{subject.name}
-                  td #{subject.class ? subject.class.name : '-'}
+                  td.editable-cell
+                    span.display-val
+                      span.badge.badge-subject #{subject.name}
+                    input.edit-input(type='text', value=subject.name, name='name', style='display:none')
+                  td.editable-cell
+                    span.display-val #{subject.class ? subject.class.name : '-'}
+                    select.edit-input(name='classId', style='display:none')
+                      each cls in (allClasses || [])
+                        option(value=cls.id, selected=subject.classId==cls.id) #{cls.name}
                   td
                     if subject.class && subject.class.department
                       span(class=`dept-badge badge-${subject.class.department.code.toLowerCase()}`) #{subject.class.department.code}
                     else
                       | -
                   td
-                    form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this subject?")')
-                        i.fas.fa-trash
+                    .action-group
+                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=subject.id)
+                        i.fas.fa-edit
+                        span Edit
+                      form.save-form(method='POST', action=`/admin/subjects/${subject.id}/edit`, style='display:none', data-id=subject.id)
+                        button.btn.btn-sm.btn-primary(type='submit')
+                          i.fas.fa-check
+                          span Save
+                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=subject.id)
+                          i.fas.fa-times
+                      form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline')
+                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete?")')
+                          i.fas.fa-trash
         else
           .empty-state
             i.fas.fa-book
@@ -92,42 +108,59 @@ block body
           include ../partials/pagination
 
   script.
-    const deptClassMap = !{JSON.stringify(deptClassMap)};
+    const deptClassMap = !{JSON.stringify(deptClassMap || {})};
 
-    // Form cascade: dept → class
+    // Add form cascade
     const formDeptSel = document.getElementById('formDeptSel');
     const formClassSel = document.getElementById('formClassSel');
-
     function updateFormClasses() {
-      const did = formDeptSel.value;
-      const classes = deptClassMap[did] || [];
+      const classes = deptClassMap[formDeptSel.value] || [];
       formClassSel.innerHTML = '<option value="">— select class —</option>';
       classes.forEach(function(c) {
         const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
+        opt.value = c.id; opt.textContent = c.name;
         formClassSel.appendChild(opt);
       });
     }
     formDeptSel.addEventListener('change', updateFormClasses);
 
-    // Filter cascade: dept → class
+    // Filter cascade
     const filterDeptSel = document.getElementById('filterDeptSel');
     const filterClassSel = document.getElementById('filterClassSel');
-    const savedDept = '!{selectedDeptId}';
     const savedClass = '!{selectedClassId}';
-
     function updateFilterClasses() {
-      const did = filterDeptSel.value;
-      const classes = deptClassMap[did] || [];
+      const classes = deptClassMap[filterDeptSel.value] || [];
       filterClassSel.innerHTML = '<option value="">All Classes</option>';
       classes.forEach(function(c) {
         const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
+        opt.value = c.id; opt.textContent = c.name;
         if (String(c.id) === savedClass) opt.selected = true;
         filterClassSel.appendChild(opt);
       });
     }
     filterDeptSel.addEventListener('change', updateFilterClasses);
     if (filterDeptSel.value) updateFilterClasses();
+
+    // Inline edit
+    document.querySelectorAll('.edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('subj-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'inline-block'; });
+        this.style.display = 'none';
+        const saveForm = row.querySelector('.save-form');
+        saveForm.style.display = 'inline-flex';
+        row.querySelectorAll('.edit-input').forEach(function(inp) { saveForm.insertBefore(inp, saveForm.firstChild); });
+      });
+    });
+    document.querySelectorAll('.cancel-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const row = document.getElementById('subj-row-' + id);
+        row.querySelectorAll('.display-val').forEach(function(el) { el.style.display = ''; });
+        row.querySelectorAll('.edit-input').forEach(function(el) { el.style.display = 'none'; });
+        row.querySelector('.edit-btn').style.display = '';
+        row.querySelector('.save-form').style.display = 'none';
+      });
+    });
