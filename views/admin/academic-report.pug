@@ -24,7 +24,7 @@ block content
             th Student
             th Stream
             each subj in subjects
-              th #{subj.name}
+              th #{subj.name.slice(0,3)}
             if isPrimary
               th Classification
             else

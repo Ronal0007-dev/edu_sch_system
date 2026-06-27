@@ -8,7 +8,7 @@ block body
         select#termSel
           if currentYear && currentYear.terms && currentYear.terms.length
             each t in currentYear.terms
-              option(value=t.name) #{t.name}
+              option(value=t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
           else
             option(value='Term 1') Term 1
             option(value='Term 2') Term 2

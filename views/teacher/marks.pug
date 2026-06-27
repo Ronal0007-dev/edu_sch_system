@@ -15,29 +15,31 @@ block body
         .form-group
           label
             span.step-badge 2
-            | Subject
-          select(name='subjectId', id='subjectSelect', required)
-            option(value='') — select department first —
-            if selectedSubject
-              option(value=selectedSubject.id, selected=true) #{selectedSubject.name}
-        .form-group
-          label
-            span.step-badge 3
             | Class
           select(name='classId', id='classSelect', required)
-            option(value='') — select subject first —
+            option(value='') — select department first —
             if selectedClass
               option(value=selectedClass.id, selected=true) #{selectedClass.name}
         .form-group
+          label
+            span.step-badge 3
+            | Subject
+          select(name='subjectId', id='subjectSelect', required)
+            option(value='') — select class first —
+            if selectedSubject
+              option(value=selectedSubject.id, selected=true) #{selectedSubject.name}
+        .form-group
           label Term
-          select(name='term')
-            if currentYear && currentYear.terms && currentYear.terms.length
-              each t in currentYear.terms
+          if openTerms && openTerms.length
+            select(name='term')
+              each t in openTerms
                 option(value=t.name, selected=term===t.name) #{t.name}
-            else
-              option(value='Term 1', selected=term==='Term 1') Term 1
-              option(value='Term 2', selected=term==='Term 2') Term 2
-              option(value='Term 3', selected=term==='Term 3') Term 3
+          else
+            select(name='term', disabled)
+              option No open terms available
+            .form-hint
+              i.fas.fa-lock
+              span All terms are currently closed. Admin must open a term.
         .form-group
           label Academic Year
           select(name='year')
@@ -252,49 +254,50 @@ block body
       p Select a subject and class above to enter marks.
 
   script.
-    // Cascade: Dept → Subject → Class
+    // Cascade: Dept → Class → Subject
+    // cascadeMap[deptId][classId] = { cls, subjects: [{id, name}] }
     const cascadeMap = !{JSON.stringify(cascadeMap)};
-    const deptSel   = document.getElementById('deptSelect');
-    const subjSel   = document.getElementById('subjectSelect');
-    const classSel  = document.getElementById('classSelect');
+    const deptSel  = document.getElementById('deptSelect');
+    const classSel = document.getElementById('classSelect');
+    const subjSel  = document.getElementById('subjectSelect');
     const savedDept = '!{selectedDeptId}';
-    const savedSubj = '!{selectedSubject ? selectedSubject.id : ""}';
-    const savedCls  = '!{selectedClass ? selectedClass.id : ""}';
-
-    function updateSubjects() {
-      const did = deptSel.value;
-      const subjects = cascadeMap[did] ? Object.values(cascadeMap[did]) : [];
-      subjSel.innerHTML = '<option value="">— select subject —</option>';
-      subjects.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.subject.id;
-        opt.textContent = s.subject.name;
-        if (String(s.subject.id) === savedSubj) opt.selected = true;
-        subjSel.appendChild(opt);
-      });
-      updateClasses();
-    }
+    const savedCls  = '!{selectedClassId}';
+    const savedSubj = '!{selectedSubjectId}';
 
     function updateClasses() {
       const did = deptSel.value;
-      const sid = subjSel.value;
-      const entry = cascadeMap[did] && cascadeMap[did][sid];
-      const classes = entry ? entry.classes : [];
+      const classEntries = cascadeMap[did] ? Object.values(cascadeMap[did]) : [];
       classSel.innerHTML = '<option value="">— select class —</option>';
-      classes.forEach(c => {
+      classEntries.forEach(function(entry) {
         const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
-        if (String(c.id) === savedCls) opt.selected = true;
+        opt.value = entry.cls.id;
+        opt.textContent = entry.cls.name;
+        if (String(entry.cls.id) === savedCls) opt.selected = true;
         classSel.appendChild(opt);
+      });
+      updateSubjects();
+    }
+
+    function updateSubjects() {
+      const did = deptSel.value;
+      const cid = classSel.value;
+      const entry = cascadeMap[did] && cascadeMap[did][cid];
+      const subjects = entry ? entry.subjects : [];
+      subjSel.innerHTML = '<option value="">— select subject —</option>';
+      subjects.forEach(function(s) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        if (String(s.id) === savedSubj) opt.selected = true;
+        subjSel.appendChild(opt);
       });
     }
 
-    deptSel.addEventListener('change', updateSubjects);
-    subjSel.addEventListener('change', updateClasses);
+    deptSel.addEventListener('change', updateClasses);
+    classSel.addEventListener('change', updateSubjects);
 
-    // Init on page load
-    if (deptSel.value) updateSubjects();
+    // Init on page load (restore saved selections)
+    if (deptSel.value) updateClasses();
 
     // Live CA calculation
     function getGrade(s) { return s>=90?'A':s>=80?'B':s>=70?'C':s>=60?'D':'F'; }

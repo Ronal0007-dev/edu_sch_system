@@ -8,60 +8,72 @@ block content
         span Print
       a.btn.btn-outline(href='javascript:history.back()') ← Back
 
-    .print-doc
-      .print-header
-        .print-logo
-          i.fas.fa-graduation-cap
-        div
-          h1 Canon Andrea Mwaka School
-          p "Never tire of doing what is right" 2 Thessalonians 3:13
-          h2 Attendance Report
-          p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; #{cls && cls.department ? cls.department.code : ''} &nbsp;|&nbsp; Generated: #{new Date().toLocaleDateString()}
 
-      table.print-table
-        thead
-          tr
-            th # 
-            th Student Name
-            th Gender
-            th Present
-            th Absent
-            th Sick
-            th Total Days Attended
-            th School Days
-            th %
-        tbody
-          each s, i in summary
-            - const pct = s.schoolDays > 0 ? Math.round((s.present / s.schoolDays) * 100) : 0
+    .report-card
+        .report-card-header
+          .school-info
+            .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='50')
+            div
+              h1 Canon Andrea Mwaka School
+              p "Never tire of doing what is right" 2 Thessalonians 3:13
+          .report-meta
+            .report-type-badge.badge-final Attendance Report
+            p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; #{cls && cls.department ? cls.department.code : ''} &nbsp;|&nbsp; Generated: #{new Date().toLocaleDateString()}
+        //- .print-doc
+        //- .print-header
+        //-   .print-logo
+        //-     img(src='/images/logo.png', alt='School Logo' width='64')
+        //-   div
+        //-     h1 Canon Andrea Mwaka School
+        //-     p "Never tire of doing what is right" 2 Thessalonians 3:13
+        //-     h2 Attendance Report
+          
+
+        table.print-table
+          thead
             tr
-              td #{i + 1}
-              td #{s.student.fullName}
-              td #{s.student.gender}
-              td.cell-present #{s.present}
-              td.cell-absent #{s.absent}
-              td.cell-sick #{s.sick}
-              td #{s.total}
-              td #{s.schoolDays}
-              td
-                strong #{pct}%
-        tfoot
-          tr
-            td(colspan=3) Totals
-            td.cell-present #{summary.reduce((a,s)=>a+s.present,0)}
-            td.cell-absent #{summary.reduce((a,s)=>a+s.absent,0)}
-            td.cell-sick #{summary.reduce((a,s)=>a+s.sick,0)}
-            td #{summary.reduce((a,s)=>a+s.total,0)}
-            td #{summary[0] ? summary[0].schoolDays : 0}
-            td —
+              th # 
+              th Student Name
+              th Gender
+              th Present
+              th Absent
+              th Sick
+              th Total Days Attended
+              th School Days
+              th %
+          tbody
+            each s, i in summary
+              - const pct = s.schoolDays > 0 ? Math.round((s.present / s.schoolDays) * 100) : 0
+              tr
+                td #{i + 1}
+                td #{s.student.fullName}
+                td #{s.student.gender}
+                td.cell-present #{s.present}
+                td.cell-absent #{s.absent}
+                td.cell-sick #{s.sick}
+                td #{s.total}
+                td #{s.schoolDays}
+                td
+                  strong #{pct}%
+          tfoot
+            tr
+              td(colspan=3) Totals
+              td.cell-present #{summary.reduce((a,s)=>a+s.present,0)}
+              td.cell-absent #{summary.reduce((a,s)=>a+s.absent,0)}
+              td.cell-sick #{summary.reduce((a,s)=>a+s.sick,0)}
+              td #{summary.reduce((a,s)=>a+s.total,0)}
+              td #{summary[0] ? summary[0].schoolDays : 0}
+              td —
 
-      .print-footer
-        .sig-grid
-          .sig-box
-            p ___________________________
-            p Class Teacher
-          .sig-box
-            p ___________________________
-            p Head Teacher
-          .sig-box
-            p ___________________________
-            p Date
+        .print-footer
+          .sig-grid
+            .sig-box
+              p ___________________________
+              p Class Teacher
+            .sig-box
+              p ___________________________
+              p Head Teacher
+            .sig-box
+              p ___________________________
+              p Date

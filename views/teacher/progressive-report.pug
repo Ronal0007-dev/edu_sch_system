@@ -15,13 +15,11 @@ block content
             .form-group
               label Term
               select(name='term')
-                if currentYear && currentYear.terms && currentYear.terms.length
-                  each t in currentYear.terms
-                    option(value=t.name, selected=term===t.name) #{t.name}
+                if allTerms && allTerms.length
+                  each t in allTerms
+                    option(value=t.name, selected=term===t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
                 else
                   option(value='Term 1', selected=term==='Term 1') Term 1
-                  option(value='Term 2', selected=term==='Term 2') Term 2
-                  option(value='Term 3', selected=term==='Term 3') Term 3
             .form-group
               label Year
               select(name='year')
@@ -39,10 +37,10 @@ block content
       .report-card-header
         .school-info
           .school-logo-img
-            img(src='/images/logo.png', alt='School Logo' width='64' height='64')
+            img(src='/images/logo.png', alt='School Logo' width='50' height='50')
           div
             h1 Canon Andrea Mwaka School
-            p "Never tire of doing what is right" - 2 Thessalonians 3:13
+            p "Never tire of doing what is right" 2 Thessalonians 3:13
         .report-meta
           .report-type-badge.badge-progressive PROGRESSIVE REPORT
           h2 Continuous Assessment
@@ -120,13 +118,13 @@ block content
           span.grade-badge.grade-F F — Fail (0–59)
 
       .weight-key
-        h4 Component Weights:
+        h4 Component Abbreviations:
         .weight-row-display
-          span H/W 10%
-          span G/W 15%
-          span QZ 20%
-          span C/W 20%
-          span U/T 35%
+          span H/W - Home Work
+          span G/W - Group Work
+          span QZ - Quiz
+          span C/W - Class Work
+          span U/T - Unit Test
 
       if reportComment && reportComment.comment
         .class-teacher-comment

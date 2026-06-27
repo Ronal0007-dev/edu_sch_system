@@ -24,9 +24,8 @@ block body
         break-inside: avoid;
         page-break-inside: avoid;
       }
-      .subj-bar-label { color: #ede4e4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .subj-bar-label { color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .subj-bar-fill  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .stat-total { background: #b8cde9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .stat-pass { background: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .stat-fail { background: #fee2e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .bar-good  { background: #10b981 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -47,7 +46,7 @@ block body
           select(name='term')
             if currentYear && currentYear.terms && currentYear.terms.length
               each t in currentYear.terms
-                option(value=t.name, selected=term===t.name) #{t.name}
+                option(value=t.name, selected=term===t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
             else
               option(value='Term 1', selected=term==='Term 1') Term 1
               option(value='Term 2', selected=term==='Term 2') Term 2
@@ -68,15 +67,21 @@ block body
 
     //- Print header — hidden on screen, shown on print at top of page
     .print-header-block
-      .print-header(style='display:flex;gap:1rem;padding-bottom:.85rem;border-bottom:2px solid #1a56db;margin-bottom:1.25rem')
-        img(src='/images/logo.png', style='width:56px;height:56px;object-fit:contain; display: flex;' )
-        div
-          h1(style='font-size:1.25rem;font-weight:800;margin:0') Canon Andrea Mwaka School
-          p(style='margin:.2rem 0 0;color:#475569;font-size:.85rem')
+      .report-card
+        .report-card-header
+          .school-info
+            .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='50')
+            div
+              h1 Canon Andrea Mwaka School
+              p "Never tire of doing what is right" 2 Thessalonians 3:13
+          .report-meta
+            .report-type-badge.badge-final Final Exam Analysis
+            p(style='margin:.2rem 0 0;color:#475569;font-size:.85rem')
             | Final Exam Analysis &nbsp;|&nbsp; #{analysisData.cls ? analysisData.cls.name : ''} &nbsp;|&nbsp; #{term} #{year}
-          p(style='margin:.1rem 0 0;color:#64748b;font-size:.8rem')
+            p(style='margin:.1rem 0 0;color:#64748b;font-size:.8rem')
             | Department: #{analysisData.deptCode} &nbsp;|&nbsp; Total Students: #{analysisData.totalStudents}
-
+            
     .analysis-header
       h2
         i.fas.fa-chart-bar

@@ -14,10 +14,10 @@ block content
         .report-card-header
           .school-info
             .school-logo-img
-              img(src='/images/logo.png', alt='School Logo' width='64' height='64')
+              img(src='/images/logo.png', alt='School Logo' width='50')
             div
               h1 Canon Andrea Mwaka School
-              p "Never tire of doing what is right" - 2 Thessalonians 3:13
+              p "Never tire of doing what is right" 2 Thessalonians 3:13
           .report-meta
             .report-type-badge.badge-final FINAL REPORT
             h2 Final Examination Results
@@ -134,14 +134,19 @@ block content
               span.summary-label Failed:
               span.summary-val.text-danger #{feMarks.length - passCount}
 
+        if sr.reportComment && sr.reportComment.comment
+          .class-teacher-comment
+            h4
+              i.fas.fa-comment-alt
+              |  Class Teacher's Comment
+            p.comment-text #{sr.reportComment.comment}
+
         .report-card-footer
           .signature-area
             .sig-box
               p ___________________________
               p Class Teacher
-            .sig-box
-              p ___________________________
-              p Parent / Guardian
+            
             .sig-box
               p ___________________________
               p Head Teacher

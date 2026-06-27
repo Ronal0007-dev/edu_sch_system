@@ -187,7 +187,8 @@ router.get('/marks', async (req, res) => {
     ]
   });
 
-  // Build unique departments from teacher's assignments
+  // ── Cascade: Dept → Class → Subject ─────────────────────────────────────────
+  // deptMap: unique departments
   const deptMap = new Map();
   teacherSubjectRows.forEach(ts => {
     if (ts.class && ts.class.department) {
@@ -197,37 +198,46 @@ router.get('/marks', async (req, res) => {
   });
   const uniqueDepts = [...deptMap.values()];
 
-  // Build subject→class map keyed by dept+subject for cascading selects
-  // subjectClassMap[deptId][subjectId] = [{id, name}, ...]
+  // cascadeMap[deptId][classId] = { class, subjects: [{id, name}] }
   const cascadeMap = {};
   teacherSubjectRows.forEach(ts => {
     if (!ts.class || !ts.class.department || !ts.subject) return;
-    const deptId = ts.class.department.id;
-    const subjId = ts.subject.id;
+    const deptId = String(ts.class.department.id);
+    const classId = String(ts.class.id);
     if (!cascadeMap[deptId]) cascadeMap[deptId] = {};
-    if (!cascadeMap[deptId][subjId]) cascadeMap[deptId][subjId] = { subject: ts.subject.toJSON ? ts.subject.toJSON() : ts.subject, classes: [] };
-    const cls = ts.class.toJSON ? ts.class.toJSON() : ts.class;
-    if (!cascadeMap[deptId][subjId].classes.find(c => c.id === cls.id)) {
-      cascadeMap[deptId][subjId].classes.push(cls);
+    if (!cascadeMap[deptId][classId]) {
+      const cls = ts.class.toJSON ? ts.class.toJSON() : ts.class;
+      cascadeMap[deptId][classId] = { cls, subjects: [] };
+    }
+    const subj = ts.subject.toJSON ? ts.subject.toJSON() : ts.subject;
+    if (!cascadeMap[deptId][classId].subjects.find(s => s.id === subj.id)) {
+      cascadeMap[deptId][classId].subjects.push(subj);
     }
   });
 
-  const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+  // Only show open terms for selection
+  const openTerms = currentYear && currentYear.terms
+    ? currentYear.terms.filter(t => t.isOpen)
+    : [];
+
+  const term = req.query.term || (openTerms[0] ? openTerms[0].name : 'Term 1');
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
 
   let students = [], selectedSubject = null, selectedClass = null, existingMarks = {};
-  let deptCode = '', selectedDeptId = req.query.deptId || '';
+  let deptCode = '';
+  const selectedDeptId  = req.query.deptId   || '';
+  const selectedClassId = req.query.classId  || '';
+  const selectedSubjectId = req.query.subjectId || '';
 
-  if (req.query.subjectId && req.query.classId) {
-    selectedSubject = await Subject.findByPk(req.query.subjectId);
-    selectedClass = await Class.findByPk(req.query.classId, { include: ['department'] });
-    deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : '';
-    if (!selectedDeptId && selectedClass && selectedClass.department) selectedDeptId = String(selectedClass.department.id);
+  if (selectedSubjectId && selectedClassId) {
+    selectedSubject = await Subject.findByPk(selectedSubjectId);
+    selectedClass   = await Class.findByPk(selectedClassId, { include: ['department'] });
+    deptCode        = selectedClass && selectedClass.department ? selectedClass.department.code : '';
     students = await Student.findAll({
-      where: { classId: req.query.classId, isActive: true },
+      where: { classId: selectedClassId, isActive: true },
       include: ['stream'], order: [['fullName', 'ASC']]
     });
-    const marks = await Mark.findAll({ where: { subjectId: req.query.subjectId, classId: req.query.classId, term, academicYear: year } });
+    const marks = await Mark.findAll({ where: { subjectId: selectedSubjectId, classId: selectedClassId, term, academicYear: year } });
     marks.forEach(m => { existingMarks[m.studentId] = m; });
   }
 
@@ -235,8 +245,8 @@ router.get('/marks', async (req, res) => {
     title: 'Enter Marks',
     teacherSubjectRows, uniqueDepts, cascadeMap,
     students, selectedSubject, selectedClass, existingMarks,
-    deptCode, selectedDeptId,
-    term, year, currentYear,
+    deptCode, selectedDeptId, selectedClassId, selectedSubjectId,
+    term, year, currentYear, openTerms,
     teacher: req.session.teacher,
     error: req.flash('error'), success: req.flash('success')
   });
@@ -299,12 +309,14 @@ async function loadStudentReportData(studentId, term, year) {
 router.get('/progressive-report/:studentId', async (req, res) => {
   try {
     const currentYear = await getCurrentYear();
-    const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+    const allTerms = currentYear && currentYear.terms ? currentYear.terms : [];
+    const defaultTerm = allTerms[0] ? allTerms[0].name : 'Term 1';
+    const term = req.query.term || defaultTerm;
     const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
     const data = await loadStudentReportData(req.params.studentId, term, year);
     res.render('teacher/progressive-report', {
-      title: 'Progressive Report Card', ...data, term, year, getRemark, currentYear, academicYears, teacher: req.session.teacher
+      title: 'Progressive Report Card', ...data, term, year, getRemark, currentYear, academicYears, allTerms, teacher: req.session.teacher
     });
   } catch (err) {
     req.flash('error', err.message);
@@ -316,12 +328,14 @@ router.get('/progressive-report/:studentId', async (req, res) => {
 router.get('/final-report/:studentId', async (req, res) => {
   try {
     const currentYear = await getCurrentYear();
-    const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
+    const allTerms = currentYear && currentYear.terms ? currentYear.terms : [];
+    const defaultTerm = allTerms[0] ? allTerms[0].name : 'Term 1';
+    const term = req.query.term || defaultTerm;
     const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
     const data = await loadStudentReportData(req.params.studentId, term, year);
     res.render('teacher/final-report', {
-      title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, currentYear, academicYears, teacher: req.session.teacher
+      title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, currentYear, academicYears, allTerms, teacher: req.session.teacher
     });
   } catch (err) {
     req.flash('error', err.message);

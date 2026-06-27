@@ -8,46 +8,58 @@ block content
         span Print
       a.btn.btn-outline(href='javascript:history.back()') ← Back
 
-    .print-doc
-      .print-header
-        img(src='/images/logo.png', alt='School Logo' style='max-width:80px;')
-        div
-          h1 Canon Andrea Mwaka School
-          h2 Daily Attendance Sheet
-          p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; Date: #{date} &nbsp;|&nbsp; Printed: #{new Date().toLocaleDateString()}
 
-      table.print-table
-        thead
-          tr
-            th #
-            th Student Name
-            th Gender
-            th Status
-            th Remarks
-        tbody
-          each s, i in summary
-            tr(class=s.status==='absent'?'row-absent':s.status==='sick'?'row-sick':'')
-              td #{i + 1}
-              td #{s.student.fullName}
-              td #{s.student.gender}
-              td
-                span(class=`status-badge ${s.status}`) #{s.status}
-              td &nbsp;
+    .report-card
+        .report-card-header
+          .school-info
+            .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='50')
+            div
+              h1 Canon Andrea Mwaka School
+              p "Never tire of doing what is right" 2 Thessalonians 3:13
+          .report-meta
+            .report-type-badge.badge-final Daily Attendance Sheet
+            p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; Date: #{date} &nbsp;|&nbsp; Printed: #{new Date().toLocaleDateString()}
+        //- .print-doc
+        //-   .print-header
+        //-     img(src='/images/logo.png', alt='School Logo' style='max-width:60px;')
+        //-     div
+        //-       h1 Canon Andrea Mwaka School
+        //-       h2 Daily Attendance Sheet
+              
 
-      .print-stats
-        span Present: #{summary.filter(s=>s.status==='present').length}
-        span Absent: #{summary.filter(s=>s.status==='absent').length}
-        span Sick: #{summary.filter(s=>s.status==='sick').length}
-        span Total: #{summary.length}
+        table.print-table
+          thead
+            tr
+              th #
+              th Student Name
+              th Gender
+              th Status
+              th Remarks
+          tbody
+            each s, i in summary
+              tr(class=s.status==='absent'?'row-absent':s.status==='sick'?'row-sick':'')
+                td #{i + 1}
+                td #{s.student.fullName}
+                td #{s.student.gender}
+                td
+                  span(class=`status-badge ${s.status}`) #{s.status}
+                td &nbsp;
 
-      .print-footer
-        .sig-grid
-          .sig-box
-            p ___________________________
-            p Class Teacher
-          .sig-box
-            p ___________________________
-            p Head Teacher
-          .sig-box
-            p ___________________________
-            p Date
+        .print-stats
+          span Present: #{summary.filter(s=>s.status==='present').length}
+          span Absent: #{summary.filter(s=>s.status==='absent').length}
+          span Sick: #{summary.filter(s=>s.status==='sick').length}
+          span Total: #{summary.length}
+
+        .print-footer
+          .sig-grid
+            .sig-box
+              p ___________________________
+              p Class Teacher
+            .sig-box
+              p ___________________________
+              p Head Teacher
+            .sig-box
+              p ___________________________
+              p Date
