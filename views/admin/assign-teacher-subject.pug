@@ -76,25 +76,21 @@ block body
                 th Subject
                 th Actions
             tbody
-              each a in (assignments || [])
+              //- 
+              each teacherGroup in (uniqueTeacherAssignments || [])
                 tr
                   td
                     .teacher-name
                       i.fas.fa-user-circle
-                      span #{a.teacher ? a.teacher.fullName : '-'}
-                  td
-                    span.badge.badge-class #{a.class ? a.class.name : '-'}
-                  td
-                    if a.class && a.class.department
-                      span(class=`dept-badge badge-${a.class.department.code.toLowerCase()}`) #{a.class.department.code}
-                    else
-                      | -
-                  td
-                    span.badge.badge-subject #{a.subject ? a.subject.name : '-'}
-                  td
-                    form(method='POST', action=`/admin/assignments/teacher-subject/${a.id}/remove`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove?")')
-                        i.fas.fa-unlink
+                      strong #{teacherGroup.teacherName}
+                  td(colspan="4")
+                    .subject-tags-list(style="display: flex; flex-wrap: wrap; gap: 8px;")
+                      each sub in teacherGroup.subjects
+                        span.badge.badge-subject(style="padding: 6px 12px; margin-right: 4px;")
+                          | #{sub.name} (#{sub.className})
+                          form(method='POST', action=`/admin/assignments/teacher-subject/${sub.id}/remove`, style='display:inline; margin-left: 8px;')
+                            button.btn-link(type='submit', onclick='return confirm("Remove this subject assignment?")', style='background:none; border:none; color:var(--danger); cursor:pointer;')
+                              i.fas.fa-times-circle
         else
           .empty-state
             i.fas.fa-link

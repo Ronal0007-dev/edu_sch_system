@@ -1278,6 +1278,34 @@ router.get("/assignments/teacher-subject", async (req, res) => {
     offset: (page - 1) * limit,
   });
 
+  // Grouping assignments dynamically by teacher
+  const structuredAssignments = assignments.reduce((acc, assignment) => {
+    const teacherId = assignment.teacher ? assignment.teacher.id : "unassigned";
+    const teacherName = assignment.teacher
+      ? assignment.teacher.fullName
+      : "Unknown Teacher";
+
+    if (!acc[teacherId]) {
+      acc[teacherId] = {
+        teacherName: teacherName,
+        subjects: [],
+      };
+    }
+
+    if (assignment.subject) {
+      acc[teacherId].subjects.push({
+        id: assignment.id,
+        name: assignment.subject.name,
+        className: assignment.class ? assignment.class.name : "-",
+      });
+    }
+
+    return acc;
+  }, {});
+
+  // Convert object collections back into a clean list
+  const uniqueTeacherAssignments = Object.values(structuredAssignments);
+
   // dept→classes map for cascade JS
   const deptClassMap = {};
   allClasses.forEach((c) => {
@@ -1309,6 +1337,7 @@ router.get("/assignments/teacher-subject", async (req, res) => {
     classes: classes || [],
     subjects: subjects || [],
     assignments: assignments || [],
+    uniqueTeacherAssignments: uniqueTeacherAssignments,
     allClasses: allClasses || [],
     deptClassMap: deptClassMap || {},
     classSubjectMap: classSubjectMap || {},
@@ -1394,7 +1423,6 @@ router.get("/reports/attendance", async (req, res) => {
   let report = null,
     className = "";
 
-
   const currentYear = await getCurrentYear();
 
   if (req.query.classId) {
@@ -1412,7 +1440,7 @@ router.get("/reports/attendance", async (req, res) => {
 
     // Compute school days (weekdays minus holidays) in current year range
     const currentYear = await getCurrentYear();
-    
+
     let schoolDays = 0;
     if (currentYear) {
       const holidays = await PublicHoliday.findAll();

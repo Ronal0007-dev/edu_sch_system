@@ -86,7 +86,7 @@ async function start() {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connected');
-    await sequelize.sync({ alter: true });
+    await sequelize.sync({ farce: false });
     console.log('✅ Models synced');
     app.listen(PORT, () => {
       console.log(`   Admin login: http://localhost:${PORT}/auth/admin/login`);
