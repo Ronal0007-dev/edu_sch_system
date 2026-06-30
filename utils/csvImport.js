@@ -1,8 +1,7 @@
 'use strict';
 const { parse } = require('csv-parse');
 const fs = require('fs');
-const { Student, Class, Stream, Department } = require('../models');
-const { Op } = require('sequelize');
+const { Student, Class, Department } = require('../models');
 
 /**
  * Expected CSV columns (case-insensitive, flexible headers):
@@ -11,8 +10,15 @@ const { Op } = require('sequelize');
  *   class    | class_name | className
  *   stream   | stream_name               (optional)
  *
- * Processes in batches of 50 rows to handle 500+ students without OOM.
+ * Designed to comfortably handle 5,000+ rows in one import:
+ *  - CSV is parsed as a stream (constant memory regardless of file size)
+ *  - Existing students for the department are pre-loaded ONCE into an
+ *    in-memory Set for O(1) duplicate checks (no per-row SELECT)
+ *  - Valid rows are inserted with Sequelize bulkCreate in chunks of 500,
+ *    so a 5,000-row import is ~10 INSERT statements instead of 5,000.
  */
+
+const CHUNK_SIZE = 500;
 
 // Normalise a header to a canonical key
 function normaliseHeader(h) {
@@ -35,42 +41,99 @@ function normaliseGender(v) {
 }
 
 async function importStudentsFromCSV(filePath, departmentId) {
-  // Pre-load all classes and streams for the department into memory
   const dept = await Department.findByPk(departmentId);
   if (!dept) throw new Error('Invalid department selected');
 
+  // Pre-load all classes + streams for this department into memory once.
   const classes = await Class.findAll({
     where: { departmentId },
     include: ['streams']
   });
 
-  // Build fast lookup maps
-  const classMap  = {}; // normalised name → { id, streams: { name → id } }
+  const classMap = {}; // normalised class name -> { id, streams: { name -> id } }
   classes.forEach(cls => {
     const key = cls.name.trim().toLowerCase();
     const streamMap = {};
-    (cls.streams || []).forEach(s => {
-      streamMap[s.name.trim().toLowerCase()] = s.id;
-    });
+    (cls.streams || []).forEach(s => { streamMap[s.name.trim().toLowerCase()] = s.id; });
     classMap[key] = { id: cls.id, streams: streamMap };
   });
 
+  // Pre-load existing active students for these classes into a Set for O(1)
+  // duplicate lookups instead of one SELECT per CSV row.
+  const classIds = classes.map(c => c.id);
+  const existingStudents = classIds.length
+    ? await Student.findAll({
+        where: { classId: classIds, isActive: true },
+        attributes: ['fullName', 'classId']
+      })
+    : [];
+  const existingSet = new Set(
+    existingStudents.map(s => `${s.classId}::${s.fullName.trim().toLowerCase()}`)
+  );
+
   return new Promise((resolve, reject) => {
     const results = { inserted: 0, skipped: 0, errors: [] };
-    const rows = [];
+    const toInsert = [];     // valid rows pending insertion
+    let rowNum = 0;
+    let pendingFlush = Promise.resolve(); // serialises bulk inserts so order/results stay consistent
 
     const parser = parse({
       columns: header => header.map(normaliseHeader),
       skip_empty_lines: true,
       trim: true,
-      bom: true,           // handle Excel BOM
+      bom: true,
       relax_column_count: true
     });
+
+    function validateRow(row) {
+      rowNum++;
+      const fullName    = (row.fullName || '').trim();
+      const gender      = normaliseGender(row.gender);
+      const className   = (row.class || '').trim().toLowerCase();
+      const streamName  = (row.stream || '').trim().toLowerCase();
+
+      if (!fullName) { results.errors.push(`Row ${rowNum}: Missing student name`); return; }
+      if (!gender)   { results.errors.push(`Row ${rowNum} (${fullName}): Invalid gender "${row.gender}" — use Male/Female or M/F`); return; }
+      if (!className){ results.errors.push(`Row ${rowNum} (${fullName}): Missing class`); return; }
+
+      const cls = classMap[className];
+      if (!cls) { results.errors.push(`Row ${rowNum} (${fullName}): Class "${row.class}" not found in this department`); return; }
+
+      let streamId = null;
+      if (streamName) {
+        streamId = cls.streams[streamName] || null;
+        if (!streamId) {
+          results.errors.push(`Row ${rowNum} (${fullName}): Stream "${row.stream}" not found in class "${row.class}" — added without stream`);
+          // still proceed without a stream
+        }
+      }
+
+      const dedupeKey = `${cls.id}::${fullName.toLowerCase()}`;
+      if (existingSet.has(dedupeKey)) { results.skipped++; return; }
+      existingSet.add(dedupeKey); // guard against dupes within the same CSV file too
+
+      toInsert.push({ fullName, gender, classId: cls.id, streamId, isActive: true });
+    }
+
+    async function flushChunk() {
+      if (toInsert.length === 0) return;
+      const chunk = toInsert.splice(0, toInsert.length);
+      try {
+        await Student.bulkCreate(chunk, { validate: true });
+        results.inserted += chunk.length;
+      } catch (err) {
+        results.errors.push(`Batch insert error: ${err.message}`);
+      }
+    }
 
     parser.on('readable', () => {
       let record;
       while ((record = parser.read()) !== null) {
-        rows.push(record);
+        validateRow(record);
+        if (toInsert.length >= CHUNK_SIZE) {
+          // Serialise flushes so we never run two bulkCreate calls concurrently
+          pendingFlush = pendingFlush.then(flushChunk);
+        }
       }
     });
 
@@ -78,82 +141,18 @@ async function importStudentsFromCSV(filePath, departmentId) {
 
     parser.on('end', async () => {
       try {
-        const BATCH = 50;
-        for (let i = 0; i < rows.length; i += BATCH) {
-          const batch = rows.slice(i, i + BATCH);
-          await processBatch(batch, classMap, results);
-        }
-        // Clean up uploaded file
-        try { fs.unlinkSync(filePath); } catch(e) {}
+        await pendingFlush;   // wait for any in-flight chunk flush
+        await flushChunk();   // flush whatever remains (< CHUNK_SIZE)
+        try { fs.unlinkSync(filePath); } catch (e) {}
         resolve(results);
-      } catch(err) {
-        try { fs.unlinkSync(filePath); } catch(e) {}
+      } catch (err) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
         reject(err);
       }
     });
 
     fs.createReadStream(filePath).pipe(parser);
   });
-}
-
-async function processBatch(rows, classMap, results) {
-  for (const row of rows) {
-    const rowNum = results.inserted + results.skipped + results.errors.length + 1;
-    try {
-      const fullName = (row.fullName || '').trim();
-      const gender   = normaliseGender(row.gender);
-      const className = (row.class || '').trim().toLowerCase();
-      const streamName = (row.stream || '').trim().toLowerCase();
-
-      // Validate required fields
-      if (!fullName) {
-        results.errors.push(`Row ${rowNum}: Missing student name`);
-        continue;
-      }
-      if (!gender) {
-        results.errors.push(`Row ${rowNum} (${fullName}): Invalid gender "${row.gender}" — use Male/Female or M/F`);
-        continue;
-      }
-      if (!className) {
-        results.errors.push(`Row ${rowNum} (${fullName}): Missing class`);
-        continue;
-      }
-
-      const cls = classMap[className];
-      if (!cls) {
-        results.errors.push(`Row ${rowNum} (${fullName}): Class "${row.class}" not found in this department`);
-        continue;
-      }
-
-      let streamId = null;
-      if (streamName) {
-        streamId = cls.streams[streamName] || null;
-        if (!streamId) {
-          results.errors.push(`Row ${rowNum} (${fullName}): Stream "${row.stream}" not found in class "${row.class}" — student added without stream`);
-          // Don't skip — still add the student without stream
-        }
-      }
-
-      // Check for duplicate (same name + class)
-      const existing = await Student.findOne({
-        where: {
-          fullName: { [Op.like]: fullName },
-          classId: cls.id,
-          isActive: true
-        }
-      });
-
-      if (existing) {
-        results.skipped++;
-        continue;
-      }
-
-      await Student.create({ fullName, gender, classId: cls.id, streamId, isActive: true });
-      results.inserted++;
-    } catch(err) {
-      results.errors.push(`Row ${rowNum}: ${err.message}`);
-    }
-  }
 }
 
 module.exports = { importStudentsFromCSV };

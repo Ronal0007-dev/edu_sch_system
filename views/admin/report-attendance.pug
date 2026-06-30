@@ -46,8 +46,9 @@ block body
             tbody
               each s, i in report.summary
                 - const pct = s.schoolDays > 0 ? Math.round((s.present / s.schoolDays) * 100) : 0
+                - const rowNum = ((pagination.page - 1) * 15) + i + 1
                 tr
-                  td #{i + 1}
+                  td #{rowNum}
                   td #{s.student.fullName}
                   td
                     span.status-count.present #{s.present}

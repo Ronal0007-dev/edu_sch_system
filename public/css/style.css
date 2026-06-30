@@ -191,7 +191,7 @@ a:hover { text-decoration: underline; }
 .role-class_teacher { background: #eff6ff; color: #1d4ed8; }
 .role-head_of_dept { background: #fdf4ff; color: #9333ea; }
 .role-admin { background: #fff7ed; color: #c2410c; }
-.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .6rem; }
+.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .9rem; }
 .grade-A { background: #dcfce7; color: #15803d; }
 .grade-B { background: #dbeafe; color: #1d4ed8; }
 .grade-C { background: #fef9c3; color: #a16207; }
@@ -322,9 +322,15 @@ a:hover { text-decoration: underline; }
 .grading-key h4 { font-size: .8rem; color: var(--text-muted); margin-bottom: .5rem; }
 .grade-key-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
 .report-card-footer { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
-.signature-area { display: flex; justify-content: center; grid-template-columns: repeat(3, 1fr); gap: 5rem; }
-.sig-box { text-align: center; }
+.signature-area { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.signature-area.with-stamp { grid-template-columns: repeat(4, 1fr); }
+.sig-box { text-align: center;}
 .sig-box p { font-size: .78rem; color: var(--text-muted); margin-top: .25rem; }
+
+/* School stamp shown in report card / academic report signature rows */
+.stamp-box { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.stamp-box img { width: 200px; height: 200px; object-fit: contain; opacity: .92; }
+.stamp-box p { font-size: .78rem; color: var(--text-muted); margin-top: .25rem; }
 .print-date { font-size: .72rem; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 
 /* ─── Print Styles ─────────────────────────────────────────────────────────── */
@@ -418,8 +424,13 @@ a:hover { text-decoration: underline; }
 .print-stats { display:flex; gap:1.5rem; padding:.75rem; background:#f8fafc; border-radius:var(--radius-sm); margin-bottom:1.5rem; font-size:.85rem; font-weight:600; }
 .print-footer { border-top:1px solid var(--border); padding-top:1.5rem; margin-top:1.5rem; }
 .sig-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+.sig-grid.with-stamp { grid-template-columns:repeat(4,1fr); }
 .sig-box { text-align:center; }
 .sig-box p { font-size:.78rem; color:var(--text-muted); margin-top:.3rem; }
+
+.stamp-box { text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; }
+.stamp-box img { width:200px; height:200px; object-fit:contain; opacity:.92; }
+.stamp-box p { font-size:.78rem; color:var(--text-muted); margin-top:.3rem; }
 .page-break-after { page-break-after:always; break-after:page; }
 
 /* ─── Text helpers ───────────────────────────────────────────────────────────── */
@@ -523,7 +534,7 @@ a:hover { text-decoration: underline; }
 .asi-info h3 { font-size:1.5rem; font-weight:800; line-height:1; }
 .asi-info p { font-size:.78rem; color:var(--text-muted); margin-top:.15rem; }
 
-.subjects-analysis-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:1rem; }
+.subjects-analysis-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:1rem; }
 .subj-analysis-card { background:var(--card); border:1.5px solid var(--border); border-radius:var(--radius); padding:1.1rem; }
 .subj-name { font-size:.95rem; font-weight:700; margin-bottom:.85rem; color:var(--text); }
 .subj-stats { display:flex; gap:.5rem; margin-bottom:.75rem; }
@@ -555,9 +566,9 @@ a:hover { text-decoration: underline; }
 
 /* ─── Weight key display ────────────────────────────────────────────────────── */
 .weight-key { background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.65rem 1rem; margin:.75rem 0; }
-.weight-key h4 { font-size:.7rem; color:var(--text-muted); font-weight:700; margin-bottom:.4rem; }
+.weight-key h4 { font-size:.78rem; color:var(--text-muted); font-weight:700; margin-bottom:.4rem; }
 .weight-row-display { display:flex; gap:1rem; flex-wrap:wrap; }
-.weight-row-display span { font-size:.7rem; font-weight:600; color:var(--primary); background:var(--primary-light); padding:.15rem .55rem; border-radius:4px; }
+.weight-row-display span { font-size:.8rem; font-weight:600; color:var(--primary); background:var(--primary-light); padding:.15rem .55rem; border-radius:4px; }
 
 /* ─── Final summary bar ─────────────────────────────────────────────────────── */
 .final-summary { display:flex; gap:1.5rem; background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.75rem 1rem; margin:1rem 0; flex-wrap:wrap; }

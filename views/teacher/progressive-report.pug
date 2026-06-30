@@ -37,10 +37,10 @@ block content
       .report-card-header
         .school-info
           .school-logo-img
-            img(src='/images/logo.png', alt='School Logo' width='50' height='50')
+            img(src='/images/logo.png', alt='School Logo' width='64')
           div
             h1 Canon Andrea Mwaka School
-            p "Never tire of doing what is right" 2 Thessalonians 3:13
+            p "Never tire of doing what is right" 2 thessalonians 3:13
         .report-meta
           .report-type-badge.badge-progressive PROGRESSIVE REPORT
           h2 Continuous Assessment
@@ -118,13 +118,13 @@ block content
           span.grade-badge.grade-F F — Fail (0–59)
 
       .weight-key
-        h4 Component Abbreviations:
+        h4 Component Weights:
         .weight-row-display
-          span H/W - Home Work
-          span G/W - Group Work
-          span QZ - Quiz
-          span C/W - Class Work
-          span U/T - Unit Test
+          span H/W 10%
+          span G/W 15%
+          span QZ 20%
+          span C/W 20%
+          span U/T 35%
 
       if reportComment && reportComment.comment
         .class-teacher-comment
@@ -134,12 +134,18 @@ block content
           p.comment-text #{reportComment.comment}
 
       .report-card-footer
-        .signature-area
+        .signature-area.with-stamp
           .sig-box
             p ___________________________
             p Class Teacher
+          //- .sig-box
+          //-   p ___________________________
+          //-   p Parent / Guardian
           .sig-box
             p ___________________________
             p Head Teacher
+          //- .stamp-box
+            img(src='/images/school-stamp.png', alt='School Stamp' width='64')
+            p Official Stamp
 
       .print-date Generated: #{new Date().toLocaleDateString()}

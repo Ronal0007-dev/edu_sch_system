@@ -13,7 +13,7 @@ block content
         .print-logo
           img(src='/images/logo.png', alt='School Logo', style='width:64px;height:64px;object-fit:contain')
         div
-          h2 Canon Andrea Mwaka School
+          h1 Canon Andrea Mwaka School
           h2 Academic Report — Final Examination
           p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; #{cls && cls.department ? cls.department.code : ''} &nbsp;|&nbsp; #{term} #{year}
 
@@ -77,7 +77,7 @@ block content
           h4 Pass threshold: ≥ 40% of max mark per subject.
 
       .print-footer
-        .sig-grid
+        .sig-grid.with-stamp
           .sig-box
             p ___________________________
             p Class Teacher
@@ -87,3 +87,6 @@ block content
           .sig-box
             p ___________________________
             p Date
+          .stamp-box
+            img(src='/images/school-stamp.png', alt='School Stamp' width='64')
+            p Official Stamp

@@ -24,7 +24,7 @@ block content
             th Student
             th Stream
             each subj in subjects
-              th #{subj.name.slice(0,3)}
+              th #{subj.name}
             if isPrimary
               th Classification
             else
@@ -75,7 +75,7 @@ block content
           h4 Pass threshold: ≥ 40% of max mark per subject.
 
       .print-footer
-        .sig-grid
+        .sig-grid.with-stamp
           .sig-box
             p ___________________________
             p Class Teacher
@@ -85,3 +85,6 @@ block content
           .sig-box
             p ___________________________
             p Date
+          .stamp-box
+            img(src='/images/school-stamp.png', alt='School Stamp' width='64')
+            p Official Stamp

@@ -92,7 +92,17 @@ const Student = sequelize.define('Student', {
   classId: { type: DataTypes.INTEGER, allowNull: false },
   streamId: { type: DataTypes.INTEGER },
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
-}, { tableName: 'students', timestamps: true });
+}, {
+  tableName: 'students',
+  timestamps: true,
+  // One composite index covers the most common lookup pattern:
+  // WHERE classId = ? AND isActive = ? ORDER BY fullName.
+  // Kept to a single index (not one per column) to stay well under
+  // MySQL's 64-key-per-table ceiling across this whole schema.
+  indexes: [
+    { name: 'idx_students_class_active', fields: ['classId', 'isActive'] }
+  ]
+});
 
 // ─── Teacher-Class Assignment ─────────────────────────────────────────────────
 const TeacherClass = sequelize.define('TeacherClass', {

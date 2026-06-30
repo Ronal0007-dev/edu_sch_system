@@ -33,32 +33,49 @@ block body
     }
 
   .filter-bar
-    form.filter-form(method='GET', action='/admin/reports/exam-analysis')
+    form.filter-form(method='GET', action='/admin/reports/exam-analysis' id='filterForm')
       .form-row
+        //- 1. Department
+        .form-group
+          label Department
+          select#deptSelect(name='deptId')
+            option(value='') Select Department
+            //- Dynamically build unique departments from the classes list
+            - const uniqueDepts = []
+            each cls in classes
+              if cls.department && !uniqueDepts.some(d => d.id === cls.department.id)
+                - uniqueDepts.push(cls.department)
+            each dept in uniqueDepts
+              option(value=dept.id, selected=analysisData && analysisData.cls && analysisData.cls.departmentId == dept.id) #{dept.name}
+
+        //- 2. Class
         .form-group
           label Class
-          select(name='classId', required)
-            option(value='') Select class
+          select#classSelect(name='classId', required)
+            option(value='') Select Class
             each cls in classes
-              option(value=cls.id, selected=analysisData && analysisData.cls && analysisData.cls.id==cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
-        .form-group
-          label Term
-          select(name='term')
-            if currentYear && currentYear.terms && currentYear.terms.length
-              each t in currentYear.terms
-                option(value=t.name, selected=term===t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
-            else
-              option(value='Term 1', selected=term==='Term 1') Term 1
-              option(value='Term 2', selected=term==='Term 2') Term 2
-              option(value='Term 3', selected=term==='Term 3') Term 3
+              option(value=cls.id, data-dept=cls.departmentId, selected=analysisData && analysisData.cls && analysisData.cls.id == cls.id) #{cls.name}
+
+        //- 3. Academic Year
         .form-group
           label Academic Year
-          select(name='year')
+          select#yearSelect(name='year')
             if currentYear
-              option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name} (Current)
+              option(value=currentYear.name, data-terms=JSON.stringify(currentYear.terms || []), selected=year===currentYear.name) #{currentYear.name} (Current)
             each yr in academicYears
               if !currentYear || yr.id !== currentYear.id
-                option(value=yr.name, selected=year===yr.name) #{yr.name}
+                option(value=yr.name, data-terms=JSON.stringify(yr.terms || []), selected=year===yr.name) #{yr.name}
+
+        //- 4. Term
+        .form-group
+          label Term
+          select#termSelect(name='term')
+            option(value='') Select Term
+            //- Initially fallback or populates based on selection
+            if currentYear && currentYear.terms
+              each t in currentYear.terms
+                option(value=t.name, selected=term===t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
+
         button.btn.btn-primary(type='submit')
           i.fas.fa-search
           span Load Analysis
@@ -134,3 +151,80 @@ block body
     .empty-state
       i.fas.fa-hand-pointer
       p Select a class above to view final exam analysis.
+  block append scripts
+    script.
+      document.addEventListener('DOMContentLoaded', function() {
+        const deptSelect = document.getElementById('deptSelect');
+        const classSelect = document.getElementById('classSelect');
+        const yearSelect = document.getElementById('yearSelect');
+        const termSelect = document.getElementById('termSelect');
+
+        // Keep reference to all class options originally rendered
+        const allClassOptions = Array.from(classSelect.querySelectorAll('option')).slice(1);
+        
+        // ── CASCADE 1: Department -> Class ──
+        deptSelect.addEventListener('change', function() {
+          const selectedDeptId = this.value;
+          
+          // Clear options except the placeholder
+          classSelect.innerHTML = '<option value="">Select Class</option>';
+          
+          // Filter and re-append valid options
+          allClassOptions.forEach(opt => {
+            if (!selectedDeptId || opt.getAttribute('data-dept') === selectedDeptId) {
+              classSelect.appendChild(opt.cloneNode(true));
+            }
+          });
+          
+          // Trigger chain reset down the line
+          classSelect.dispatchEvent(new Event('change'));
+        });
+
+        // ── CASCADE 2: Academic Year -> Term ──
+        yearSelect.addEventListener('change', function() {
+          const selectedOption = this.options[this.selectedIndex];
+          if (!selectedOption || !selectedOption.getAttribute('data-terms')) return;
+
+          try {
+            const terms = JSON.parse(selectedOption.getAttribute('data-terms'));
+            const currentTermValue = termSelect.value; // Preserve choice if possible
+            
+            termSelect.innerHTML = '';
+            if(terms.length === 0) {
+              // Fallback default terms if year contains no records
+              ['Term 1', 'Term 2', 'Term 3'].forEach(t => {
+                const opt = new Option(t, t);
+                if(t === currentTermValue) opt.selected = true;
+                termSelect.add(opt);
+              });
+            } else {
+              terms.forEach(t => {
+                const label = t.name + (!t.isOpen ? ' (Closed)' : '');
+                const opt = new Option(label, t.name);
+                if(t.name === currentTermValue) opt.selected = true;
+                termSelect.add(opt);
+              });
+            }
+          } catch (e) {
+            console.error("Error parsing terms structure:", e);
+          }
+        });
+
+        // Initialize dropdown layouts on page loads to respect selections
+        if (deptSelect.value) {
+          const deptId = deptSelect.value;
+          const initialClassVal = classSelect.value;
+          classSelect.innerHTML = '<option value="">Select Class</option>';
+          allClassOptions.forEach(opt => {
+            if (opt.getAttribute('data-dept') === deptId) {
+              const clone = opt.cloneNode(true);
+              if(clone.value === initialClassVal) clone.selected = true;
+              classSelect.appendChild(clone);
+            }
+          });
+        }
+        
+        if (yearSelect.value) {
+          yearSelect.dispatchEvent(new Event('change'));
+        }
+      });
