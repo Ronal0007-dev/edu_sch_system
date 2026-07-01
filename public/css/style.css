@@ -191,7 +191,7 @@ a:hover { text-decoration: underline; }
 .role-class_teacher { background: #eff6ff; color: #1d4ed8; }
 .role-head_of_dept { background: #fdf4ff; color: #9333ea; }
 .role-admin { background: #fff7ed; color: #c2410c; }
-.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .9rem; }
+.grade-badge { display: inline-block; padding: .25rem .6rem; border-radius: 6px; font-weight: 800; font-size: .7rem; }
 .grade-A { background: #dcfce7; color: #15803d; }
 .grade-B { background: #dbeafe; color: #1d4ed8; }
 .grade-C { background: #fef9c3; color: #a16207; }
@@ -318,7 +318,7 @@ a:hover { text-decoration: underline; }
 .report-table tr:nth-child(even) td { background: #f8fafc; }
 .summary-row td { background: #f0f4ff !important; font-weight: 700; }
 .report-table tfoot .summary-row td { border-top: 2px solid #1a56db; }
-.grading-key { margin: 1rem 0; padding: .75rem; background: #f8fafc; border-radius: var(--radius-sm); }
+.grading-key { margin: 1rem 0; padding: .65rem; background: #f8fafc; border-radius: var(--radius-sm); }
 .grading-key h4 { font-size: .8rem; color: var(--text-muted); margin-bottom: .5rem; }
 .grade-key-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
 .report-card-footer { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
@@ -469,7 +469,7 @@ a:hover { text-decoration: underline; }
 
 .comment-input-area { display: flex; flex-direction: column; gap: .6rem; }
 .comment-actions-top { display: flex; align-items: center; gap: .75rem; }
-.comment-textarea { width: 100%; padding: .75rem; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .875rem; font-family: var(--font); resize: vertical; min-height: 80px; transition: var(--transition); }
+.comment-textarea { width: 100%; padding: .65rem; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .7rem; font-family: var(--font); resize: vertical; min-height: 70px; transition: var(--transition); }
 .comment-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,86,219,.1); }
 .comment-textarea.comment-generated { border-color: var(--success); background: #f0fdf4; }
 
@@ -480,7 +480,7 @@ a:hover { text-decoration: underline; }
 
 /* ─── Class Teacher Comment on Report Card ──────────────────────────────────── */
 .class-teacher-comment { background: #f8fafc; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: var(--radius-sm); padding: .85rem 1rem; margin: 1rem 0; }
-.class-teacher-comment h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--primary); font-weight: 700; margin-bottom: .4rem; display: flex; align-items: center; gap: .4rem; }
+.class-teacher-comment h4 { font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; color: var(--primary); font-weight: 700; margin-bottom: .4rem; display: flex; align-items: center; gap: .4rem; }
 .class-teacher-comment .comment-text { font-size: .88rem; line-height: 1.6; color: var(--text); font-style: italic; }
 
 /* ─── Class Teacher badge on assignments ────────────────────────────────────── */
@@ -565,10 +565,10 @@ a:hover { text-decoration: underline; }
 .badge-final { background:#fff7ed; color:#c2410c; border:1.5px solid #fed7aa; }
 
 /* ─── Weight key display ────────────────────────────────────────────────────── */
-.weight-key { background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.65rem 1rem; margin:.75rem 0; }
+.weight-key { background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.55rem 1rem; margin:.65rem 0; }
 .weight-key h4 { font-size:.78rem; color:var(--text-muted); font-weight:700; margin-bottom:.4rem; }
 .weight-row-display { display:flex; gap:1rem; flex-wrap:wrap; }
-.weight-row-display span { font-size:.8rem; font-weight:600; color:var(--primary); background:var(--primary-light); padding:.15rem .55rem; border-radius:4px; }
+.weight-row-display span { font-size:.6rem; font-weight:600; color:var(--primary); background:var(--primary-light); padding:.15rem .55rem; border-radius:4px; }
 
 /* ─── Final summary bar ─────────────────────────────────────────────────────── */
 .final-summary { display:flex; gap:1.5rem; background:#f8fafc; border:1px solid var(--border); border-radius:var(--radius-sm); padding:.75rem 1rem; margin:1rem 0; flex-wrap:wrap; }
