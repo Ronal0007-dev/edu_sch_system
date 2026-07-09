@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const moment = require('moment');
 const { Op } = require('sequelize');
 const { requireAdmin } = require('../middleware/auth');
-const { getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis } = require('../utils/grading');
+const { getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis, isArtDesignSubject, ART_MAX, artGrade } = require('../utils/grading');
 const { sendPasswordResetEmail } = require('../utils/mailer');
 const crypto = require('crypto');
 const multer = require('multer');
@@ -390,6 +390,7 @@ router.post('/streams/:id/edit', async (req, res) => {
   res.redirect('/admin/streams');
 });
 
+
 // ── Subjects ───────────────────────────────────────────────────────────────────
 router.get('/subjects', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -430,12 +431,33 @@ router.get('/subjects', async (req, res) => {
     deptClassMap[did].push({ id: c.id, name: c.name });
   });
 
+  // ── Group subjects compactly under each Class ─────────────────────────────
+  const classGroupMap = {};
+  subjects.forEach(subject => {
+    const cls = subject.class;
+    const classId = cls ? cls.id : 'unassigned';
+    const className = cls ? cls.name : 'Unassigned Class';
+    const deptCode = cls && cls.department ? cls.department.code : '';
+
+    if (!classGroupMap[classId]) {
+      classGroupMap[classId] = {
+        className,
+        deptCode,
+        subjects: []
+      };
+    }
+    classGroupMap[classId].subjects.push(subject);
+  });
+  const groupedSubjects = Object.values(classGroupMap);
+
   let se = [], ss = [];
   try { se = req.flash('error') || []; } catch(e2) {}
   try { ss = req.flash('success') || []; } catch(e2) {}
+  
   res.render('admin/subjects', {
     title: 'Subjects',
     subjects: subjects || [],
+    groupedSubjects,
     departments: departments || [],
     classes: classes || [],
     allClasses: allClasses || [],
@@ -617,25 +639,126 @@ router.get('/students/import-results', (req, res) => {
   });
 });
 
-// ── Assign Teachers to Classes ─────────────────────────────────────────────────
+
+// ── Assign Teachers to Classes (GET) ──────────────────────────────────────────
 router.get('/assignments/teacher-class', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 15;
+    const selectedDeptId = req.query.deptId || '';
+    const selectedClassId = req.query.classId || '';
+
+    // Fetch all active teachers, departments, and classes for form selections
+    const [teachers, departments, allClasses] = await Promise.all([
+      Teacher.findAll({ where: { isActive: true }, include: ['department'], order: [['fullName', 'ASC']] }),
+      Department.findAll({ order: [['name', 'ASC']] }),
+      Class.findAll({ include: ['department'], order: [['name', 'ASC']] })
+    ]);
+
+    // Build dept → classes map for front-end cascade JS
+    const deptClassMap = {};
+    allClasses.forEach(c => {
+      const key = String(c.departmentId);
+      if (!deptClassMap[key]) deptClassMap[key] = [];
+      deptClassMap[key].push({ id: c.id, name: c.name });
+    });
+
+    // Provide filtered classes array if a department filter is selected
+    const filteredClasses = selectedDeptId
+      ? allClasses.filter(c => String(c.departmentId) === String(selectedDeptId))
+      : [];
+
+    // Build the query where clause based on filter selection
+    const assignWhere = {};
+    if (selectedClassId) {
+      assignWhere.classId = parseInt(selectedClassId);
+    } else if (selectedDeptId && filteredClasses.length) {
+      assignWhere.classId = filteredClasses.map(c => c.id);
+    }
+
+    // Fetch paginated assignments matching the filter criteria
+    const { count, rows: assignments } = await TeacherClass.findAndCountAll({
+      where: Object.keys(assignWhere).length ? assignWhere : {},
+      include: [
+        { model: Teacher, as: 'teacher' },
+        { model: Class, as: 'class', include: ['department'] }
+      ],
+      order: [
+        [{ model: Class, as: 'class' }, 'name', 'ASC'],
+        [{ model: Teacher, as: 'teacher' }, 'fullName', 'ASC']
+      ],
+      limit,
+      offset: (page - 1) * limit
+    });
+
+    // Handle flash safety channels
+    let flashError = [], flashSuccess = [];
+    try { flashError = req.flash('error') || []; } catch(e) {}
+    try { flashSuccess = req.flash('success') || []; } catch(e) {}
+
+    res.render('admin/assign-teacher-class', {
+      title: 'Assign Teachers to Classes',
+      teachers,
+      departments,
+      filteredClasses,
+      assignments,
+      deptClassMap,
+      selectedDeptId,
+      selectedClassId,
+      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      admin: req.session && req.session.admin ? req.session.admin : {},
+      error: flashError,
+      success: flashSuccess
+    });
+  } catch (err) {
+    console.error('Teacher-Class assignment view error:', err);
+    req.flash('error', 'Failed to load assignments: ' + err.message);
+    res.redirect('/admin/dashboard');
+  }
+});
+
+// ── Assign Teachers to Subjects ────────────────────────────────────────────────
+router.get('/assignments/teacher-subject', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
   const selectedDeptId = req.query.deptId || '';
   const selectedClassId = req.query.classId || '';
 
-  // Safe defaults in case of DB error
-  let teachers = [], departments = [], allClasses = [], assignments = [], count = 0;
+  const [teachers, departments, allClasses] = await Promise.all([
+    Teacher.findAll({ where: { isActive: true }, include: ['department'], order: [['fullName', 'ASC']] }),
+    Department.findAll({ order: [['name', 'ASC']] }),
+    Class.findAll({ include: ['department'], order: [['name', 'ASC']] })
+  ]);
 
-  try {
-    [teachers, departments, allClasses] = await Promise.all([
-      Teacher.findAll({ where: { isActive: true }, include: ['department'], order: [['fullName', 'ASC']] }),
-      Department.findAll({ order: [['name', 'ASC']] }),
-      Class.findAll({ include: ['department'], order: [['name', 'ASC']] })
-    ]);
-  } catch(e) { console.error('teacher-class load error:', e.message); }
+  // Classes filtered by dept for the form select
+  const classes = selectedDeptId
+    ? allClasses.filter(c => c.departmentId == selectedDeptId)
+    : allClasses;
 
-  // Build dept→classes map for JS cascade
+  // Subjects filtered by class for the form select
+  const subjects = selectedClassId
+    ? await Subject.findAll({ where: { classId: selectedClassId }, include: ['class'] })
+    : selectedDeptId
+      ? await Subject.findAll({ where: { classId: classes.map(c => c.id) }, include: ['class'] })
+      : await Subject.findAll({ include: ['class'] });
+
+  // Assignments filtered by dept/class
+  const assignWhere = {};
+  if (selectedClassId) assignWhere.classId = selectedClassId;
+  else if (selectedDeptId && classes.length) assignWhere.classId = classes.map(c => c.id);
+
+  const { count, rows: assignments } = await TeacherSubject.findAndCountAll({
+    where: Object.keys(assignWhere).length ? assignWhere : {},
+    include: [
+      { model: Teacher, as: 'teacher' },
+      { model: Subject, as: 'subject' },
+      { model: Class, as: 'class', include: ['department'] }
+    ],
+    order: [[{ model: Class, as: 'class' }, 'name', 'ASC']],
+    limit, offset: (page - 1) * limit
+  });
+
+  // dept→classes map for cascade JS
   const deptClassMap = {};
   allClasses.forEach(c => {
     const did = c.departmentId;
@@ -643,51 +766,53 @@ router.get('/assignments/teacher-class', async (req, res) => {
     deptClassMap[did].push({ id: c.id, name: c.name });
   });
 
-  // Filter assignments by dept/class
-  const assignWhere = {};
-  if (selectedClassId) assignWhere.classId = selectedClassId;
-  else if (selectedDeptId && allClasses.length) {
-    const deptClasses = allClasses.filter(c => c.departmentId == selectedDeptId).map(c => c.id);
-    if (deptClasses.length) assignWhere.classId = deptClasses;
-  }
+  // class→subjects map for cascade JS
+  const classSubjectMap = {};
+  const allSubjects = await Subject.findAll({ include: ['class'] });
+  allSubjects.forEach(s => {
+    if (!classSubjectMap[s.classId]) classSubjectMap[s.classId] = [];
+    classSubjectMap[s.classId].push({ id: s.id, name: s.name });
+  });
 
-  try {
-    const result = await TeacherClass.findAndCountAll({
-      where: Object.keys(assignWhere).length ? assignWhere : {},
-      include: [
-        { model: Teacher, as: 'teacher' },
-        { model: Class, as: 'class', include: ['department'] }
-      ],
-      order: [[{ model: Class, as: 'class' }, 'name', 'ASC']],
-      limit, offset: (page - 1) * limit
+  let ase = [], ass = [];
+  try { ase = req.flash('error') || []; } catch(e2) {}
+  try { ass = req.flash('success') || []; } catch(e2) {}
+
+  // ── Group assignments by teacher for the view layout ───────────────────────
+  const teacherMap = {};
+  assignments.forEach(a => {
+    if (!a.teacher) return;
+    const tId = a.teacher.id;
+    if (!teacherMap[tId]) {
+      teacherMap[tId] = {
+        teacherName: a.teacher.fullName,
+        subjects: []
+      };
+    }
+    teacherMap[tId].subjects.push({
+      id: a.id, // Primary key of TeacherSubject for deletion
+      name: a.subject ? a.subject.name : 'Unknown',
+      className: a.class ? a.class.name : 'Unknown'
     });
-    assignments = result.rows;
-    count = result.count;
-  } catch(e) { console.error('teacher-class assignments error:', e.message); }
+  });
+  const uniqueTeacherAssignments = Object.values(teacherMap);
 
-  // Classes filtered by selected dept for display in filter bar
-  const filteredClasses = selectedDeptId
-    ? allClasses.filter(c => String(c.departmentId) === String(selectedDeptId))
-    : allClasses;
-
-  let flashError = [], flashSuccess = [];
-  try { flashError = req.flash('error') || []; } catch(e) {}
-  try { flashSuccess = req.flash('success') || []; } catch(e) {}
-
-  res.render('admin/assign-teacher-class', {
-    title: 'Assign Teachers to Classes',
+  res.render('admin/assign-teacher-subject', {
+    title: 'Assign Teachers to Subjects',
     teachers: teachers || [],
     departments: departments || [],
-    allClasses: allClasses || [],
-    filteredClasses: filteredClasses || [],
+    classes: classes || [],
+    subjects: subjects || [],
     assignments: assignments || [],
+    uniqueTeacherAssignments, // Injected grouped records
+    allClasses: allClasses || [],
     deptClassMap: deptClassMap || {},
+    classSubjectMap: classSubjectMap || {},
     selectedDeptId: selectedDeptId || '',
     selectedClassId: selectedClassId || '',
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session && req.session.admin ? req.session.admin : {},
-    error: flashError,
-    success: flashSuccess
+    error: ase, success: ass
   });
 });
 
@@ -875,7 +1000,6 @@ router.post('/assignments/class-subject/:id/remove', async (req, res) => {
 });
 
 // ── Assign Teachers to Subjects ────────────────────────────────────────────────
-// ── Assign Teachers to Subjects ────────────────────────────────────────────────
 router.get('/assignments/teacher-subject', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
@@ -916,24 +1040,6 @@ router.get('/assignments/teacher-subject', async (req, res) => {
     limit, offset: (page - 1) * limit
   });
 
-  // ── NEW: Group assignments by teacher to satisfy Pug template ────────────────
-  const teacherMap = {};
-  assignments.forEach(a => {
-    const teacherId = a.teacherId;
-    if (!teacherMap[teacherId]) {
-      teacherMap[teacherId] = {
-        teacherName: a.teacher ? a.teacher.fullName : 'Unknown Teacher',
-        subjects: []
-      };
-    }
-    teacherMap[teacherId].subjects.push({
-      id: a.id, // The TeacherSubject row ID for removal
-      name: a.subject ? a.subject.name : 'Unknown Subject',
-      className: a.class ? a.class.name : 'Unknown Class'
-    });
-  });
-  const uniqueTeacherAssignments = Object.values(teacherMap);
-
   // dept→classes map for cascade JS
   const deptClassMap = {};
   allClasses.forEach(c => {
@@ -953,15 +1059,13 @@ router.get('/assignments/teacher-subject', async (req, res) => {
   let ase = [], ass = [];
   try { ase = req.flash('error') || []; } catch(e2) {}
   try { ass = req.flash('success') || []; } catch(e2) {}
-
   res.render('admin/assign-teacher-subject', {
     title: 'Assign Teachers to Subjects',
     teachers: teachers || [],
     departments: departments || [],
     classes: classes || [],
     subjects: subjects || [],
-    assignments: assignments || [], // Keeps if (assignments.length) guard working
-    uniqueTeacherAssignments,       // Passed to the Pug view loop
+    assignments: assignments || [],
     allClasses: allClasses || [],
     deptClassMap: deptClassMap || {},
     classSubjectMap: classSubjectMap || {},
@@ -1199,6 +1303,7 @@ router.get('/reports/print-all-report-cards', async (req, res) => {
     res.render('admin/print-all-progressive', {
       title: 'Progressive Report Cards — ' + (cls.name || ''),
       cls, studentReports, term: t, year: y, getRemark,
+      isArtDesignSubject, ART_MAX, artGrade,
       admin: req.session && req.session.admin ? req.session.admin : {}
     });
   } catch (err) {

@@ -57,6 +57,9 @@ block content
                 th Remarks
             tbody
               each m in sr.marks
+                - const subjectName = m.subject ? m.subject.name : ''
+                - const className = sr.student.class ? sr.student.class.name : ''
+                - const isYear10Art = (subjectName === 'Art & Design' && className === 'Year 10')
                 tr
                   td.subject-cell #{m.subject ? m.subject.name : '-'}
                   td #{m.homework}
@@ -68,19 +71,18 @@ block content
                   td
                     strong #{m.totalScore ? m.totalScore.toFixed(1) : '-'}
                   td
-                    span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
-                  td #{getRemark(m.grade)}
-            if sr.marks.length
-              tfoot
-                tr.summary-row
-                  td(colspan=7) Average
-                  - const avg = sr.marks.reduce((s,m)=>s+(m.totalScore||0),0)/sr.marks.length
+                    if isYear10Art
+                      - const score = m.totalScore || 0
+                      - const passed = score > 34
+                      span(class=passed ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{passed ? 'Pass' : 'Fail'}
+                    else
+                      span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
                   td
-                    strong #{avg.toFixed(1)}
-                  - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
-                  td
-                    span(class=`grade-badge grade-${g}`) #{g}
-                  td —
+                    if isYear10Art
+                      - const score = m.totalScore || 0
+                      | #{score > 34 ? 'Pass' : 'Fail'}
+                    else
+                      | #{getRemark(m.grade)}
 
           if !sr.marks.length
             p.text-muted(style='padding:.5rem') No marks recorded for this term.

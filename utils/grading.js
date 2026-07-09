@@ -83,3 +83,34 @@ exports.buildExamAnalysis = (marks, deptCode) => {
     return { subject, total: sMarks.length, pass: pass.length, fail: fail.length, marks: sMarks };
   });
 };
+
+/**
+ * ART & DESIGN (Year 10 Secondary only) — CA out of 72.
+ * No weighting, no averaging: just the raw sum of all 5 components.
+ * Pass = total >= 40% of 72 = >= 28.8  (integer check: >= 29)
+ */
+const ART_MAX = 72;
+exports.ART_MAX = ART_MAX;
+
+exports.isArtDesignSubject = function(subjectName, className, deptCode) {
+  if (!subjectName) return false;
+  const sNorm = subjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cNorm = (className || '').trim().toLowerCase().replace(/\s+/g, '');
+  const isArt      = sNorm === 'artdesign' || sNorm === 'artanddesign';
+  const isYear10   = cNorm === 'year10';
+  const isSecondary = deptCode === 'Secondary';
+  return isArt && isYear10 && isSecondary;
+};
+
+exports.calculateArtScore = function(marks) {
+  return (marks.homework  || 0)
+       + (marks.groupWork || 0)
+       + (marks.quiz      || 0)
+       + (marks.classWork || 0)
+       + (marks.unitTest  || 0);
+};
+
+exports.artGrade = function(total) {
+  // Pass threshold: >= 40% of 72  =  >= 28.8  →  we round up to >= 29
+  return total >= Math.ceil(ART_MAX * 0.4) ? 'Pass' : 'Fail';
+};

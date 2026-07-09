@@ -3,7 +3,7 @@ const router = express.Router();
 const moment = require('moment');
 const { Op } = require('sequelize');
 const { requireTeacher } = require('../middleware/auth');
-const { calculateScore, getGrade, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis } = require('../utils/grading');
+const { calculateScore, getGrade, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, buildExamAnalysis, isArtDesignSubject, calculateArtScore, artGrade, ART_MAX } = require('../utils/grading');
 const {
   AcademicYear, Term, Teacher, Class, Student, Stream, Subject,
   Attendance, Mark, TeacherClass, TeacherSubject, PublicHoliday, ReportComment
@@ -224,7 +224,7 @@ router.get('/marks', async (req, res) => {
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
 
   let students = [], selectedSubject = null, selectedClass = null, existingMarks = {};
-  let deptCode = '';
+  let deptCode = '', isArtDesign = false;
   const selectedDeptId  = req.query.deptId   || '';
   const selectedClassId = req.query.classId  || '';
   const selectedSubjectId = req.query.subjectId || '';
@@ -233,6 +233,11 @@ router.get('/marks', async (req, res) => {
     selectedSubject = await Subject.findByPk(selectedSubjectId);
     selectedClass   = await Class.findByPk(selectedClassId, { include: ['department'] });
     deptCode        = selectedClass && selectedClass.department ? selectedClass.department.code : '';
+    isArtDesign     = isArtDesignSubject(
+      selectedSubject ? selectedSubject.name : '',
+      selectedClass ? selectedClass.name : '',
+      deptCode
+    );
     students = await Student.findAll({
       where: { classId: selectedClassId, isActive: true },
       include: ['stream'], order: [['fullName', 'ASC']]
@@ -246,6 +251,7 @@ router.get('/marks', async (req, res) => {
     teacherSubjectRows, uniqueDepts, cascadeMap,
     students, selectedSubject, selectedClass, existingMarks,
     deptCode, selectedDeptId, selectedClassId, selectedSubjectId,
+    isArtDesign, ART_MAX,
     term, year, currentYear, openTerms,
     teacher: req.session.teacher,
     error: req.flash('error'), success: req.flash('success')
@@ -254,15 +260,18 @@ router.get('/marks', async (req, res) => {
 
 router.post('/marks/save', async (req, res) => {
   try {
-    const { classId, subjectId, term, academicYear, section } = req.body;
+    const { classId, subjectId, term, academicYear, section, isArtDesign: artFlag } = req.body;
+
+    // Detect Art & Design mode from hidden form field sent by the view
+    const artMode = artFlag === '1';
+
     if (section === 'fe') {
-      // Save Final Exam scores only
+      // ── Save Final Exam scores only ────────────────────────────────────────
       const feIds = Object.keys(req.body).filter(k => k.startsWith('fe_')).map(k => k.replace('fe_',''));
       for (const studentId of feIds) {
         const finalExam = parseFloat(req.body[`fe_${studentId}`]);
         if (isNaN(finalExam)) continue;
         const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
-        // Upsert — only update FE fields, keep CA fields
         const [mark] = await Mark.findOrCreate({
           where: { studentId, subjectId, classId, term, academicYear },
           defaults: { homework:0, groupWork:0, quiz:0, classWork:0, unitTest:0, totalScore:0, grade:'F', enteredBy: req.session.teacher.id }
@@ -272,8 +281,27 @@ router.post('/marks/save', async (req, res) => {
         await mark.update(updateData);
       }
       req.flash('success', 'Final Exam marks saved');
+    } else if (artMode) {
+      // ── Art & Design: summation out of 72, no weighting/averaging ──────────
+      const studentIds = Object.keys(req.body).filter(k => k.startsWith('hw_')).map(k => k.replace('hw_',''));
+      for (const studentId of studentIds) {
+        const homework  = parseFloat(req.body[`hw_${studentId}`]) || 0;
+        const groupWork = parseFloat(req.body[`gw_${studentId}`]) || 0;
+        const quiz      = parseFloat(req.body[`qz_${studentId}`]) || 0;
+        const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
+        const unitTest  = parseFloat(req.body[`ut_${studentId}`]) || 0;
+        const totalScore = calculateArtScore({ homework, groupWork, quiz, classWork, unitTest });
+        const grade = artGrade(totalScore); // 'Pass' or 'Fail'
+        await Mark.upsert({
+          studentId, subjectId, classId, term, academicYear,
+          homework, groupWork, quiz, classWork, unitTest,
+          gradingMethod: 'summation', totalScore, grade,
+          enteredBy: req.session.teacher.id
+        });
+      }
+      req.flash('success', 'Art & Design marks saved (summation out of 72)');
     } else {
-      // Save CA scores
+      // ── Regular CA: weighted or unweighted ─────────────────────────────────
       const studentIds = Object.keys(req.body).filter(k => k.startsWith('hw_')).map(k => k.replace('hw_',''));
       for (const studentId of studentIds) {
         const homework  = parseFloat(req.body[`hw_${studentId}`]) || 0;
@@ -316,7 +344,9 @@ router.get('/progressive-report/:studentId', async (req, res) => {
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
     const data = await loadStudentReportData(req.params.studentId, term, year);
     res.render('teacher/progressive-report', {
-      title: 'Progressive Report Card', ...data, term, year, getRemark, currentYear, academicYears, allTerms, teacher: req.session.teacher
+      title: 'Progressive Report Card', ...data, term, year, getRemark,
+      isArtDesignSubject, ART_MAX, artGrade,
+      currentYear, academicYears, allTerms, teacher: req.session.teacher
     });
   } catch (err) {
     req.flash('error', err.message);
@@ -335,7 +365,10 @@ router.get('/final-report/:studentId', async (req, res) => {
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
     const data = await loadStudentReportData(req.params.studentId, term, year);
     res.render('teacher/final-report', {
-      title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade, primaryExamPassed, secondaryExamPassed, currentYear, academicYears, allTerms, teacher: req.session.teacher
+      title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade,
+      primaryExamPassed, secondaryExamPassed,
+      isArtDesignSubject, ART_MAX, artGrade,
+      currentYear, academicYears, allTerms, teacher: req.session.teacher
     });
   } catch (err) {
     req.flash('error', err.message);

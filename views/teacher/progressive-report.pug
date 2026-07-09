@@ -37,10 +37,10 @@ block content
       .report-card-header
         .school-info
           .school-logo-img
-            img(src='/images/logo.png', alt='School Logo' width='64')
+            img(src='/images/logo.png', alt='School Logo' width='60')
           div
             h1 Canon Andrea Mwaka School
-            p "Never tire of doing what is right" 2 thessalonians 3:13
+            p "Never Tire of doing what is right" 2 Thessalonias 3:13
         .report-meta
           .report-type-badge.badge-progressive PROGRESSIVE REPORT
           h2 Continuous Assessment
@@ -76,11 +76,15 @@ block content
               th C/W
               th U/T
               th CA Total
-              th Grade
+              th Grade / Result
               th Remarks
           tbody
             if marks.length
               each m in marks
+                - const isArt = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : '')
+                - let artResult = m.grade === 'Pass' ? 'Pass' : 'Fail'
+                if isArt && student.class && student.class.name === 'Year 10'
+                  - artResult = (m.totalScore != null && m.totalScore < 36) ? 'Fail' : 'Pass'
                 tr
                   td.subject-cell #{m.subject ? m.subject.name : '-'}
                   td #{m.homework != null ? m.homework : '-'}
@@ -89,24 +93,37 @@ block content
                   td #{m.classWork != null ? m.classWork : '-'}
                   td #{m.unitTest != null ? m.unitTest : '-'}
                   td
-                    strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
+                    if isArt
+                      strong #{m.totalScore != null ? m.totalScore : '-'}
+                      span(style='color:var(--text-muted)') &nbsp;/ #{ART_MAX}
+                    else
+                      strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
                   td
-                    span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
-                  td #{getRemark(m.grade)}
+                    if isArt
+                      span(class=artResult === 'Pass' ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{artResult}
+                    else
+                      span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
+                  td
+                    if isArt
+                      | #{artResult}
+                    else
+                      | #{getRemark(m.grade)}
             else
               tr
                 td(colspan=9, style='text-align:center;padding:1rem;color:#64748b') No marks recorded for #{term}.
           if marks.length
-            tfoot
-              tr.summary-row
-                td(colspan=6) Overall Average
-                - const avg = marks.reduce((s,m)=>s+(m.totalScore||0),0)/marks.length
-                td
-                  strong #{avg.toFixed(1)}
-                - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
-                td
-                  span(class=`grade-badge grade-${g}`) #{g}
-                td #{getRemark(g)}
+            - const regularMarks = marks.filter(m => !isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : ''))
+            if regularMarks.length
+              tfoot
+                tr.summary-row
+                  td(colspan=6) Overall CA Average (excl. Art & Design)
+                  - const avg = regularMarks.reduce((s,m)=>s+(m.totalScore||0),0)/regularMarks.length
+                  td
+                    strong #{avg.toFixed(1)}
+                  - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
+                  td
+                    span(class=`grade-badge grade-${g}`) #{g}
+                  td #{getRemark(g)}
 
       .grading-key
         h4 Grading Key (CA):
@@ -145,7 +162,7 @@ block content
             p ___________________________
             p Head Teacher
           //- .stamp-box
-            img(src='/images/school-stamp.png', alt='School Stamp' width='64')
-            p Official Stamp
+          //-   img(src='/images/school-stamp.png', alt='School Stamp')
+          //-   p Official Stamp
 
       //- .print-date Generated: #{new Date().toLocaleDateString()}

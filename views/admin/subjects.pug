@@ -54,50 +54,44 @@ block body
               span Filter
 
       .card-header(style='border-top:1px solid var(--border)')
-        h2 Subjects
+        h2 Subjects Grouped by Class
         span.count-badge #{pagination.total}
       .card-body
-        if subjects.length
+        if groupedSubjects && groupedSubjects.length
           table.data-table
             thead
               tr
-                th #
-                th Subject Name
-                th Class
-                th Department
-                th Actions
+                th(style='width: 20%;') Class
+                th(style='width: 15%;') Department
+                th(style='width: 65%;') Assigned Subjects
             tbody
-              each subject, i in subjects
-                tr(id='subj-row-'+subject.id)
-                  td #{((pagination.page-1)*15)+i+1}
-                  td.editable-cell
-                    span.display-val
-                      span.badge.badge-subject #{subject.name}
-                    input.edit-input(type='text', value=subject.name, name='name', style='display:none')
-                  td.editable-cell
-                    span.display-val #{subject.class ? subject.class.name : '-'}
-                    select.edit-input(name='classId', style='display:none')
-                      each cls in (allClasses || [])
-                        option(value=cls.id, selected=subject.classId==cls.id) #{cls.name}
+              each group in groupedSubjects
+                tr
+                  td(style='font-weight: bold; color: var(--text-dark);') #{group.className}
                   td
-                    if subject.class && subject.class.department
-                      span(class=`dept-badge badge-${subject.class.department.code.toLowerCase()}`) #{subject.class.department.code}
+                    if group.deptCode
+                      span(class=`dept-badge badge-${group.deptCode.toLowerCase()}`) #{group.deptCode}
                     else
                       | -
                   td
-                    .action-group
-                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=subject.id)
-                        i.fas.fa-edit
-                        span Edit
-                      form.save-form(method='POST', action=`/admin/subjects/${subject.id}/edit`, style='display:none', data-id=subject.id)
-                        button.btn.btn-sm.btn-primary(type='submit')
-                          i.fas.fa-check
-                          span Save
-                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=subject.id)
-                          i.fas.fa-times
-                      form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline')
-                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete?")')
-                          i.fas.fa-trash
+                    div(style='display: flex; flex-wrap: wrap; gap: 8px; align-items: center;')
+                      each subject in group.subjects
+                        .subject-inline-tag(id='subj-row-'+subject.id, style='display: inline-flex; align-items: center; background: var(--background-alt, #f1f3f5); padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.9rem;')
+                          span.display-val
+                            span.badge.badge-subject(style='margin-right: 6px;') #{subject.name}
+                          input.edit-input(type='text', value=subject.name, name='name', style='display:none; max-width: 120px; padding: 2px 5px; font-size: 0.85rem; height: auto; margin-right: 4px;')
+                          
+                          .action-group(style='display: inline-flex; gap: 4px; margin-left: 6px; align-items: center;')
+                            button.btn.btn-sm.edit-btn(type='button', data-id=subject.id, style='padding: 2px 4px; background: transparent; border: none; color: var(--primary); font-size: 0.8rem; cursor: pointer;')
+                              i.fas.fa-edit
+                            form.save-form(method='POST', action=`/admin/subjects/${subject.id}/edit`, style='display:none; align-items: center; margin: 0;', data-id=subject.id)
+                              button.btn.btn-sm.btn-primary(type='submit', style='padding: 2px 4px; font-size: 0.8rem;')
+                                i.fas.fa-check
+                              button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=subject.id, style='padding: 2px 4px; font-size: 0.8rem;')
+                                i.fas.fa-times
+                            form(method='POST', action=`/admin/subjects/${subject.id}/delete`, style='display:inline; margin: 0;')
+                              button.btn.btn-sm(type='submit', onclick='return confirm("Delete?")', style='padding: 2px 4px; background: transparent; border: none; color: var(--danger, #dc3545); font-size: 0.8rem; cursor: pointer;')
+                                i.fas.fa-trash
         else
           .empty-state
             i.fas.fa-book

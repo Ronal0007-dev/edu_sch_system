@@ -65,25 +65,39 @@ block body
             thead
               tr
                 th Class
-                th Department
+                //- th Department
                 th Subject
-                th Actions
+                //- th Actions
             tbody
+              //- Group assignments by classId locally in Pug
+              - const groupedAssignments = {}
               each a in (assignments || [])
+                if a.class
+                  - const classId = a.class.id
+                  if !groupedAssignments[classId]
+                    - groupedAssignments[classId] = { class: a.class, items: [] }
+                  - groupedAssignments[classId].items.push({ assignmentId: a.id, subject: a.subject })
+
+              //- Render one row per class
+              each group in Object.values(groupedAssignments)
                 tr
                   td
-                    span.badge.badge-class #{a.class ? a.class.name : '-'}
-                  td
-                    if a.class && a.class.department
-                      span(class=`dept-badge badge-${a.class.department.code.toLowerCase()}`) #{a.class.department.code}
+                    span.badge.badge-class #{group.class.name}
+                  //- td
+                    if group.class.department
+                      span(class=`dept-badge badge-${group.class.department.code.toLowerCase()}`) #{group.class.department.code}
                     else
                       | -
                   td
-                    span.badge.badge-subject #{a.subject ? a.subject.name : '-'}
-                  td
-                    form(method='POST', action=`/admin/assignments/class-subject/${a.id}/remove`, style='display:inline')
-                      button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove?")')
-                        i.fas.fa-unlink
+                    div(style='display: flex; flex-wrap: wrap; gap: 6px; align-items: center;')
+                      each item in group.items
+                        if item.subject
+                          span.badge.badge-subject(style='display: inline-flex; align-items: center; gap: 8px; padding: 4px 8px;')
+                            | #{item.subject.name}
+                            form(method='POST', action=`/admin/assignments/class-subject/${item.assignmentId}/remove`, style='display:inline; margin:0; line-height:1;')
+                              button(type='submit', onclick='return confirm("Remove this subject assignment?")', style='background:none; border:none; color:#dc3545; padding:0; cursor:pointer; font-size:12px; display:inline-flex; align-items:center;')
+                                i.fas.fa-times-circle
+
         else
           .empty-state
             i.fas.fa-book

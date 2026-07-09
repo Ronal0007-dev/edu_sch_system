@@ -14,10 +14,10 @@ block content
         .report-card-header
           .school-info
             .school-logo-img
-              img(src='/images/logo.png', alt='School Logo' width='64')
+              img(src='/images/logo.png', alt='School Logo' width='60')
             div
               h1 Canon Andrea Mwaka School
-              p "Never tire of doing what is right" 2 thessalonians 3:13
+              p "Never Tire of doing what is right" 2 Thessalonias 3:13
           .report-meta
             .report-type-badge.badge-progressive PROGRESSIVE REPORT
             h2 Continuous Assessment
@@ -53,37 +53,65 @@ block content
                 th C/W
                 th U/T
                 th CA Total
-                th Grade
+                th Grade / Result
                 th Remarks
             tbody
               if sr.marks.length
                 each m in sr.marks
+                  - const cls2 = sr.student.class || {}
+                  - const dept2 = cls2.department || {}
+                  - const rawSubjectName = (m.subject ? m.subject.name : '') || ''
+                  - const className = (cls2.name || '') || ''
+                  
+                  //- Bulletproof matching: True if it contains 'Art' and class contains '10'
+                  - const isArt = isArtDesignSubject(rawSubjectName, className, dept2.code || '') || rawSubjectName.toLowerCase().includes('art')
+                  - const isYear10Art = isArt && className.toLowerCase().includes('10')
+                  
                   tr
-                    td.subject-cell #{m.subject ? m.subject.name : '-'}
+                    td.subject-cell #{rawSubjectName || '-'}
                     td #{m.homework != null ? m.homework : '-'}
                     td #{m.groupWork != null ? m.groupWork : '-'}
                     td #{m.quiz != null ? m.quiz : '-'}
                     td #{m.classWork != null ? m.classWork : '-'}
                     td #{m.unitTest != null ? m.unitTest : '-'}
                     td
-                      strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
+                      if isArt
+                        strong #{m.totalScore != null ? m.totalScore : '-'}
+                        span(style='color:#64748b') &nbsp;/ #{ART_MAX}
+                      else
+                        strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
                     td
-                      span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
-                    td #{getRemark(m.grade)}
-              else
-                tr
-                  td(colspan=9, style='text-align:center;color:#64748b') No marks recorded.
+                      if isArt || isYear10Art
+                        - const score = m.totalScore || 0
+                        //- Check if score is above 34, OR check if the string itself says Pass/Pa
+                        - const rawGrade = (m.grade || '').trim().toLowerCase()
+                        - const passed = (isYear10Art ? (score > 34) : (rawGrade === 'pass' || rawGrade === 'pa'))
+                        
+                        span(class=passed ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{passed ? 'Pass' : 'Fail'}
+                      else
+                        span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
+                    td
+                      if isArt || isYear10Art
+                        - const score = m.totalScore || 0
+                        - const rawGrade = (m.grade || '').trim().toLowerCase()
+                        - const passed = (isYear10Art ? (score > 34) : (rawGrade === 'pass' || rawGrade === 'pa'))
+                        
+                        | #{passed ? 'Pass' : 'Fail'}
+                      else
+                        | #{getRemark(m.grade)}
             if sr.marks.length
-              tfoot
-                tr.summary-row
-                  td(colspan=6) Overall Average
-                  - const avg = sr.marks.reduce((s,m)=>s+(m.totalScore||0),0)/sr.marks.length
-                  td
-                    strong #{avg.toFixed(1)}
-                  - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
-                  td
-                    span(class=`grade-badge grade-${g}`) #{g}
-                  td #{getRemark(g)}
+              - const regMarks = sr.marks.filter(m => { const c2 = sr.student.class||{}; const d2 = c2.department||{}; return !isArtDesignSubject(m.subject?m.subject.name:'', c2.name||'', d2.code||''); })
+              if regMarks.length
+                tfoot
+                  tr.summary-row
+                    td(colspan=6) Overall Average (excl. Art & Design)
+                    - const avg = regMarks.reduce((s,m)=>s+(m.totalScore||0),0)/regMarks.length
+                    td
+                      strong #{avg.toFixed(1)}
+                    - const g = avg>=90?'A':avg>=80?'B':avg>=70?'C':avg>=60?'D':'F'
+                    td
+                      span(class=`grade-badge grade-${g}`) #{g}
+                    td #{getRemark(g)}
 
         .grading-key
           h4 Grading Key (CA):
@@ -109,9 +137,9 @@ block content
             .sig-box
               p ___________________________
               p Class Teacher
+            //- .sig-box
+            //-   p ___________________________
+            //-   p Parent / Guardian
             .sig-box
               p ___________________________
               p Head Teacher
-            //- .stamp-box
-              img(src='/images/school-stamp.png', alt='School Stamp' width='64')
-              p Official Stamp

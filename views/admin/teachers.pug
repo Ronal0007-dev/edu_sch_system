@@ -41,9 +41,7 @@ block body
               tr
                 th Name
                 th Phone
-                th Email
                 th Department
-                th Role
                 th Status
                 th Actions
             tbody
@@ -54,9 +52,9 @@ block body
                       i.fas.fa-user-circle
                       span #{teacher.fullName}
                   td #{teacher.phone}
-                  td #{teacher.email}
+                  //- td #{teacher.email}
                   td #{teacher.department ? teacher.department.code : '-'}
-                  td
+                  //- td
                     span(class=`role-badge role-${teacher.role}`) #{teacher.role.replace('_', ' ').toUpperCase()}
                   td
                     span(class=`status-dot ${teacher.isActive ? 'active' : 'inactive'}`) #{teacher.isActive ? 'Active' : 'Inactive'}
