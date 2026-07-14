@@ -8,6 +8,7 @@ const path = require('path');
 const { Sequelize } = require('sequelize');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const sequelize = require('./config/database');
+const { Student } = require('./models');
 
 const app = express();
 
@@ -86,8 +87,9 @@ async function start() {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connected');
-    await sequelize.sync({ farce: false });
+    await sequelize.sync({ alter: false});
     console.log('✅ Models synced');
+    await Student.update({ status: 'Active' }, { where: { status: null } });
     app.listen(PORT, () => {
       console.log(`   Admin login: http://localhost:${PORT}/auth/admin/login`);
       console.log(`   Teacher login: http://localhost:${PORT}/auth/teacher/login`);

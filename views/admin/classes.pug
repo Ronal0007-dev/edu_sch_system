@@ -60,6 +60,10 @@ block body
                           span Save
                         button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=cls.id, data-prefix='cls')
                           i.fas.fa-times
+                      form(method='POST', action=`/admin/classes/${cls.id}/promote`, style='display:inline')
+                        button.btn.btn-sm.btn-outline(type='submit', onclick='return confirm("Promote all active students in this class to the next class?")')
+                          i.fas.fa-level-up-alt
+                          span Promote
                       form(method='POST', action=`/admin/classes/${cls.id}/delete`, style='display:inline')
                         button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this class?")')
                           i.fas.fa-trash

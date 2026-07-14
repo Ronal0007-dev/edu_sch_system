@@ -16,6 +16,10 @@ async function getCurrentYear() {
   return AcademicYear.findOne({ where: { isCurrent: true }, include: ['terms'] });
 }
 
+function activeStudentWhere(extra = {}) {
+  return { isActive: true, status: 'Active', ...extra };
+}
+
 // ── Helper: school day count between two dates ─────────────────────────────────
 async function countSchoolDays(startDate, endDate) {
   const holidays = await require('../models').PublicHoliday.findAll();
@@ -37,7 +41,14 @@ router.get('/dashboard', async (req, res) => {
     const teacher = await Teacher.findByPk(req.session.teacher.id, { include: ['department'] });
     const teacherClassRows = await TeacherClass.findAll({
       where: { teacherId: req.session.teacher.id },
-      include: [{ model: Class, as: 'class', include: ['department', 'students'] }]
+      include: [{
+        model: Class,
+        as: 'class',
+        include: [
+          'department',
+          { model: Student, as: 'students', where: activeStudentWhere(), required: false }
+        ]
+      }]
     });
     const assignedClasses = teacherClassRows.map(tc => ({
       ...tc.class.toJSON(),
@@ -95,7 +106,7 @@ router.get('/attendance', async (req, res) => {
 
   if (req.query.classId) {
     selectedClass = await Class.findByPk(req.query.classId);
-    const rawStudents = await Student.findAll({ where: { classId: req.query.classId, isActive: true }, include: ['stream'], order: [['fullName', 'ASC']] });
+    const rawStudents = await Student.findAll({ where: activeStudentWhere({ classId: req.query.classId }), include: ['stream'], order: [['fullName', 'ASC']] });
     const existingAttendance = await Attendance.findAll({ where: { classId: req.query.classId, date: today } });
     students = rawStudents.map(s => ({
       ...s.toJSON(),
@@ -116,7 +127,7 @@ router.post('/attendance/submit', async (req, res) => {
     const holiday = await PublicHoliday.findOne({ where: { date: today } });
     if (holiday) throw new Error(`Cannot take attendance on ${holiday.name}`);
     const { classId } = req.body;
-    const students = await Student.findAll({ where: { classId, isActive: true } });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
     for (const student of students) {
       const status = req.body[`status_${student.id}`];
       if (status) {
@@ -133,7 +144,7 @@ router.get('/attendance/print', async (req, res) => {
   try {
     const { classId, date } = req.query;
     const cls = await Class.findByPk(classId, { include: ['department'] });
-    const students = await Student.findAll({ where: { classId, isActive: true }, order: [['fullName', 'ASC']] });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId }), order: [['fullName', 'ASC']] });
     let records = [];
     if (date) {
       records = await Attendance.findAll({ where: { classId, date }, include: ['student'] });
@@ -239,7 +250,7 @@ router.get('/marks', async (req, res) => {
       deptCode
     );
     students = await Student.findAll({
-      where: { classId: selectedClassId, isActive: true },
+      where: activeStudentWhere({ classId: selectedClassId }),
       include: ['stream'], order: [['fullName', 'ASC']]
     });
     const marks = await Mark.findAll({ where: { subjectId: selectedSubjectId, classId: selectedClassId, term, academicYear: year } });
@@ -322,12 +333,19 @@ router.post('/marks/save', async (req, res) => {
 
 // ── Helper: load student report data ─────────────────────────────────────────
 async function loadStudentReportData(studentId, term, year) {
-  const student = await Student.findByPk(studentId, { include: [{ model: Class, as: 'class', include: ['department'] }, 'stream'] });
+  const student = await Student.findOne({
+    where: { id: studentId, isActive: true, status: 'Active' },
+    include: [{ model: Class, as: 'class', include: ['department'] }, 'stream']
+  });
+  if (!student) throw new Error('Student record not found or not available for reporting');
   const marks = await Mark.findAll({ where: { studentId, term, academicYear: year }, include: ['subject'] });
   const attendance = await Attendance.findAll({ where: { studentId } });
   const presentDays = attendance.filter(a => a.status === 'present').length;
   const totalDays = attendance.length;
-  const reportComment = await ReportComment.findOne({ where: { studentId, classId: student.classId, term, academicYear: year } });
+  const reportComments = await ReportComment.findAll({ where: { studentId, term, academicYear: year } });
+  const reportComment = reportComments.find(c => c.classId === student.classId)
+    || reportComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+    || null;
   const deptCode = student.class && student.class.department ? student.class.department.code : '';
   const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
   return { student: student.toJSON(), marks: marks.map(m => m.toJSON()), presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null, deptCode, isPrimary };
@@ -419,7 +437,7 @@ router.get('/exam-analysis', async (req, res) => {
       where: { classId: req.query.classId, term, academicYear: year },
       include: ['subject', 'student']
     });
-    const totalStudents = await Student.count({ where: { classId: req.query.classId, isActive: true } });
+    const totalStudents = await Student.count({ where: activeStudentWhere({ classId: req.query.classId }) });
     analysisData = { cls, deptCode, totalStudents, subjects: buildExamAnalysis(marks.map(m => m.toJSON()), deptCode) };
   }
 
@@ -439,7 +457,7 @@ router.get('/academic-report/:classId', async (req, res) => {
     const cls = await Class.findByPk(req.params.classId, { include: ['department'] });
     const deptCode = cls && cls.department ? cls.department.code : '';
     const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
-    const students = await Student.findAll({ where: { classId: req.params.classId, isActive: true }, include: ['stream'], order: [['fullName', 'ASC']] });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.classId }), include: ['stream'], order: [['fullName', 'ASC']] });
     const marks = await Mark.findAll({
       where: { classId: req.params.classId, term, academicYear: year },
       include: ['subject']
@@ -489,7 +507,7 @@ router.get('/comments', async (req, res) => {
     }
 
     students = await Student.findAll({
-      where: { classId: req.query.classId, isActive: true },
+      where: activeStudentWhere({ classId: req.query.classId }),
       include: ['stream'],
       order: [['fullName', 'ASC']]
     });
@@ -547,7 +565,7 @@ router.post('/comments/save', async (req, res) => {
     });
     if (!ctRow) throw new Error('You are not the class teacher for this class');
 
-    const students = await Student.findAll({ where: { classId, isActive: true } });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
     for (const student of students) {
       const comment = req.body[`comment_${student.id}`];
       if (comment && comment.trim()) {

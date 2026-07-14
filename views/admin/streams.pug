@@ -23,50 +23,50 @@ block body
 
     .card
       .card-header
-        h2 All Streams
-        span.count-badge #{pagination.total}
+        h2 Streams by Class
+        span.count-badge #{totalStreams}
       .card-body
-        if streams.length
-          table.data-table
-            thead
-              tr
-                th Name
-                th Class
-                th Actions
-            tbody
-              each stream in streams
-                tr(id='str-row-'+stream.id)
-                  td.editable-cell
-                    span.display-val
-                      span.badge.badge-stream #{stream.name}
-                    input.edit-input(type='text', value=stream.name, name='name', style='display:none')
-                  td.editable-cell
-                    span.display-val #{stream.class ? stream.class.name : '-'}
-                    select.edit-input(name='classId', style='display:none')
-                      each cls in classes
-                        option(value=cls.id, selected=stream.classId==cls.id) #{cls.name}
-                  td
-                    .action-group
-                      button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=stream.id)
-                        i.fas.fa-edit
-                        span Edit
-                      form.save-form(method='POST', action=`/admin/streams/${stream.id}/edit`, style='display:none', data-id=stream.id)
-                        button.btn.btn-sm.btn-primary(type='submit')
-                          i.fas.fa-check
-                          span Save
-                        button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=stream.id)
-                          i.fas.fa-times
-                      form(method='POST', action=`/admin/streams/${stream.id}/delete`, style='display:inline')
-                        button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this stream?")')
-                          i.fas.fa-trash
+        if classes.length
+          each cls in classes
+            .stream-group
+              .stream-group-header
+                h3 #{cls.name}
+                span.stream-count #{cls.streams ? cls.streams.length : 0} stream(s)
+              if cls.streams && cls.streams.length
+                table.data-table
+                  thead
+                    tr
+                      th Name
+                      th Actions
+                  tbody
+                    each stream in cls.streams
+                      tr(id='str-row-'+stream.id)
+                        td.editable-cell
+                          span.display-val
+                            span.badge.badge-stream #{stream.name}
+                          input.edit-input(type='text', value=stream.name, name='name', style='display:none')
+                        td
+                          .action-group
+                            button.btn.btn-sm.btn-outline.edit-btn(type='button', data-id=stream.id)
+                              i.fas.fa-edit
+                              span Edit
+                            form.save-form(method='POST', action=`/admin/streams/${stream.id}/edit`, style='display:none', data-id=stream.id)
+                              button.btn.btn-sm.btn-primary(type='submit')
+                                i.fas.fa-check
+                                span Save
+                              button.btn.btn-sm.btn-outline.cancel-btn(type='button', data-id=stream.id)
+                                i.fas.fa-times
+                            form(method='POST', action=`/admin/streams/${stream.id}/delete`, style='display:inline')
+                              button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this stream?")')
+                                i.fas.fa-trash
+              else
+                .empty-state
+                  i.fas.fa-code-branch
+                  p No streams configured for this class.
         else
           .empty-state
             i.fas.fa-code-branch
-            p No streams added yet.
-
-        if pagination && pagination.pages > 1
-          - const query = {}
-          include ../partials/pagination
+            p No classes or streams configured yet.
 
   script.
     document.querySelectorAll('.edit-btn').forEach(function(btn) {

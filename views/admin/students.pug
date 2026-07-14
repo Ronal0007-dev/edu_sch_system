@@ -62,10 +62,15 @@ block body
                   each cls in (allClasses || [])
                     if String(cls.departmentId) == String(selectedDeptId)
                       option(value=cls.id, selected=String(selectedClassId)==String(cls.id)) #{cls.name}
+            .form-group
+              label Status
+              select(name='status')
+                option(value='Active', selected=selectedStatus==='Active') Active
+                option(value='Moved', selected=selectedStatus==='Moved') Moved
             button.btn.btn-primary(type='submit')
               i.fas.fa-search
               span Filter
-            if selectedDeptId || selectedClassId
+            if selectedDeptId || selectedClassId || selectedStatus
               a.btn.btn-outline(href='/admin/students') Clear
 
       .card-header(style='border-top:1px solid var(--border)')
@@ -85,6 +90,7 @@ block body
                 th Gender
                 th Class
                 th Stream
+                th Status
                 th Actions
             tbody
               each student, i in (students || [])
@@ -95,6 +101,24 @@ block body
                   td #{student.class ? student.class.name : '-'}
                   td #{student.stream ? student.stream.name : '-'}
                   td
+                    if student.status === 'Moved'
+                      span.badge.badge-warning Moved
+                    else
+                      span.badge.badge-success Active
+                  td
+                    form(method='POST', action=`/admin/students/${student.id}/promote`, style='display:inline')
+                      button.btn.btn-sm.btn-outline(type='submit', onclick='return confirm("Promote this student to the next class?")')
+                        i.fas.fa-level-up-alt
+                        span Promote
+                    form(method='POST', action=`/admin/students/${student.id}/status`, style='display:inline')
+                      input(type='hidden', name='status', value=student.status === 'Moved' ? 'Active' : 'Moved')
+                      button.btn.btn-sm.btn-outline(type='submit')
+                        if student.status === 'Moved'
+                          i.fas.fa-undo
+                          span Restore
+                        else
+                          i.fas.fa-sign-out-alt
+                          span Mark Moved
                     form(method='POST', action=`/admin/students/${student.id}/delete`, style='display:inline')
                       button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove this student?")')
                         i.fas.fa-user-minus

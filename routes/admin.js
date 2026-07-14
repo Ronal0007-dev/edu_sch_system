@@ -43,6 +43,75 @@ async function getCurrentYear() {
   return AcademicYear.findOne({ where: { isCurrent: true }, include: ['terms'] });
 }
 
+function activeStudentWhere(extra = {}) {
+  return { isActive: true, status: 'Active', ...extra };
+}
+
+async function resolvePromotionTargetClass(currentClassId, requestedTargetClassId) {
+  if (requestedTargetClassId) return parseInt(requestedTargetClassId, 10);
+  const currentClass = await Class.findByPk(currentClassId);
+  if (!currentClass) return null;
+  if (currentClass.nextClassId) return parseInt(currentClass.nextClassId, 10);
+
+  const currentName = (currentClass.name || '').trim();
+  const numberMatch = currentName.match(/(\d+)/);
+  if (!numberMatch) return null;
+
+  const currentNumber = parseInt(numberMatch[1], 10);
+  const prefix = currentName.slice(0, numberMatch.index).trim();
+  const suffix = currentName.slice(numberMatch.index + numberMatch[0].length).trim();
+  const sameDepartmentClasses = await Class.findAll({ where: { departmentId: currentClass.departmentId } });
+
+  const nextClass = sameDepartmentClasses.find(cls => {
+    const clsName = (cls.name || '').trim();
+    const clsMatch = clsName.match(/(\d+)/);
+    if (!clsMatch) return false;
+    const clsNumber = parseInt(clsMatch[1], 10);
+    const clsPrefix = clsName.slice(0, clsMatch.index).trim();
+    const clsSuffix = clsName.slice(clsMatch.index + clsMatch[0].length).trim();
+    return clsNumber === currentNumber + 1 && clsPrefix === prefix && clsSuffix === suffix;
+  });
+
+  return nextClass ? nextClass.id : null;
+}
+
+async function promoteStudents(studentsOrClassId, targetClassId, options = {}) {
+  const { streamId = null, status = 'Active' } = options;
+  const where = { isActive: true, status: 'Active' };
+
+  if (Array.isArray(studentsOrClassId)) {
+    where.id = { [Op.in]: studentsOrClassId };
+  } else {
+    where.classId = studentsOrClassId;
+  }
+
+  const updateData = { classId: targetClassId, streamId: streamId || null, status };
+  return Student.update(updateData, { where });
+}
+
+async function promoteStudentsForYearTransition(previousCurrentYearId) {
+  if (!previousCurrentYearId) return { promoted: 0 };
+
+  const classes = await Class.findAll();
+  const promoted = [];
+
+  for (const cls of classes) {
+    const targetClassId = await resolvePromotionTargetClass(cls.id, null);
+    if (!targetClassId) continue;
+
+    const students = await Student.findAll({
+      where: activeStudentWhere({ classId: cls.id })
+    });
+
+    if (!students.length) continue;
+
+    await promoteStudents(cls.id, targetClassId, { streamId: null, status: 'Active' });
+    promoted.push({ classId: cls.id, targetClassId, count: students.length });
+  }
+
+  return { promoted, previousCurrentYearId };
+}
+
 // ── Helper: paginate ───────────────────────────────────────────────────────────
 function paginate(query, page, limit = 15) {
   const p = parseInt(page) || 1;
@@ -64,11 +133,16 @@ router.get('/dashboard', async (req, res) => {
     const currentYear = await getCurrentYear();
 
     const [totalStudents, totalTeachers, totalClasses, totalDepts, classes, academicYears] = await Promise.all([
-      Student.count({ where: { isActive: true } }),
+      Student.count({ where: activeStudentWhere() }),
       Teacher.count({ where: { isActive: true } }),
       Class.count(),
       Department.count(),
-      Class.findAll({ include: ['department', 'students'] }),
+      Class.findAll({
+        include: [
+          { model: Department, as: 'department' },
+          { model: Student, as: 'students', where: activeStudentWhere(), required: false }
+        ]
+      }),
       AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] })
     ]);
 
@@ -127,9 +201,20 @@ router.post('/academic-years', async (req, res) => {
 
 router.post('/academic-years/:id/set-current', async (req, res) => {
   try {
+    const previousCurrentYear = await getCurrentYear();
     await AcademicYear.update({ isCurrent: false }, { where: {} });
     await AcademicYear.update({ isCurrent: true }, { where: { id: req.params.id } });
-    req.flash('success', 'Current academic year updated');
+
+    if (previousCurrentYear && String(previousCurrentYear.id) !== String(req.params.id)) {
+      const transition = await promoteStudentsForYearTransition(previousCurrentYear.id);
+      if (transition.promoted.length) {
+        req.flash('success', `Current academic year updated and ${transition.promoted.reduce((sum, item) => sum + item.count, 0)} student(s) promoted to the next class.`);
+      } else {
+        req.flash('success', 'Current academic year updated');
+      }
+    } else {
+      req.flash('success', 'Current academic year updated');
+    }
   } catch (err) {
     req.flash('error', 'Error: ' + err.message);
   }
@@ -315,7 +400,15 @@ router.get('/classes', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
   const [{ count, rows: classes }, departments] = await Promise.all([
-    Class.findAndCountAll({ include: ['department', 'streams', 'students'], limit, offset: (page - 1) * limit }),
+    Class.findAndCountAll({
+      include: [
+        { model: Department, as: 'department' },
+        { model: Stream, as: 'streams' },
+        { model: Student, as: 'students', where: activeStudentWhere(), required: false }
+      ],
+      limit,
+      offset: (page - 1) * limit
+    }),
     Department.findAll()
   ]);
   res.render('admin/classes', {
@@ -352,15 +445,19 @@ router.post('/classes/:id/edit', async (req, res) => {
 
 // ── Streams ────────────────────────────────────────────────────────────────────
 router.get('/streams', async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = 15;
-  const [{ count, rows: streams }, classes] = await Promise.all([
-    Stream.findAndCountAll({ include: ['class'], limit, offset: (page - 1) * limit }),
-    Class.findAll({ include: ['department'] })
+  const [classes, totalStreams] = await Promise.all([
+    Class.findAll({
+      include: [
+        { model: Department, as: 'department' },
+        { model: Stream, as: 'streams' }
+      ],
+      order: [['name', 'ASC'], [{ model: Stream, as: 'streams' }, 'name', 'ASC']]
+    }),
+    Stream.count()
   ]);
   res.render('admin/streams', {
-    title: 'Streams', streams, classes,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    title: 'Streams', classes, totalStreams,
+    pagination: { page: 1, pages: 1, total: totalStreams },
     admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
   });
 });
@@ -501,6 +598,7 @@ router.get('/students', async (req, res) => {
   const limit = 15;
   const selectedDeptId = req.query.deptId || '';
   const selectedClassId = req.query.classId || '';
+  const selectedStatus = req.query.status || 'Active';
 
   let deptRows = [], classRows = [], streamRows = [];
   try { deptRows = await Department.findAll({ order: [['name', 'ASC']] }); } catch(e) { console.error('students dept error:', e.message); }
@@ -527,7 +625,9 @@ router.get('/students', async (req, res) => {
   });
 
   // Filter students by dept → class
-  const studentWhere = { isActive: true };
+  const studentWhere = selectedStatus === 'Moved'
+    ? { isActive: true, status: 'Moved' }
+    : activeStudentWhere();
   if (selectedClassId) {
     studentWhere.classId = parseInt(selectedClassId);
   } else if (selectedDeptId) {
@@ -561,6 +661,7 @@ router.get('/students', async (req, res) => {
     classStreamMap,
     selectedDeptId,
     selectedClassId,
+    selectedStatus,
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: fe, success: fs2
@@ -570,7 +671,7 @@ router.get('/students', async (req, res) => {
 router.post('/students', async (req, res) => {
   try {
     const { fullName, gender, classId, streamId } = req.body;
-    await Student.create({ fullName, gender, classId, streamId: streamId || null });
+    await Student.create({ fullName, gender, classId, streamId: streamId || null, status: 'Active', isActive: true });
     req.flash('success', 'Student added');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect('/admin/students');
@@ -578,8 +679,78 @@ router.post('/students', async (req, res) => {
 
 router.post('/students/:id/delete', async (req, res) => {
   try {
-    await Student.update({ isActive: false }, { where: { id: req.params.id } });
+    await Student.update({ isActive: false, status: 'Active' }, { where: { id: req.params.id } });
     req.flash('success', 'Student removed');
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/students');
+});
+
+router.post('/students/:id/promote', async (req, res) => {
+  try {
+    const student = await Student.findByPk(req.params.id);
+    if (!student) throw new Error('Student not found');
+
+    const targetClassId = await resolvePromotionTargetClass(student.classId, req.body.classId || null);
+    if (!targetClassId) throw new Error('No promotion target class found');
+
+    await Student.update({ classId: targetClassId, status: 'Active', streamId: req.body.streamId || null }, {
+      where: { id: req.params.id, isActive: true, status: 'Active' }
+    });
+    req.flash('success', 'Student promoted successfully');
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/students');
+});
+
+router.post('/students/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (status === 'Moved') {
+      await Student.update({ status: 'Moved' }, { where: { id: req.params.id, isActive: true } });
+      req.flash('success', 'Student marked as moved');
+    } else {
+      await Student.update({ status: 'Active' }, { where: { id: req.params.id } });
+      req.flash('success', 'Student status restored to active');
+    }
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect(req.get('Referer') || '/admin/students');
+});
+
+router.get('/students/moved', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 15;
+    const { count, rows } = await Student.findAndCountAll({
+      where: { isActive: true, status: 'Moved' },
+      include: ['class', 'stream'],
+      order: [['fullName', 'ASC']],
+      limit,
+      offset: (page - 1) * limit
+    });
+
+    res.render('admin/moved-students', {
+      title: 'Moved Students',
+      students: rows.map(s => s.toJSON()),
+      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      admin: req.session && req.session.admin ? req.session.admin : {},
+      error: req.flash('error') || [],
+      success: req.flash('success') || []
+    });
+  } catch (err) {
+    req.flash('error', err.message);
+    res.redirect('/admin/students');
+  }
+});
+
+router.post('/classes/:id/promote', async (req, res) => {
+  try {
+    const targetClassId = await resolvePromotionTargetClass(req.params.id, req.body.classId || null);
+    if (!targetClassId) throw new Error('No promotion target class found');
+
+    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.id }) });
+    if (!students.length) throw new Error('No active students found in this class');
+
+    await promoteStudents(req.params.id, targetClassId, { streamId: req.body.streamId || null, status: 'Active' });
+    req.flash('success', `Promoted ${students.length} student(s) to the next class`);
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect('/admin/students');
 });
@@ -1146,7 +1317,7 @@ router.get('/reports/attendance', async (req, res) => {
     // Only fetch the page of students we need, not the whole class — scales to 5,000+.
     const offset = (page - 1) * limit;
     const { count: totalStudents, rows: students } = await Student.findAndCountAll({
-      where: { classId: req.query.classId, isActive: true },
+      where: activeStudentWhere({ classId: req.query.classId }),
       order: [['fullName', 'ASC']],
       limit, offset,
       attributes: ['id', 'fullName']
@@ -1203,7 +1374,7 @@ router.get('/reports/attendance', async (req, res) => {
 router.get('/reports/attendance/print', async (req, res) => {
   try {
     const cls = await Class.findByPk(req.query.classId, { include: ['department'] });
-    const students = await Student.findAll({ where: { classId: req.query.classId, isActive: true }, order: [['fullName', 'ASC']] });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.query.classId }), order: [['fullName', 'ASC']] });
     const attendance = await Attendance.findAll({
       where: { classId: req.query.classId },
       include: ['student'], order: [['date', 'DESC']]
@@ -1277,7 +1448,7 @@ router.get('/reports/examination', async (req, res) => {
 // ── Helper: build class student reports ───────────────────────────────────────
 async function buildClassReports(classId, term, year) {
   const cls = await Class.findByPk(classId, { include: ['department'] });
-  const students = await Student.findAll({ where: { classId, isActive: true }, include: ['class', 'stream'], order: [['fullName', 'ASC']] });
+  const students = await Student.findAll({ where: activeStudentWhere({ classId }), include: ['class', 'stream'], order: [['fullName', 'ASC']] });
   const deptCode = cls && cls.department ? cls.department.code : '';
   const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
   const studentReports = await Promise.all(students.map(async student => {
@@ -1285,7 +1456,10 @@ async function buildClassReports(classId, term, year) {
     const attendance = await Attendance.findAll({ where: { studentId: student.id } });
     const presentDays = attendance.filter(a => a.status === 'present').length;
     const totalDays = attendance.length;
-    const reportComment = await ReportComment.findOne({ where: { studentId: student.id, classId, term, academicYear: year } });
+    const reportComments = await ReportComment.findAll({ where: { studentId: student.id, term, academicYear: year } });
+    const reportComment = reportComments.find(c => c.classId === classId)
+      || reportComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+      || null;
     return { student: student.toJSON(), marks: marks.map(m => m.toJSON()), presentDays, totalDays, reportComment: reportComment ? reportComment.toJSON() : null };
   }));
   return { cls: cls ? cls.toJSON() : {}, deptCode, isPrimary, studentReports };
@@ -1354,7 +1528,7 @@ router.get('/reports/exam-analysis', async (req, res) => {
       where: { classId: req.query.classId, term, academicYear: year },
       include: ['subject', 'student']
     });
-    const totalStudents = await Student.count({ where: { classId: req.query.classId, isActive: true } });
+    const totalStudents = await Student.count({ where: activeStudentWhere({ classId: req.query.classId }) });
     analysisData = { cls: cls ? cls.toJSON() : null, deptCode, totalStudents, subjects: buildExamAnalysis(marks.map(m => m.toJSON()), deptCode) };
   }
 
@@ -1373,7 +1547,7 @@ router.get('/reports/academic-report/:classId', async (req, res) => {
     const cls = await Class.findByPk(req.params.classId, { include: ['department'] });
     const deptCode = cls && cls.department ? cls.department.code : '';
     const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
-    const students = await Student.findAll({ where: { classId: req.params.classId, isActive: true }, include: ['stream'], order: [['fullName', 'ASC']] });
+    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.classId }), include: ['stream'], order: [['fullName', 'ASC']] });
     const marks = await Mark.findAll({ where: { classId: req.params.classId, term, academicYear: year }, include: ['subject'] });
     const marksByStudent = {};
     marks.forEach(m => { if (!marksByStudent[m.studentId]) marksByStudent[m.studentId] = []; marksByStudent[m.studentId].push(m.toJSON()); });

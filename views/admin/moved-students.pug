@@ -1,0 +1,40 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Moved Students
+      .header-actions
+        span.count-badge #{pagination.total}
+    .card-body
+      if students && students.length
+        table.data-table
+          thead
+            tr
+              th #
+              th Name
+              th Gender
+              th Class
+              th Stream
+              th Actions
+          tbody
+            each student, i in students
+              tr
+                td #{((pagination.page-1)*15)+i+1}
+                td #{student.fullName}
+                td #{student.gender}
+                td #{student.class ? student.class.name : '-'}
+                td #{student.stream ? student.stream.name : '-'}
+                td
+                  form(method='POST', action=`/admin/students/${student.id}/status`, style='display:inline')
+                    input(type='hidden', name='status', value='Active')
+                    button.btn.btn-sm.btn-outline(type='submit', onclick='return confirm("Restore this student to active status?")')
+                      i.fas.fa-undo
+                      span Restore
+      else
+        .empty-state
+          i.fas.fa-user-slash
+          p No moved students found.
+
+      if pagination.pages > 1
+        include ../partials/pagination
