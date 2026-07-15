@@ -110,6 +110,7 @@ const TeacherClass = sequelize.define('TeacherClass', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   teacherId: { type: DataTypes.INTEGER, allowNull: false },
   classId: { type: DataTypes.INTEGER, allowNull: false },
+  streamId: { type: DataTypes.INTEGER, allowNull: true },
   isClassTeacher: { type: DataTypes.BOOLEAN, defaultValue: false }
 }, { tableName: 'teacher_classes', timestamps: true });
 
@@ -231,6 +232,7 @@ Student.hasMany(ReportComment, { foreignKey: 'studentId', as: 'comments' });
 // Join table belongsTo (needed for include in list views)
 TeacherClass.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
 TeacherClass.belongsTo(Class, { foreignKey: 'classId', as: 'class' });
+TeacherClass.belongsTo(Stream, { foreignKey: 'streamId', as: 'stream' });
 
 TeacherSubject.belongsTo(Teacher, { foreignKey: 'teacherId', as: 'teacher' });
 TeacherSubject.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subject' });

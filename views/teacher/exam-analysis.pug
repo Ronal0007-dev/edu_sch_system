@@ -37,10 +37,14 @@ block body
       .form-row
         .form-group
           label Class
-          select(name='classId', required)
+          select(name='classId', id='classSelect', required)
             option(value='') Select class
             each cls in classes
               option(value=cls.id, selected=analysisData && analysisData.cls && analysisData.cls.id==cls.id) #{cls.name}
+        .form-group
+          label Stream
+          select(name='streamId', id='streamSelect')
+            option(value='') All Streams
         .form-group
           label Term
           select(name='term')
@@ -136,3 +140,25 @@ block body
     .empty-state
       i.fas.fa-hand-pointer
       p Select a class above to view exam analysis.
+
+  script.
+    const classSel = document.getElementById('classSelect');
+    const streamSel = document.getElementById('streamSelect');
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+    const savedStream = '!{selectedStreamId || ""}';
+
+    function updateStreams() {
+      const cid = classSel.value;
+      const streams = classStreamMap[cid] || [];
+      streamSel.innerHTML = '<option value="">All Streams</option>';
+      streams.forEach(function(stream) {
+        const opt = document.createElement('option');
+        opt.value = stream.id;
+        opt.textContent = stream.name;
+        if (String(stream.id) === String(savedStream)) opt.selected = true;
+        streamSel.appendChild(opt);
+      });
+    }
+
+    classSel.addEventListener('change', updateStreams);
+    updateStreams();

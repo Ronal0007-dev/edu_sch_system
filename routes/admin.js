@@ -823,7 +823,7 @@ router.get('/assignments/teacher-class', async (req, res) => {
     const [teachers, departments, allClasses] = await Promise.all([
       Teacher.findAll({ where: { isActive: true }, include: ['department'], order: [['fullName', 'ASC']] }),
       Department.findAll({ order: [['name', 'ASC']] }),
-      Class.findAll({ include: ['department'], order: [['name', 'ASC']] })
+      Class.findAll({ include: ['department', { model: Stream, as: 'streams', order: [['name', 'ASC']] }], order: [['name', 'ASC']] })
     ]);
 
     // Build dept → classes map for front-end cascade JS
@@ -831,7 +831,11 @@ router.get('/assignments/teacher-class', async (req, res) => {
     allClasses.forEach(c => {
       const key = String(c.departmentId);
       if (!deptClassMap[key]) deptClassMap[key] = [];
-      deptClassMap[key].push({ id: c.id, name: c.name });
+      deptClassMap[key].push({
+        id: c.id,
+        name: c.name,
+        streams: (c.streams || []).map(s => ({ id: s.id, name: s.name }))
+      });
     });
 
     // Provide filtered classes array if a department filter is selected
@@ -852,7 +856,8 @@ router.get('/assignments/teacher-class', async (req, res) => {
       where: Object.keys(assignWhere).length ? assignWhere : {},
       include: [
         { model: Teacher, as: 'teacher' },
-        { model: Class, as: 'class', include: ['department'] }
+        { model: Class, as: 'class', include: ['department'] },
+        { model: Stream, as: 'stream' }
       ],
       order: [
         [{ model: Class, as: 'class' }, 'name', 'ASC'],
@@ -989,14 +994,24 @@ router.get('/assignments/teacher-subject', async (req, res) => {
 
 router.post('/assignments/teacher-class', async (req, res) => {
   try {
-    const { teacherId, classIds, classTeacherId } = req.body;
+    const { teacherId, classIds, classTeacherId, streamId } = req.body;
+    const parsedStreamId = streamId ? parseInt(streamId) : null;
     const ids = Array.isArray(classIds) ? classIds : [classIds];
+    if (classTeacherId && !parsedStreamId) {
+      req.flash('error', 'Select a stream before setting a class teacher.');
+      return res.redirect('/admin/assignments/teacher-class');
+    }
     for (const classId of ids) {
-      const [row] = await TeacherClass.findOrCreate({ where: { teacherId, classId } });
+      const parsedClassId = parseInt(classId);
+      const [row] = await TeacherClass.findOrCreate({
+        where: { teacherId, classId: parsedClassId, streamId: parsedStreamId || null },
+        defaults: { teacherId, classId: parsedClassId, streamId: parsedStreamId || null }
+      });
       const isClassTeacher = classTeacherId === classId;
+      await row.update({ streamId: parsedStreamId || null });
       if (isClassTeacher) {
-        // Only one class teacher per class — clear previous
-        await TeacherClass.update({ isClassTeacher: false }, { where: { classId } });
+        // Only one class teacher per class/stream combination
+        await TeacherClass.update({ isClassTeacher: false }, { where: { classId: parsedClassId, streamId: parsedStreamId || null } });
         await row.update({ isClassTeacher: true });
       }
     }
@@ -1009,8 +1024,8 @@ router.post('/assignments/teacher-class/:id/set-class-teacher', async (req, res)
   try {
     const row = await TeacherClass.findByPk(req.params.id);
     if (row) {
-      // Clear existing class teacher for that class
-      await TeacherClass.update({ isClassTeacher: false }, { where: { classId: row.classId } });
+      // Clear existing class teacher for that class/stream combination
+      await TeacherClass.update({ isClassTeacher: false }, { where: { classId: row.classId, streamId: row.streamId || null } });
       await row.update({ isClassTeacher: true });
       req.flash('success', 'Class teacher set');
     }

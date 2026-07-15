@@ -12,10 +12,14 @@ block body
         .form-row
           .form-group
             label My Class (as Class Teacher)
-            select(name='classId', required)
+            select(name='classId', id='classFilterSel', required)
               option(value='') Choose class
               each cls in ctClasses
                 option(value=cls.id, selected=selectedClass && selectedClass.id==cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          .form-group
+            label Stream
+            select(name='streamId', id='streamFilterSel')
+              option(value='') All Streams
           .form-group
             label Term
             select(name='term')
@@ -47,6 +51,7 @@ block body
 
     form(method='POST', action='/teacher/comments/save')
       input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='streamId', value=selectedStreamId || '')
       input(type='hidden', name='term', value=term)
       input(type='hidden', name='academicYear', value=year)
 
@@ -83,6 +88,7 @@ block body
                   id=`gen-btn-${student.id}`,
                   data-student=student.id,
                   data-class=selectedClass.id,
+                  data-stream=selectedStreamId || '',
                   data-term=term,
                   data-year=year
                 )
@@ -116,18 +122,43 @@ block body
       p Select a class above to manage report comments.
 
   script.
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+    const classFilterSel = document.getElementById('classFilterSel');
+    const streamFilterSel = document.getElementById('streamFilterSel');
+    const savedClass = '!{selectedClass ? selectedClass.id : ""}';
+    const savedStream = '!{selectedStreamId || ""}';
+
+    function updateStreamOptions() {
+      const cid = classFilterSel.value;
+      const streams = classStreamMap[cid] || [];
+      streamFilterSel.innerHTML = '<option value="">All Streams</option>';
+      streams.forEach(function(stream) {
+        const opt = document.createElement('option');
+        opt.value = stream.id;
+        opt.textContent = stream.name;
+        if (String(stream.id) === savedStream) opt.selected = true;
+        streamFilterSel.appendChild(opt);
+      });
+    }
+
+    classFilterSel.addEventListener('change', function() {
+      updateStreamOptions();
+    });
+    if (classFilterSel.value) updateStreamOptions();
+
     document.addEventListener('click', function(e) {
       const btn = e.target.closest('.ai-gen-btn');
       if (!btn) return;
       e.preventDefault();
       const studentId = btn.dataset.student;
       const classId = btn.dataset.class;
+      const streamId = btn.dataset.stream || '';
       const term = btn.dataset.term;
       const year = btn.dataset.year;
-      generateComment(btn, studentId, classId, term, year);
+      generateComment(btn, studentId, classId, streamId, term, year);
     });
 
-    async function generateComment(btn, studentId, classId, term, year) {
+    async function generateComment(btn, studentId, classId, streamId, term, year) {
       const textarea = document.getElementById('comment-' + studentId);
       const card = document.getElementById('card-' + studentId);
       const errDiv = document.getElementById('err-' + studentId);
@@ -141,7 +172,7 @@ block body
         const resp = await fetch('/teacher/comments/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId: studentId, classId: classId, term: term, academicYear: year })
+          body: JSON.stringify({ studentId: studentId, classId: classId, streamId: streamId, term: term, academicYear: year })
         });
 
         let data;

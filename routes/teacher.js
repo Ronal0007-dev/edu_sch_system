@@ -20,6 +20,46 @@ function activeStudentWhere(extra = {}) {
   return { isActive: true, status: 'Active', ...extra };
 }
 
+async function getTeacherAssignedStreamId(teacherId, classId) {
+  if (!teacherId || !classId) return null;
+  const rows = await TeacherClass.findAll({
+    where: { teacherId, classId: parseInt(classId) }
+  });
+  const streamAssignment = rows.find(row => row.streamId);
+  return streamAssignment ? streamAssignment.streamId : null;
+}
+
+function buildTeacherStudentWhere(classId, streamId, extra = {}) {
+  const where = activeStudentWhere({ classId: parseInt(classId), ...extra });
+  if (streamId) where.streamId = streamId;
+  return where;
+}
+
+async function getTeacherClassStreamMap(teacherId) {
+  if (!teacherId) return {};
+  const rows = await TeacherClass.findAll({
+    where: { teacherId },
+    include: [{ model: Class, as: 'class' }, { model: Stream, as: 'stream' }]
+  });
+  const classStreamMap = {};
+  rows.forEach(row => {
+    if (!row.class) return;
+    const cid = String(row.class.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    if (row.stream) {
+      const existing = classStreamMap[cid].find(s => String(s.id) === String(row.stream.id));
+      if (!existing) classStreamMap[cid].push({ id: String(row.stream.id), name: row.stream.name });
+    }
+  });
+  return classStreamMap;
+}
+
+async function getTeacherClassStream(teacherId, classId, streamId) {
+  if (!teacherId || !classId || !streamId) return null;
+  const row = await TeacherClass.findOne({ where: { teacherId, classId: parseInt(classId), streamId: parseInt(streamId) }, include: [{ model: Stream, as: 'stream' }] });
+  return row && row.stream ? row.stream.toJSON() : null;
+}
+
 // ── Helper: school day count between two dates ─────────────────────────────────
 async function countSchoolDays(startDate, endDate) {
   const holidays = await require('../models').PublicHoliday.findAll();
@@ -48,12 +88,14 @@ router.get('/dashboard', async (req, res) => {
           'department',
           { model: Student, as: 'students', where: activeStudentWhere(), required: false }
         ]
-      }]
+      }, { model: Stream, as: 'stream' }]
     });
     const assignedClasses = teacherClassRows.map(tc => ({
       ...tc.class.toJSON(),
       isClassTeacher: tc.isClassTeacher,
-      assignmentId: tc.id
+      assignmentId: tc.id,
+      streamId: tc.streamId || null,
+      stream: tc.stream ? tc.stream.toJSON() : null
     })).filter(c => c.id);
     const classTeacherClasses = assignedClasses.filter(c => c.isClassTeacher);
     const teacherSubjectRows = await TeacherSubject.findAll({
@@ -92,11 +134,21 @@ router.get('/dashboard', async (req, res) => {
 router.get('/attendance', async (req, res) => {
   const teacherClassRows = await TeacherClass.findAll({
     where: { teacherId: req.session.teacher.id },
-    include: [{ model: Class, as: 'class', include: ['department'] }]
+    include: [{ model: Class, as: 'class', include: ['department'] }, { model: Stream, as: 'stream' }]
   });
   const classes = teacherClassRows.map(tc => tc.class).filter(Boolean);
+  const classStreamMap = {};
+  teacherClassRows.forEach(tc => {
+    if (!tc.class) return;
+    const cid = String(tc.class.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    if (tc.stream) {
+      const existing = classStreamMap[cid].find(s => String(s.id) === String(tc.stream.id));
+      if (!existing) classStreamMap[cid].push({ id: String(tc.stream.id), name: tc.stream.name });
+    }
+  });
 
-  let students = [], selectedClass = null;
+  let students = [], selectedClass = null, selectedStream = null;
   const today = moment().format('YYYY-MM-DD');
   let canTakeAttendance = true, blockReason = '';
   const dayOfWeek = moment().day();
@@ -104,9 +156,17 @@ router.get('/attendance', async (req, res) => {
   const holiday = await PublicHoliday.findOne({ where: { date: today } });
   if (holiday) { canTakeAttendance = false; blockReason = `Today is a public holiday: ${holiday.name}`; }
 
+  const selectedStreamId = req.query.streamId ? parseInt(req.query.streamId) : null;
+
   if (req.query.classId) {
+    const resolvedStreamId = selectedStreamId || await getTeacherAssignedStreamId(req.session.teacher.id, req.query.classId);
     selectedClass = await Class.findByPk(req.query.classId);
-    const rawStudents = await Student.findAll({ where: activeStudentWhere({ classId: req.query.classId }), include: ['stream'], order: [['fullName', 'ASC']] });
+    selectedStream = resolvedStreamId ? await getTeacherClassStream(req.session.teacher.id, req.query.classId, resolvedStreamId) : null;
+    const rawStudents = await Student.findAll({
+      where: buildTeacherStudentWhere(req.query.classId, resolvedStreamId),
+      include: ['stream'],
+      order: [['fullName', 'ASC']]
+    });
     const existingAttendance = await Attendance.findAll({ where: { classId: req.query.classId, date: today } });
     students = rawStudents.map(s => ({
       ...s.toJSON(),
@@ -115,8 +175,8 @@ router.get('/attendance', async (req, res) => {
   }
 
   res.render('teacher/attendance', {
-    title: 'Take Attendance', classes, students, selectedClass, today, canTakeAttendance, blockReason,
-    teacher: req.session.teacher, error: req.flash('error'), success: req.flash('success')
+    title: 'Take Attendance', classes, students, selectedClass, selectedStream, today, canTakeAttendance, blockReason,
+    classStreamMap, selectedStreamId, teacher: req.session.teacher, error: req.flash('error'), success: req.flash('success')
   });
 });
 
@@ -126,8 +186,9 @@ router.post('/attendance/submit', async (req, res) => {
     if ([0, 6].includes(moment().day())) throw new Error('Cannot take attendance on weekends');
     const holiday = await PublicHoliday.findOne({ where: { date: today } });
     if (holiday) throw new Error(`Cannot take attendance on ${holiday.name}`);
-    const { classId } = req.body;
-    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
+    const { classId, streamId } = req.body;
+    const resolvedStreamId = streamId ? parseInt(streamId) : await getTeacherAssignedStreamId(req.session.teacher.id, classId);
+    const students = await Student.findAll({ where: buildTeacherStudentWhere(classId, resolvedStreamId) });
     for (const student of students) {
       const status = req.body[`status_${student.id}`];
       if (status) {
@@ -136,15 +197,16 @@ router.post('/attendance/submit', async (req, res) => {
     }
     req.flash('success', 'Attendance saved successfully');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
-  res.redirect(`/teacher/attendance?classId=${req.body.classId}`);
+  res.redirect(`/teacher/attendance?classId=${req.body.classId}&streamId=${req.body.streamId || ''}`);
 });
 
 // ── Print Attendance ───────────────────────────────────────────────────────────
 router.get('/attendance/print', async (req, res) => {
   try {
-    const { classId, date } = req.query;
+    const { classId, date, streamId } = req.query;
+    const resolvedStreamId = streamId ? parseInt(streamId) : await getTeacherAssignedStreamId(req.session.teacher.id, classId);
     const cls = await Class.findByPk(classId, { include: ['department'] });
-    const students = await Student.findAll({ where: activeStudentWhere({ classId }), order: [['fullName', 'ASC']] });
+    const students = await Student.findAll({ where: buildTeacherStudentWhere(classId, resolvedStreamId), order: [['fullName', 'ASC']] });
     let records = [];
     if (date) {
       records = await Attendance.findAll({ where: { classId, date }, include: ['student'] });
@@ -172,8 +234,14 @@ router.get('/attendance/history', async (req, res) => {
   let records = [], total = 0;
 
   if (req.query.classId && req.query.date) {
+    const streamId = await getTeacherAssignedStreamId(req.session.teacher.id, req.query.classId);
+    const studentRows = await Student.findAll({
+      where: buildTeacherStudentWhere(req.query.classId, streamId),
+      attributes: ['id']
+    });
+    const studentIds = studentRows.map(row => row.id);
     const { count, rows } = await Attendance.findAndCountAll({
-      where: { classId: req.query.classId, date: req.query.date },
+      where: { classId: req.query.classId, date: req.query.date, studentId: studentIds },
       include: ['student'], order: [[{ model: Student, as: 'student' }, 'fullName', 'ASC']],
       limit, offset: (page - 1) * limit
     });
@@ -196,6 +264,20 @@ router.get('/marks', async (req, res) => {
       { model: Subject, as: 'subject' },
       { model: Class, as: 'class', include: ['department'] }
     ]
+  });
+  const teacherClassRows = await TeacherClass.findAll({
+    where: { teacherId: req.session.teacher.id },
+    include: [{ model: Class, as: 'class' }, { model: Stream, as: 'stream' }]
+  });
+  const classStreamMap = {};
+  teacherClassRows.forEach(tc => {
+    if (!tc.class) return;
+    const cid = String(tc.class.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    if (tc.stream) {
+      const existing = classStreamMap[cid].find(s => String(s.id) === String(tc.stream.id));
+      if (!existing) classStreamMap[cid].push({ id: String(tc.stream.id), name: tc.stream.name });
+    }
   });
 
   // ── Cascade: Dept → Class → Subject ─────────────────────────────────────────
@@ -235,10 +317,12 @@ router.get('/marks', async (req, res) => {
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
 
   let students = [], selectedSubject = null, selectedClass = null, existingMarks = {};
+  let selectedStream = null;
   let deptCode = '', isArtDesign = false;
   const selectedDeptId  = req.query.deptId   || '';
   const selectedClassId = req.query.classId  || '';
   const selectedSubjectId = req.query.subjectId || '';
+  const selectedStreamId = req.query.streamId ? parseInt(req.query.streamId) : null;
 
   if (selectedSubjectId && selectedClassId) {
     selectedSubject = await Subject.findByPk(selectedSubjectId);
@@ -249,8 +333,10 @@ router.get('/marks', async (req, res) => {
       selectedClass ? selectedClass.name : '',
       deptCode
     );
+    const resolvedStreamId = selectedStreamId || await getTeacherAssignedStreamId(req.session.teacher.id, selectedClassId);
+    selectedStream = resolvedStreamId ? await getTeacherClassStream(req.session.teacher.id, selectedClassId, resolvedStreamId) : null;
     students = await Student.findAll({
-      where: activeStudentWhere({ classId: selectedClassId }),
+      where: buildTeacherStudentWhere(selectedClassId, resolvedStreamId),
       include: ['stream'], order: [['fullName', 'ASC']]
     });
     const marks = await Mark.findAll({ where: { subjectId: selectedSubjectId, classId: selectedClassId, term, academicYear: year } });
@@ -261,7 +347,8 @@ router.get('/marks', async (req, res) => {
     title: 'Enter Marks',
     teacherSubjectRows, uniqueDepts, cascadeMap,
     students, selectedSubject, selectedClass, existingMarks,
-    deptCode, selectedDeptId, selectedClassId, selectedSubjectId,
+    deptCode, selectedDeptId, selectedClassId, selectedSubjectId, selectedStreamId,
+    selectedStream, classStreamMap,
     isArtDesign, ART_MAX,
     term, year, currentYear, openTerms,
     teacher: req.session.teacher,
@@ -328,16 +415,22 @@ router.post('/marks/save', async (req, res) => {
       req.flash('success', 'CA marks saved successfully');
     }
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
-  res.redirect(`/teacher/marks?subjectId=${req.body.subjectId}&classId=${req.body.classId}&term=${req.body.term}&year=${req.body.academicYear}`);
+  res.redirect(`/teacher/marks?subjectId=${req.body.subjectId}&classId=${req.body.classId}&streamId=${req.body.streamId || ''}&term=${req.body.term}&year=${req.body.academicYear}`);
 });
 
 // ── Helper: load student report data ─────────────────────────────────────────
-async function loadStudentReportData(studentId, term, year) {
+async function loadStudentReportData(studentId, term, year, teacherId = null) {
   const student = await Student.findOne({
     where: { id: studentId, isActive: true, status: 'Active' },
     include: [{ model: Class, as: 'class', include: ['department'] }, 'stream']
   });
   if (!student) throw new Error('Student record not found or not available for reporting');
+  if (teacherId && student.classId) {
+    const streamId = await getTeacherAssignedStreamId(teacherId, student.classId);
+    if (streamId && student.streamId !== streamId) {
+      throw new Error('You are not authorized to view this student');
+    }
+  }
   const marks = await Mark.findAll({ where: { studentId, term, academicYear: year }, include: ['subject'] });
   const attendance = await Attendance.findAll({ where: { studentId } });
   const presentDays = attendance.filter(a => a.status === 'present').length;
@@ -360,7 +453,7 @@ router.get('/progressive-report/:studentId', async (req, res) => {
     const term = req.query.term || defaultTerm;
     const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
-    const data = await loadStudentReportData(req.params.studentId, term, year);
+    const data = await loadStudentReportData(req.params.studentId, term, year, req.session.teacher.id);
     res.render('teacher/progressive-report', {
       title: 'Progressive Report Card', ...data, term, year, getRemark,
       isArtDesignSubject, ART_MAX, artGrade,
@@ -381,7 +474,7 @@ router.get('/final-report/:studentId', async (req, res) => {
     const term = req.query.term || defaultTerm;
     const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
     const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
-    const data = await loadStudentReportData(req.params.studentId, term, year);
+    const data = await loadStudentReportData(req.params.studentId, term, year, req.session.teacher.id);
     res.render('teacher/final-report', {
       title: 'Final Report Card', ...data, term, year, getRemark, getPrimaryExamGrade,
       primaryExamPassed, secondaryExamPassed,
@@ -404,15 +497,25 @@ router.get('/report-cards', async (req, res) => {
   const currentYear = await getCurrentYear();
   const teacherClassRows = await TeacherClass.findAll({
     where: { teacherId: req.session.teacher.id },
-    include: [{ model: Class, as: 'class', include: ['students'] }]
+    include: [{ model: Class, as: 'class', include: ['students'] }, { model: Stream, as: 'stream' }]
   });
   const classes = teacherClassRows.map(tc => ({
     ...tc.class.toJSON(),
     isClassTeacher: tc.isClassTeacher
   })).filter(c => c.id);
+  const classStreamMap = {};
+  teacherClassRows.forEach(tc => {
+    if (!tc.class) return;
+    const cid = String(tc.class.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    if (tc.stream) {
+      const existing = classStreamMap[cid].find(s => String(s.id) === String(tc.stream.id));
+      if (!existing) classStreamMap[cid].push({ id: String(tc.stream.id), name: tc.stream.name });
+    }
+  });
   const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
   res.render('teacher/report-cards', {
-    title: 'Report Cards', classes, currentYear, academicYears,
+    title: 'Report Cards', classes, classStreamMap, currentYear, academicYears,
     teacher: req.session.teacher, error: req.flash('error'), success: req.flash('success')
   });
 });
@@ -422,27 +525,42 @@ router.get('/exam-analysis', async (req, res) => {
   const currentYear = await getCurrentYear();
   const teacherClassRows = await TeacherClass.findAll({
     where: { teacherId: req.session.teacher.id },
-    include: [{ model: Class, as: 'class', include: ['department'] }]
+    include: [{ model: Class, as: 'class', include: ['department'] }, { model: Stream, as: 'stream' }]
   });
   const classes = teacherClassRows.map(tc => ({ ...tc.class.toJSON(), isClassTeacher: tc.isClassTeacher })).filter(c => c.id);
+  const classStreamMap = {};
+  teacherClassRows.forEach(tc => {
+    if (!tc.class) return;
+    const cid = String(tc.class.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    if (tc.stream) {
+      const existing = classStreamMap[cid].find(s => String(s.id) === String(tc.stream.id));
+      if (!existing) classStreamMap[cid].push({ id: String(tc.stream.id), name: tc.stream.name });
+    }
+  });
+  const selectedClassId = req.query.classId || '';
+  const selectedStreamId = req.query.streamId ? parseInt(req.query.streamId) : null;
   const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
   const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
 
   let analysisData = [];
-  if (req.query.classId) {
-    const cls = classes.find(c => c.id == req.query.classId) || await Class.findByPk(req.query.classId, { include: ['department'] }).then(c => c ? c.toJSON() : null);
+  if (selectedClassId) {
+    const resolvedStreamId = selectedStreamId || await getTeacherAssignedStreamId(req.session.teacher.id, selectedClassId);
+    const cls = classes.find(c => c.id == selectedClassId) || await Class.findByPk(selectedClassId, { include: ['department'] }).then(c => c ? c.toJSON() : null);
     const deptCode = cls && cls.department ? cls.department.code : '';
+    const studentRows = await Student.findAll({ where: buildTeacherStudentWhere(selectedClassId, resolvedStreamId), attributes: ['id'] });
+    const studentIds = studentRows.map(r => r.id);
     const marks = await Mark.findAll({
-      where: { classId: req.query.classId, term, academicYear: year },
+      where: { classId: selectedClassId, term, academicYear: year, studentId: studentIds },
       include: ['subject', 'student']
     });
-    const totalStudents = await Student.count({ where: activeStudentWhere({ classId: req.query.classId }) });
+    const totalStudents = studentIds.length;
     analysisData = { cls, deptCode, totalStudents, subjects: buildExamAnalysis(marks.map(m => m.toJSON()), deptCode) };
   }
 
   res.render('teacher/exam-analysis', {
-    title: 'Exam Analysis', classes, analysisData, term, year, currentYear, academicYears,
+    title: 'Exam Analysis', classes, classStreamMap, analysisData, selectedClassId, selectedStreamId, term, year, currentYear, academicYears,
     teacher: req.session.teacher,
     error: req.flash('error'), success: req.flash('success')
   });
@@ -457,7 +575,8 @@ router.get('/academic-report/:classId', async (req, res) => {
     const cls = await Class.findByPk(req.params.classId, { include: ['department'] });
     const deptCode = cls && cls.department ? cls.department.code : '';
     const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
-    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.classId }), include: ['stream'], order: [['fullName', 'ASC']] });
+    const streamId = await getTeacherAssignedStreamId(req.session.teacher.id, req.params.classId);
+    const students = await Student.findAll({ where: buildTeacherStudentWhere(req.params.classId, streamId), include: ['stream'], order: [['fullName', 'ASC']] });
     const marks = await Mark.findAll({
       where: { classId: req.params.classId, term, academicYear: year },
       include: ['subject']
@@ -489,25 +608,47 @@ router.get('/comments', async (req, res) => {
   // Find classes where this teacher is class teacher
   const ctRows = await TeacherClass.findAll({
     where: { teacherId: req.session.teacher.id, isClassTeacher: true },
-    include: [{ model: Class, as: 'class', include: ['department'] }]
+    include: [{ model: Class, as: 'class', include: ['department'] }, { model: Stream, as: 'stream' }]
   });
-  const ctClasses = ctRows.map(r => ({ ...r.class.toJSON(), isClassTeacher: true }));
+  const ctClasses = ctRows.map(r => ({
+    ...r.class.toJSON(),
+    isClassTeacher: true,
+    streamId: r.streamId || null,
+    stream: r.stream ? r.stream.toJSON() : null
+  }));
+
+  const classStreamMap = {};
+  ctClasses.forEach(cls => {
+    const cid = String(cls.id);
+    if (!classStreamMap[cid]) classStreamMap[cid] = [];
+    classStreamMap[cid].push({ id: cls.streamId ? String(cls.streamId) : '', name: cls.stream ? cls.stream.name : 'All streams' });
+  });
 
   const term = req.query.term || (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1');
   const year = req.query.year || (currentYear ? currentYear.name : '2024/2025');
   const academicYears = await AcademicYear.findAll({ include: ['terms'], order: [['startDate', 'DESC']] });
 
   let students = [], selectedClass = null, existingComments = {}, classMarks = {};
+  const selectedStreamId = req.query.streamId ? parseInt(req.query.streamId) : null;
 
   if (req.query.classId) {
-    selectedClass = ctClasses.find(c => c.id == req.query.classId);
+    selectedClass = ctClasses.find(c => c.id == req.query.classId && (!selectedStreamId || c.streamId === selectedStreamId));
     if (!selectedClass) {
-      req.flash('error', 'You are not the class teacher for this class');
-      return res.redirect('/teacher/comments');
+      const fallback = ctClasses.find(c => c.id == req.query.classId);
+      if (fallback) selectedClass = fallback;
+      else {
+        req.flash('error', 'You are not the class teacher for this class');
+        return res.redirect('/teacher/comments');
+      }
     }
 
+    const teacherStreamId = await getTeacherAssignedStreamId(req.session.teacher.id, req.query.classId);
+    const resolvedStreamId = selectedStreamId || teacherStreamId;
+    const studentWhere = activeStudentWhere({ classId: req.query.classId });
+    if (resolvedStreamId) studentWhere.streamId = resolvedStreamId;
+
     students = await Student.findAll({
-      where: activeStudentWhere({ classId: req.query.classId }),
+      where: studentWhere,
       include: ['stream'],
       order: [['fullName', 'ASC']]
     });
@@ -549,7 +690,8 @@ router.get('/comments', async (req, res) => {
   res.render('teacher/comments', {
     title: 'Report Comments',
     ctClasses, selectedClass, students, existingComments,
-    term, year, currentYear, academicYears,
+    classStreamMap,
+    selectedStreamId, term, year, currentYear, academicYears,
     teacher: req.session.teacher,
     error: req.flash('error'), success: req.flash('success')
   });
@@ -557,15 +699,18 @@ router.get('/comments', async (req, res) => {
 
 router.post('/comments/save', async (req, res) => {
   try {
-    const { classId, term, academicYear } = req.body;
+    const { classId, streamId, term, academicYear } = req.body;
+    const parsedStreamId = streamId ? parseInt(streamId) : null;
 
-    // Verify this teacher is class teacher for this class
+    // Verify this teacher is class teacher for this class/stream
     const ctRow = await TeacherClass.findOne({
-      where: { teacherId: req.session.teacher.id, classId, isClassTeacher: true }
+      where: { teacherId: req.session.teacher.id, classId: parseInt(classId), streamId: parsedStreamId || null, isClassTeacher: true }
     });
     if (!ctRow) throw new Error('You are not the class teacher for this class');
 
-    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
+    const studentWhere = activeStudentWhere({ classId: parseInt(classId) });
+    if (parsedStreamId) studentWhere.streamId = parsedStreamId;
+    const students = await Student.findAll({ where: studentWhere });
     for (const student of students) {
       const comment = req.body[`comment_${student.id}`];
       if (comment && comment.trim()) {
@@ -579,17 +724,18 @@ router.post('/comments/save', async (req, res) => {
   } catch (err) {
     req.flash('error', 'Error: ' + err.message);
   }
-  res.redirect(`/teacher/comments?classId=${req.body.classId}&term=${req.body.term}&year=${req.body.academicYear}`);
+  res.redirect(`/teacher/comments?classId=${req.body.classId}&streamId=${req.body.streamId || ''}&term=${req.body.term}&year=${req.body.academicYear}`);
 });
 
 // ── AI Generate Comment for one student ───────────────────────────────────────
 router.post('/comments/generate', async (req, res) => {
   try {
-    const { studentId, classId, term, academicYear } = req.body;
+    const { studentId, classId, streamId, term, academicYear } = req.body;
 
     // Coerce to integers for reliable DB matching
     const studentIdInt = parseInt(studentId);
     const classIdInt = parseInt(classId);
+    const streamIdInt = streamId ? parseInt(streamId) : null;
 
     if (!studentIdInt || !classIdInt || !term || !academicYear) {
       return res.status(400).json({ error: 'Missing required fields: studentId, classId, term, academicYear' });
@@ -597,13 +743,15 @@ router.post('/comments/generate', async (req, res) => {
 
     // Verify class teacher — use parseInt to avoid string/int mismatch
     const ctRow = await TeacherClass.findOne({
-      where: { teacherId: parseInt(req.session.teacher.id), classId: classIdInt, isClassTeacher: true }
+      where: { teacherId: parseInt(req.session.teacher.id), classId: classIdInt, streamId: streamIdInt || null, isClassTeacher: true }
     });
     if (!ctRow) {
       return res.status(403).json({ error: 'You are not the class teacher for this class' });
     }
 
-    const student = await Student.findByPk(studentIdInt);
+    const student = await Student.findOne({
+      where: { id: studentIdInt, ...(streamIdInt ? { streamId: streamIdInt } : {}) }
+    });
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }

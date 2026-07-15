@@ -6,10 +6,14 @@ block body
       .form-row
         .form-group
           label Select Class
-          select(name='classId', required)
+          select(name='classId', id='classSelect', required)
             option(value='') Choose your class
             each cls in classes
               option(value=cls.id, selected=selectedClass && selectedClass.id==cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+        .form-group
+          label Stream
+          select(name='streamId', id='streamSelect')
+            option(value='') All Streams
         button.btn.btn-primary(type='submit')
           i.fas.fa-search
           span Load Class
@@ -29,10 +33,11 @@ block body
           form.filter-form(method='GET', action='/teacher/attendance/print')
             .form-row
               input(type='hidden', name='classId', value=selectedClass.id)
+              input(type='hidden', name='streamId', value=selectedStream ? selectedStream.id : '')
               .form-group
                 label Select Date to Print
                 input(type='date', name='date', value=today)
-              a.btn.btn-primary(href=`/teacher/attendance/print?classId=${selectedClass.id}&date=${today}`, target='_blank')
+              a.btn.btn-primary(href=`/teacher/attendance/print?classId=${selectedClass.id}&streamId=${selectedStream ? selectedStream.id : ''}&date=${today}`, target='_blank')
                 i.fas.fa-print
                 span Print Today's Attendance
 
@@ -47,7 +52,7 @@ block body
           span #{today}
           span.date-note (Auto-set — cannot be changed)
       .attendance-actions
-        a.btn.btn-outline.btn-sm(href=`/teacher/attendance/print?classId=${selectedClass.id}&date=${today}`, target='_blank')
+        a.btn.btn-outline.btn-sm(href=`/teacher/attendance/print?classId=${selectedClass.id}&streamId=${selectedStream ? selectedStream.id : ''}&date=${today}`, target='_blank')
           i.fas.fa-print
           span Print
       .attendance-legend
@@ -63,6 +68,7 @@ block body
 
     form(method='POST', action='/teacher/attendance/submit')
       input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='streamId', value=selectedStream ? selectedStream.id : '')
 
       .quick-mark.no-print
         span Mark all:
@@ -100,7 +106,7 @@ block body
         button.btn.btn-primary.btn-lg(type='submit')
           i.fas.fa-save
           span Save All Attendance
-        a.btn.btn-outline(href=`/teacher/attendance/print?classId=${selectedClass.id}&date=${today}`, target='_blank')
+        a.btn.btn-outline(href=`/teacher/attendance/print?classId=${selectedClass.id}&streamId=${selectedStream ? selectedStream.id : ''}&date=${today}`, target='_blank')
           i.fas.fa-print
           span Print
 
@@ -114,6 +120,25 @@ block body
       p Select a class above to take attendance.
 
   script.
+    const classSelect = document.getElementById('classSelect');
+    const streamSelect = document.getElementById('streamSelect');
+    const streamMap = !{JSON.stringify(classStreamMap || {})};
+
+    function updateStreams() {
+      const cid = classSelect.value;
+      const streams = streamMap[cid] || [];
+      streamSelect.innerHTML = '<option value="">All Streams</option>';
+      streams.forEach(function(stream) {
+        const opt = document.createElement('option');
+        opt.value = stream.id;
+        opt.textContent = stream.name;
+        streamSelect.appendChild(opt);
+      });
+    }
+
+    classSelect.addEventListener('change', updateStreams);
+    if (classSelect.value) updateStreams();
+
     function markAll(status) {
       document.querySelectorAll(`input[type="radio"][value="${status}"]`).forEach(r => r.checked = true);
     }

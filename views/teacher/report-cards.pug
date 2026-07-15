@@ -14,6 +14,16 @@ block body
             option(value='Term 2') Term 2
             option(value='Term 3') Term 3
       .form-group
+        label Class
+        select#classSel
+          option(value='') All Classes
+          each cls in classes
+            option(value=cls.id) #{cls.name}
+      .form-group
+        label Stream
+        select#streamSel
+          option(value='') All Streams
+      .form-group
         label Year
         select#yearSel
           if currentYear
@@ -23,7 +33,7 @@ block body
               option(value=yr.name) #{yr.name}
 
   each cls in classes
-    .card.mb-4
+    .card.mb-4(data-class-id=cls.id)
       .card-header
         h2 #{cls.name}
         .toolbar-actions
@@ -41,7 +51,7 @@ block body
                 th Final Report
             tbody
               each student, i in cls.students
-                tr
+                tr(data-stream-id=student.stream ? student.stream.id : '')
                   td #{i+1}
                   td
                     .student-mini
@@ -64,6 +74,41 @@ block body
   script.
     const termSel = document.getElementById('termSel');
     const yearSel = document.getElementById('yearSel');
+    const classSel = document.getElementById('classSel');
+    const streamSel = document.getElementById('streamSel');
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+
+    function updateStreams() {
+      const cid = classSel.value;
+      const streams = classStreamMap[cid] || [];
+      streamSel.innerHTML = '<option value="">All Streams</option>';
+      streams.forEach(function(stream) {
+        const opt = document.createElement('option');
+        opt.value = stream.id;
+        opt.textContent = stream.name;
+        streamSel.appendChild(opt);
+      });
+    }
+
+    function updateCards() {
+      const selectedClass = classSel.value;
+      const selectedStream = streamSel.value;
+      document.querySelectorAll('.card.mb-4[data-class-id]').forEach(card => {
+        const cardId = card.getAttribute('data-class-id');
+        const matchesClass = !selectedClass || String(cardId) === String(selectedClass);
+        const streams = classStreamMap[cardId] || [];
+        const matchesStream = !selectedStream || streams.some(s => String(s.id) === String(selectedStream));
+        card.style.display = matchesClass && matchesStream ? '' : 'none';
+        if (matchesClass && matchesStream) {
+          card.querySelectorAll('tbody tr').forEach(row => {
+            const rowStream = row.getAttribute('data-stream-id') || '';
+            const rowVisible = !selectedStream || String(rowStream) === String(selectedStream);
+            row.style.display = rowVisible ? '' : 'none';
+          });
+        }
+      });
+    }
+
     function updateLinks() {
       const term = encodeURIComponent(termSel.value);
       const year = encodeURIComponent(yearSel.value);
@@ -76,4 +121,8 @@ block body
     }
     termSel.addEventListener('change', updateLinks);
     yearSel.addEventListener('change', updateLinks);
+    classSel.addEventListener('change', function() { updateStreams(); updateCards(); });
+    streamSel.addEventListener('change', updateCards);
+    updateStreams();
+    updateCards();
     updateLinks();

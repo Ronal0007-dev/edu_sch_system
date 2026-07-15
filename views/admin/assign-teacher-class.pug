@@ -32,6 +32,11 @@ block body
               option(value='') — select department first —
 
           .form-group
+            label Stream
+            select(name='streamId', id='formStreamSel')
+              option(value='') — select class first —
+
+          .form-group
             label Set as Class Teacher?
             select(name='classTeacherId', id='ctSel')
               option(value='') — No (regular teacher) —
@@ -77,6 +82,7 @@ block body
               tr
                 th Teacher
                 th Class
+                th Stream
                 th Department
                 th Role
                 th Actions
@@ -89,6 +95,8 @@ block body
                       span #{a.teacher ? a.teacher.fullName : '-'}
                   td
                     span.badge.badge-class #{a.class ? a.class.name : '-'}
+                  td
+                    span.badge.badge-stream #{a.stream ? a.stream.name : '-'}
                   td
                     if a.class && a.class.department
                       span(class=`dept-badge badge-${a.class.department.code.toLowerCase()}`) #{a.class.department.code}
@@ -129,6 +137,7 @@ block body
     // ── Form cascade: Dept → Class → CT select ──────────────────────────────
     const formDeptSel  = document.getElementById('formDeptSel');
     const formClassSel = document.getElementById('formClassSel');
+    const formStreamSel = document.getElementById('formStreamSel');
     const ctSel        = document.getElementById('ctSel');
 
     function updateFormClasses() {
@@ -141,6 +150,21 @@ block body
         opt.textContent = c.name;
         formClassSel.appendChild(opt);
       });
+      updateFormStreams();
+      updateCtSelect();
+    }
+
+    function updateFormStreams() {
+      const cid = formClassSel.value;
+      const selectedClass = (deptClassMap[formDeptSel.value] || []).find(function(c) { return String(c.id) === String(cid); });
+      const streams = selectedClass && selectedClass.streams ? selectedClass.streams : [];
+      formStreamSel.innerHTML = '<option value="">— no stream —</option>';
+      streams.forEach(function(s) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        formStreamSel.appendChild(opt);
+      });
       updateCtSelect();
     }
 
@@ -148,17 +172,19 @@ block body
       const cid = formClassSel.value;
       const text = formClassSel.options[formClassSel.selectedIndex]
         ? formClassSel.options[formClassSel.selectedIndex].text : '';
+      const streamText = formStreamSel.value ? ' — ' + (formStreamSel.options[formStreamSel.selectedIndex] ? formStreamSel.options[formStreamSel.selectedIndex].text : '') : '';
       ctSel.innerHTML = '<option value="">— No (regular teacher) —</option>';
       if (cid) {
         const opt = document.createElement('option');
         opt.value = cid;
-        opt.textContent = 'Yes — Class Teacher of ' + text;
+        opt.textContent = 'Yes — Class Teacher of ' + text + streamText;
         ctSel.appendChild(opt);
       }
     }
 
     formDeptSel.addEventListener('change', updateFormClasses);
-    formClassSel.addEventListener('change', updateCtSelect);
+    formClassSel.addEventListener('change', updateFormStreams);
+    formStreamSel.addEventListener('change', updateCtSelect);
 
     // ── Filter cascade: Dept → Class ────────────────────────────────────────
     const filterDeptSel  = document.getElementById('filterDeptSel');

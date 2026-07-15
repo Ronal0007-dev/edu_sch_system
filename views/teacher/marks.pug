@@ -23,6 +23,12 @@ block body
         .form-group
           label
             span.step-badge 3
+            | Stream
+          select(name='streamId', id='streamSelect')
+            option(value='') All Streams
+        .form-group
+          label
+            span.step-badge 4
             | Subject
           select(name='subjectId', id='subjectSelect', required)
             option(value='') — select class first —
@@ -87,6 +93,7 @@ block body
 
     form(method='POST', action='/teacher/marks/save')
       input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='streamId', value=selectedStreamId || '')
       input(type='hidden', name='subjectId', value=selectedSubject.id)
       input(type='hidden', name='term', value=term)
       input(type='hidden', name='academicYear', value=year)
@@ -215,6 +222,7 @@ block body
 
     form(method='POST', action='/teacher/marks/save')
       input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='streamId', value=selectedStreamId || '')
       input(type='hidden', name='subjectId', value=selectedSubject.id)
       input(type='hidden', name='term', value=term)
       input(type='hidden', name='academicYear', value=year)
@@ -311,10 +319,13 @@ block body
     const cascadeMap = !{JSON.stringify(cascadeMap)};
     const deptSel  = document.getElementById('deptSelect');
     const classSel = document.getElementById('classSelect');
+    const streamSel = document.getElementById('streamSelect');
     const subjSel  = document.getElementById('subjectSelect');
     const savedDept = '!{selectedDeptId}';
     const savedCls  = '!{selectedClassId}';
     const savedSubj = '!{selectedSubjectId}';
+
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
 
     function updateClasses() {
       const did = deptSel.value;
@@ -328,6 +339,19 @@ block body
         classSel.appendChild(opt);
       });
       updateSubjects();
+      updateStreams();
+    }
+
+    function updateStreams() {
+      const cid = classSel.value;
+      const streams = classStreamMap[cid] || [];
+      streamSel.innerHTML = '<option value="">All Streams</option>';
+      streams.forEach(function(stream) {
+        const opt = document.createElement('option');
+        opt.value = stream.id;
+        opt.textContent = stream.name;
+        streamSel.appendChild(opt);
+      });
     }
 
     function updateSubjects() {
@@ -346,7 +370,7 @@ block body
     }
 
     deptSel.addEventListener('change', updateClasses);
-    classSel.addEventListener('change', updateSubjects);
+    classSel.addEventListener('change', function() { updateSubjects(); updateStreams(); });
 
     // Init on page load (restore saved selections)
     if (deptSel.value) updateClasses();
