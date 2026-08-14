@@ -86,6 +86,10 @@ block content
     .main-content
       header.top-bar
         .top-bar-left
+          button.nav-toggle(type='button', aria-label='Toggle navigation', aria-expanded='false')
+            span
+            span
+            span
           h1.page-title #{title}
         .top-bar-right
           a.admin-badge(href='/auth/admin/change-password', style='text-decoration:none')
