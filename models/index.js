@@ -82,7 +82,11 @@ const Subject = sequelize.define('Subject', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING(100), allowNull: false },
   classId: { type: DataTypes.INTEGER, allowNull: false }
-}, { tableName: 'subjects', timestamps: true });
+}, {
+  tableName: 'subjects',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['classId', 'name'] }]
+});
 
 // ─── Student ──────────────────────────────────────────────────────────────────
 const Student = sequelize.define('Student', {
@@ -135,14 +139,22 @@ const TeacherSubject = sequelize.define('TeacherSubject', {
   teacherId: { type: DataTypes.INTEGER, allowNull: false },
   subjectId: { type: DataTypes.INTEGER, allowNull: false },
   classId: { type: DataTypes.INTEGER, allowNull: false }
-}, { tableName: 'teacher_subjects', timestamps: true });
+}, {
+  tableName: 'teacher_subjects',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['teacherId', 'classId', 'subjectId'] }]
+});
 
 // ─── Class-Subject Assignment ─────────────────────────────────────────────────
 const ClassSubject = sequelize.define('ClassSubject', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   classId: { type: DataTypes.INTEGER, allowNull: false },
   subjectId: { type: DataTypes.INTEGER, allowNull: false }
-}, { tableName: 'class_subjects', timestamps: true });
+}, {
+  tableName: 'class_subjects',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['classId', 'subjectId'] }]
+});
 
 // ─── Public Holiday ───────────────────────────────────────────────────────────
 const PublicHoliday = sequelize.define('PublicHoliday', {

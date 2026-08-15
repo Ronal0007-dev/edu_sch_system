@@ -47,6 +47,27 @@ function activeStudentWhere(extra = {}) {
   return { isActive: true, status: 'Active', ...extra };
 }
 
+async function validateUniqueSubjectForClass(classId, name, subjectId = null) {
+  const trimmedName = String(name || '').trim();
+  if (!trimmedName) throw new Error('Subject name is required');
+
+  const parsedClassId = parseInt(classId, 10);
+  if (!parsedClassId) throw new Error('Please select a valid class');
+
+  const existingSubjects = await Subject.findAll({ where: { classId: parsedClassId } });
+  const normalizedName = trimmedName.toLowerCase();
+  const duplicate = existingSubjects.find(subject => {
+    if (subjectId && parseInt(subject.id, 10) === parseInt(subjectId, 10)) return false;
+    return (subject.name || '').trim().toLowerCase() === normalizedName;
+  });
+
+  if (duplicate) {
+    throw new Error(`Subject "${trimmedName}" already exists in this class`);
+  }
+
+  return trimmedName;
+}
+
 async function resolvePromotionTargetClass(currentClassId, requestedTargetClassId) {
   if (requestedTargetClassId) return parseInt(requestedTargetClassId, 10);
   const currentClass = await Class.findByPk(currentClassId);
@@ -569,7 +590,8 @@ router.get('/subjects', async (req, res) => {
 
 router.post('/subjects', async (req, res) => {
   try {
-    await Subject.create({ name: req.body.name, classId: req.body.classId });
+    const cleanedName = await validateUniqueSubjectForClass(req.body.classId, req.body.name);
+    await Subject.create({ name: cleanedName, classId: req.body.classId });
     req.flash('success', 'Subject created');
   } catch (err) { req.flash('error', 'Error: ' + err.message); }
   res.redirect('/admin/subjects');
@@ -586,7 +608,8 @@ router.post('/subjects/:id/delete', async (req, res) => {
 router.post('/subjects/:id/edit', async (req, res) => {
   try {
     const { name, classId } = req.body;
-    await Subject.update({ name, classId }, { where: { id: req.params.id } });
+    const cleanedName = await validateUniqueSubjectForClass(classId, name, req.params.id);
+    await Subject.update({ name: cleanedName, classId }, { where: { id: req.params.id } });
     req.flash('success', 'Subject updated');
   } catch (err) { req.flash('error', err.message); }
   res.redirect('/admin/subjects');
@@ -838,6 +861,11 @@ router.get('/assignments/teacher-class', async (req, res) => {
       });
     });
 
+    const deptCodeMap = {};
+    departments.forEach(dept => {
+      deptCodeMap[String(dept.id)] = dept.code || '';
+    });
+
     // Provide filtered classes array if a department filter is selected
     const filteredClasses = selectedDeptId
       ? allClasses.filter(c => String(c.departmentId) === String(selectedDeptId))
@@ -879,6 +907,7 @@ router.get('/assignments/teacher-class', async (req, res) => {
       filteredClasses,
       assignments,
       deptClassMap,
+      deptCodeMap,
       selectedDeptId,
       selectedClassId,
       pagination: { page, pages: Math.ceil(count / limit), total: count },
@@ -996,13 +1025,18 @@ router.post('/assignments/teacher-class', async (req, res) => {
   try {
     const { teacherId, classIds, classTeacherId, streamId } = req.body;
     const parsedStreamId = streamId ? parseInt(streamId) : null;
-    const ids = Array.isArray(classIds) ? classIds : [classIds];
-    if (classTeacherId && !parsedStreamId) {
-      req.flash('error', 'Select a stream before setting a class teacher.');
-      return res.redirect('/admin/assignments/teacher-class');
-    }
+    const ids = Array.isArray(classIds) ? classIds : [classIds].filter(Boolean);
+
     for (const classId of ids) {
       const parsedClassId = parseInt(classId);
+      const cls = await Class.findByPk(parsedClassId, { include: [{ model: Department, as: 'department' }] });
+      const deptCode = cls && cls.department ? cls.department.code : null;
+
+      if (classTeacherId === String(classId) && !parsedStreamId && deptCode !== 'Secondary') {
+        req.flash('error', 'Select a stream before setting a class teacher.');
+        return res.redirect('/admin/assignments/teacher-class');
+      }
+
       const [row] = await TeacherClass.findOrCreate({
         where: { teacherId, classId: parsedClassId, streamId: parsedStreamId || null },
         defaults: { teacherId, classId: parsedClassId, streamId: parsedStreamId || null }

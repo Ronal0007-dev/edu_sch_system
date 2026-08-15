@@ -31,7 +31,7 @@ block body
             select(name='classIds', id='formClassSel', required)
               option(value='') — select department first —
 
-          .form-group
+          .form-group(id='streamGroup')
             label Stream
             select(name='streamId', id='formStreamSel')
               option(value='') — select class first —
@@ -132,12 +132,14 @@ block body
           include ../partials/pagination
 
   script.
-    const deptClassMap = !{JSON.stringify(deptClassMap)};
+    const deptClassMap = !{JSON.stringify(deptClassMap || {})};
+    const deptCodeMap = !{JSON.stringify(deptCodeMap || {})};
 
     // ── Form cascade: Dept → Class → CT select ──────────────────────────────
     const formDeptSel  = document.getElementById('formDeptSel');
     const formClassSel = document.getElementById('formClassSel');
     const formStreamSel = document.getElementById('formStreamSel');
+    const formStreamGroup = document.getElementById('streamGroup');
     const ctSel        = document.getElementById('ctSel');
 
     function updateFormClasses() {
@@ -150,15 +152,44 @@ block body
         opt.textContent = c.name;
         formClassSel.appendChild(opt);
       });
-      updateFormStreams();
+
+      const deptCode = deptCodeMap[did] || '';
+      const isSecondaryDept = deptCode === 'Secondary';
+
+      if (isSecondaryDept) {
+        if (formStreamGroup) formStreamGroup.style.display = 'none';
+        if (formStreamSel) {
+          formStreamSel.innerHTML = '<option value="">— not applicable —</option>';
+          formStreamSel.value = '';
+          formStreamSel.disabled = true;
+        }
+      } else {
+        if (formStreamGroup) formStreamGroup.style.display = '';
+        if (formStreamSel) {
+          formStreamSel.disabled = false;
+          updateFormStreams();
+        }
+      }
+
       updateCtSelect();
     }
 
     function updateFormStreams() {
+      // If department is Secondary, streams are not applicable — ensure cleared
+      const deptCode = deptCodeMap[formDeptSel.value] || '';
+      if (deptCode === 'Secondary') {
+        if (formStreamSel) {
+          formStreamSel.innerHTML = '<option value="">— not applicable —</option>';
+          formStreamSel.value = '';
+        }
+        updateCtSelect();
+        return;
+      }
+
       const cid = formClassSel.value;
       const selectedClass = (deptClassMap[formDeptSel.value] || []).find(function(c) { return String(c.id) === String(cid); });
       const streams = selectedClass && selectedClass.streams ? selectedClass.streams : [];
-      formStreamSel.innerHTML = '<option value="">— no stream —</option>';
+      if (formStreamSel) formStreamSel.innerHTML = '<option value="">— no stream —</option>';
       streams.forEach(function(s) {
         const opt = document.createElement('option');
         opt.value = s.id;
@@ -172,7 +203,7 @@ block body
       const cid = formClassSel.value;
       const text = formClassSel.options[formClassSel.selectedIndex]
         ? formClassSel.options[formClassSel.selectedIndex].text : '';
-      const streamText = formStreamSel.value ? ' — ' + (formStreamSel.options[formStreamSel.selectedIndex] ? formStreamSel.options[formStreamSel.selectedIndex].text : '') : '';
+      const streamText = (formStreamSel && formStreamSel.value) ? ' — ' + (formStreamSel.options[formStreamSel.selectedIndex] ? formStreamSel.options[formStreamSel.selectedIndex].text : '') : '';
       ctSel.innerHTML = '<option value="">— No (regular teacher) —</option>';
       if (cid) {
         const opt = document.createElement('option');
@@ -184,7 +215,9 @@ block body
 
     formDeptSel.addEventListener('change', updateFormClasses);
     formClassSel.addEventListener('change', updateFormStreams);
-    formStreamSel.addEventListener('change', updateCtSelect);
+    if (formStreamSel) formStreamSel.addEventListener('change', updateCtSelect);
+    if (!formDeptSel.value && formStreamGroup) formStreamGroup.style.display = 'none';
+    if (formDeptSel.value) updateFormClasses();
 
     // ── Filter cascade: Dept → Class ────────────────────────────────────────
     const filterDeptSel  = document.getElementById('filterDeptSel');
