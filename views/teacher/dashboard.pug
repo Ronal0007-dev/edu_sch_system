@@ -58,10 +58,12 @@ block body
               .class-card
                 .class-info
                   h3 #{cls.name}
+                    if cls.stream
+                      |  — #{cls.stream.name}
                   span #{cls.department ? cls.department.code : ''}
                   p #{cls.students ? cls.students.length : 0} students
                 .class-actions
-                  a.btn.btn-sm.btn-primary(href=`/teacher/attendance?classId=${cls.id}`, class=!canTakeAttendance?'disabled':'')
+                  a.btn.btn-sm.btn-primary(href=`/teacher/attendance?classId=${cls.id}${cls.streamId ? '&streamId=' + cls.streamId : ''}`, class=!canTakeAttendance?'disabled':'')
                     i.fas.fa-calendar-check
                     span Attendance
                   a.btn.btn-sm.btn-outline(href=`/teacher/report-cards`)
@@ -120,6 +122,10 @@ block body
                 td #{r.date}
                 td
                   span(class=`status-badge ${r.status}`) #{r.status}
+        
+        if pagination && pagination.pages > 1
+          - query = query || {} 
+          include ../partials/pagination
       else
         .empty-state
           i.fas.fa-clipboard

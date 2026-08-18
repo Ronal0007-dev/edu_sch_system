@@ -78,6 +78,9 @@ async function countSchoolDays(startDate, endDate) {
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 router.get('/dashboard', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+    
     const teacher = await Teacher.findByPk(req.session.teacher.id, { include: ['department'] });
     const teacherClassRows = await TeacherClass.findAll({
       where: { teacherId: req.session.teacher.id },
@@ -90,13 +93,24 @@ router.get('/dashboard', async (req, res) => {
         ]
       }, { model: Stream, as: 'stream' }]
     });
-    const assignedClasses = teacherClassRows.map(tc => ({
-      ...tc.class.toJSON(),
-      isClassTeacher: tc.isClassTeacher,
-      assignmentId: tc.id,
-      streamId: tc.streamId || null,
-      stream: tc.stream ? tc.stream.toJSON() : null
-    })).filter(c => c.id);
+    
+    const assignedClasses = teacherClassRows.map(tc => {
+      const clsJson = tc.class.toJSON();
+      
+      // Filter students exactly to this stream if a stream is assigned (using string conversion for safety)
+      if (tc.streamId && clsJson.students) {
+        clsJson.students = clsJson.students.filter(s => String(s.streamId) === String(tc.streamId));
+      }
+      
+      return {
+        ...clsJson,
+        isClassTeacher: tc.isClassTeacher,
+        assignmentId: tc.id,
+        streamId: tc.streamId || null,
+        stream: tc.stream ? tc.stream.toJSON() : null
+      };
+    }).filter(c => c.id);
+    
     const classTeacherClasses = assignedClasses.filter(c => c.isClassTeacher);
     const teacherSubjectRows = await TeacherSubject.findAll({
       where: { teacherId: req.session.teacher.id },
@@ -110,21 +124,27 @@ router.get('/dashboard', async (req, res) => {
     const canTakeAttendance = !isWeekend && !holiday;
     const currentYear = await getCurrentYear();
 
-    const recentAttendance = await Attendance.findAll({
+    const { count, rows: recentAttendance } = await Attendance.findAndCountAll({
       where: { takenBy: req.session.teacher.id },
-      limit: 10, order: [['date', 'DESC']], include: ['student', 'class']
+      limit: limit,
+      offset: (page - 1) * limit,
+      order: [['date', 'DESC']],
+      include: ['student', 'class']
     });
 
     res.render('teacher/dashboard', {
       title: 'Teacher Dashboard',
       teacher: { ...teacher.toJSON(), classes: assignedClasses, teacherSubjects: teacherSubjectRows, classTeacherClasses },
       today, canTakeAttendance, isWeekend, holiday, recentAttendance, currentYear,
+      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      query: req.query,
       error: req.flash('error'), success: req.flash('success')
     });
   } catch (err) {
     res.render('teacher/dashboard', {
       title: 'Teacher Dashboard', teacher: null, today: '', canTakeAttendance: false,
       isWeekend: false, holiday: null, recentAttendance: [], currentYear: null,
+      pagination: null, query: {},
       error: [err.message], success: []
     });
   }
