@@ -20,14 +20,13 @@ block content
           .report-meta
             .report-type-badge.badge-final Attendance Report
             p Class: #{cls ? cls.name : ''} &nbsp;|&nbsp; #{cls && cls.department ? cls.department.code : ''} &nbsp;|&nbsp; Generated: #{new Date().toLocaleDateString()}
-        //- .print-doc
-        //- .print-header
-        //-   .print-logo
-        //-     img(src='/images/logo.png', alt='School Logo' width='64')
-        //-   div
-        //-     h1 Canon Andrea Mwaka School
-        //-     p "Never tire of doing what is right" 2 Thessalonians 3:13
-        //-     h2 Attendance Report
+            if fromDate && toDate
+              p Date Range: #{fromDate} to #{toDate}
+            else if fromDate
+              p Records From: #{fromDate}
+            else if toDate
+              p Records Up to: #{toDate}
+            p Generated: #{new Date().toLocaleDateString()}
           
 
         table.print-table

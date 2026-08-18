@@ -10,10 +10,26 @@ block body
         .form-row
           .form-group
             label Select Class
-            select(name='classId', required)
+            select(name='classId', id='filterClassSel', required)
               option(value='') Select class
               each cls in classes
                 option(value=cls.id, selected=selectedClass==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          
+          // ADD THE STREAM SELECTION HERE
+          .form-group#streamGroup(style='display: none;')
+            label Select Stream (Optional)
+            select(name='streamId', id='filterStreamSel')
+              option(value='') All Streams
+
+          // DATE FILTER
+          - const todayDate = new Date().toISOString().split('T')[0]
+          .form-group
+            label From Date
+            input.form-control(type='date', name='fromDate', value=fromDate, max=todayDate)
+          .form-group
+            label To Date
+            input.form-control(type='date', name='toDate', value=toDate, max=todayDate)
+
           button.btn.btn-primary(type='submit')
             i.fas.fa-search
             span View Report
@@ -22,7 +38,8 @@ block body
     .report-toolbar.no-print
       h2 Attendance Summary — #{className}
       .toolbar-actions
-        a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}`, target='_blank')
+        // PRINT BUTTON WITH STREAM AND DATE PARAMETERS
+        a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}${selectedStream ? '&streamId=' + selectedStream : ''}${fromDate ? '&fromDate=' + fromDate : ''}${toDate ? '&toDate=' + toDate : ''}`, target='_blank')
           i.fas.fa-print
           span Print Attendance
 
@@ -64,7 +81,47 @@ block body
                     span #{pct}%
 
           if pagination && pagination.pages > 1
-            - const query = {classId: selectedClass}
+            // PAGINATION PARTIAL INCLUDE STREAM AND DATE PARAMETERS
+            - const query = {classId: selectedClass, streamId: selectedStream, fromDate, toDate}
             include ../partials/pagination
         else
           .empty-state No attendance records found.
+
+  // ADD THE JAVASCRIPT TO CASCADE THE STREAM DROPDOWN
+  script.
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+    const filterClassSel = document.getElementById('filterClassSel');
+    const filterStreamSel = document.getElementById('filterStreamSel');
+    const streamGroup = document.getElementById('streamGroup');
+    const savedStream = '!{selectedStream}';
+
+    // Log this so you can see if the backend sent the data properly!
+    console.log("Loaded Class/Stream Data:", classStreamMap);
+
+    function updateStreams() {
+      const cid = filterClassSel.value;
+      const streams = classStreamMap[cid] || [];
+      
+      console.log("Selected Class ID:", cid, "| Streams found:", streams);
+      
+      filterStreamSel.innerHTML = '<option value="">All Streams</option>';
+      
+      if (streams.length > 0) {
+        streamGroup.style.display = 'block'; // Force it to show
+        
+        streams.forEach(function(s) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.name;
+          if (String(s.id) === savedStream) opt.selected = true;
+          filterStreamSel.appendChild(opt);
+        });
+      } else {
+        streamGroup.style.display = 'none'; // Hide if no streams
+      }
+    }
+
+    filterClassSel.addEventListener('change', updateStreams);
+    
+    if (filterClassSel.value) updateStreams();
+    

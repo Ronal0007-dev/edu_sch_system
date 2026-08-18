@@ -1,0 +1,97 @@
+extends ../partials/admin-layout
+
+block body
+  .card.form-card
+    .card-header
+      h2 Edit Student
+      i.fas.fa-user-edit
+    .card-body
+      form(method='POST', action=`/admin/students/${student.id}/edit`)
+        .form-group
+          label Full Name
+          input(type='text', name='fullName', required, value=student.fullName)
+        .form-group
+          label Gender
+          select(name='gender', required)
+            option(value='') Select gender
+            option(value='Male', selected=student.gender==='Male') Male
+            option(value='Female', selected=student.gender==='Female') Female
+        .form-group
+          label
+            span.step-badge 1
+            | Department
+          select(id='formDeptSel', required)
+            option(value='') Select department
+            each dept in (departments || [])
+              option(value=dept.id, selected=String(student.class && student.class.departmentId)==String(dept.id)) #{dept.name} (#{dept.code})
+        .form-group
+          label
+            span.step-badge 2
+            | Class
+          select(name='classId', id='formClassSel', required)
+            option(value='') — select department first —
+        .form-group
+          label
+            span.step-badge 3
+            | Stream (Optional)
+          select(name='streamId', id='formStreamSel')
+            option(value='') — no stream —
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-save
+          span Save Changes
+
+  script.
+    const deptClassMap   = !{JSON.stringify(deptClassMap || {})};
+    const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+
+    const formDeptSel   = document.getElementById('formDeptSel');
+    const formClassSel  = document.getElementById('formClassSel');
+    const formStreamSel = document.getElementById('formStreamSel');
+
+    const selectedClassId = '!{student.class ? student.class.id : ""}';
+    const selectedStreamId = '!{student.stream ? student.stream.id : ""}';
+
+    function updateClasses() {
+      const did = formDeptSel.value;
+      const classes = deptClassMap[did] || [];
+      formClassSel.innerHTML = '<option value="">— select class —</option>';
+      classes.forEach(function(c) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (String(c.id) === selectedClassId) opt.selected = true;
+        formClassSel.appendChild(opt);
+      });
+      updateStreams();
+    }
+
+    function updateStreams() {
+      const cid = formClassSel.value;
+      const streams = classStreamMap[cid] || [];
+      formStreamSel.innerHTML = '<option value="">— no stream —</option>';
+      streams.forEach(function(s) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        if (String(s.id) === selectedStreamId) opt.selected = true;
+        formStreamSel.appendChild(opt);
+      });
+    }
+
+    formDeptSel.addEventListener('change', updateClasses);
+    formClassSel.addEventListener('change', updateStreams);
+
+    // initialize selects using student's existing class -> derive department selection
+    (function() {
+      const currentClassId = selectedClassId;
+      if (!currentClassId) return;
+      // find the department that contains the class
+      for (const deptId of Object.keys(deptClassMap)) {
+        const classes = deptClassMap[deptId] || [];
+        if (classes.find(c => String(c.id) === String(currentClassId))) {
+          formDeptSel.value = deptId;
+          break;
+        }
+      }
+      updateClasses();
+    })();

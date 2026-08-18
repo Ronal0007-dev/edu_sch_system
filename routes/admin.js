@@ -622,6 +622,7 @@ router.get('/students', async (req, res) => {
   const selectedDeptId = req.query.deptId || '';
   const selectedClassId = req.query.classId || '';
   const selectedStatus = req.query.status || 'Active';
+  const searchQuery = req.query.search || '';
 
   let deptRows = [], classRows = [], streamRows = [];
   try { deptRows = await Department.findAll({ order: [['name', 'ASC']] }); } catch(e) { console.error('students dept error:', e.message); }
@@ -658,6 +659,11 @@ router.get('/students', async (req, res) => {
     if (deptClasses.length) studentWhere.classId = deptClasses;
   }
 
+  //searchQuery filter
+  if (searchQuery) {
+    studentWhere.fullName = { [Op.like]: `%${searchQuery}%` };
+  }
+
   let students = [], count = 0;
   try {
     const result = await Student.findAndCountAll({
@@ -685,6 +691,7 @@ router.get('/students', async (req, res) => {
     selectedDeptId,
     selectedClassId,
     selectedStatus,
+    searchQuery,
     pagination: { page, pages: Math.ceil(count / limit), total: count },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: fe, success: fs2
@@ -738,6 +745,7 @@ router.post('/students/:id/status', async (req, res) => {
   res.redirect(req.get('Referer') || '/admin/students');
 });
 
+// ── CSV Import & Special Routes (MUST come before /:id routes) ───────────────
 router.get('/students/moved', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -764,21 +772,7 @@ router.get('/students/moved', async (req, res) => {
   }
 });
 
-router.post('/classes/:id/promote', async (req, res) => {
-  try {
-    const targetClassId = await resolvePromotionTargetClass(req.params.id, req.body.classId || null);
-    if (!targetClassId) throw new Error('No promotion target class found');
 
-    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.id }) });
-    if (!students.length) throw new Error('No active students found in this class');
-
-    await promoteStudents(req.params.id, targetClassId, { streamId: req.body.streamId || null, status: 'Active' });
-    req.flash('success', `Promoted ${students.length} student(s) to the next class`);
-  } catch (err) { req.flash('error', 'Error: ' + err.message); }
-  res.redirect('/admin/students');
-});
-
-// ── CSV Import ─────────────────────────────────────────────────────────────────
 router.get('/students/import', async (req, res) => {
   let departments = [];
   try { departments = (await Department.findAll({ order: [['name', 'ASC']] })).map(d => d.toJSON()); } catch(e) {}
@@ -833,6 +827,76 @@ router.get('/students/import-results', (req, res) => {
   });
 });
 
+// ── Edit student ─────────────────────────────────────────────────────────────
+router.get('/students/:id/edit', async (req, res) => {
+  try {
+    const student = await Student.findByPk(req.params.id, { include: ['class', 'stream'] });
+    if (!student) {
+      req.flash('error', 'Student not found');
+      return res.redirect('/admin/students');
+    }
+
+    const departments = (await Department.findAll({ order: [['name', 'ASC']] })).map(d => d.toJSON());
+    const classes = (await Class.findAll({ order: [['name', 'ASC']] })).map(c => c.toJSON());
+    const streams = (await Stream.findAll({ order: [['name', 'ASC']] })).map(s => s.toJSON());
+
+    // build cascade maps
+    const deptClassMap = {};
+    classes.forEach(c => {
+      const key = String(c.departmentId);
+      if (!deptClassMap[key]) deptClassMap[key] = [];
+      deptClassMap[key].push({ id: c.id, name: c.name });
+    });
+    const classStreamMap = {};
+    streams.forEach(s => {
+      const key = String(s.classId);
+      if (!classStreamMap[key]) classStreamMap[key] = [];
+      classStreamMap[key].push({ id: s.id, name: s.name });
+    });
+
+    res.render('admin/student-edit', {
+      title: 'Edit Student',
+      student: student.toJSON(),
+      departments,
+      allClasses: classes,
+      allStreams: streams,
+      deptClassMap,
+      classStreamMap,
+      admin: req.session && req.session.admin ? req.session.admin : {},
+      error: req.flash('error') || [],
+      success: req.flash('success') || []
+    });
+  } catch (err) {
+    req.flash('error', err.message);
+    res.redirect('/admin/students');
+  }
+});
+
+// Update student
+router.post('/students/:id/edit', async (req, res) => {
+  try {
+    const { fullName, gender, classId, streamId } = req.body;
+    await Student.update({ fullName, gender, classId, streamId: streamId || null }, { where: { id: req.params.id } });
+    req.flash('success', 'Student updated');
+  } catch (err) {
+    req.flash('error', 'Error: ' + err.message);
+  }
+  res.redirect('/admin/students');
+});
+
+router.post('/classes/:id/promote', async (req, res) => {
+  try {
+    const targetClassId = await resolvePromotionTargetClass(req.params.id, req.body.classId || null);
+    if (!targetClassId) throw new Error('No promotion target class found');
+
+    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.params.id }) });
+    if (!students.length) throw new Error('No active students found in this class');
+
+    await promoteStudents(req.params.id, targetClassId, { streamId: req.body.streamId || null, status: 'Active' });
+    req.flash('success', `Promoted ${students.length} student(s) to the next class`);
+  } catch (err) { req.flash('error', 'Error: ' + err.message); }
+  res.redirect('/admin/students');
+});
 
 // ── Assign Teachers to Classes (GET) ──────────────────────────────────────────
 router.get('/assignments/teacher-class', async (req, res) => {
@@ -1349,111 +1413,190 @@ router.post('/holidays/:id/delete', async (req, res) => {
 
 // ── Attendance Report ──────────────────────────────────────────────────────────
 router.get('/reports/attendance', async (req, res) => {
-  const classes = await Class.findAll({ include: ['department'], attributes: ['id', 'name', 'departmentId'] });
-  const page = parseInt(req.query.page) || 1;
-  const limit = 15;
-  let report = null, className = '';
+  try {
+    const { classId, streamId, fromDate, toDate } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = 15;
 
-  // currentYear is needed whether or not a class is selected — fetch it up front
-  // so it's always in scope (fixes "currentYear is not defined" when no classId is set).
-  const currentYear = await getCurrentYear();
-  const allTermsAtt = currentYear && currentYear.terms ? currentYear.terms : [];
-
-  if (req.query.classId) {
-    const cls = await Class.findByPk(req.query.classId, { attributes: ['id', 'name'] });
-    className = cls ? cls.name : '';
-
-    // Only fetch the page of students we need, not the whole class — scales to 5,000+.
-    const offset = (page - 1) * limit;
-    const { count: totalStudents, rows: students } = await Student.findAndCountAll({
-      where: activeStudentWhere({ classId: req.query.classId }),
-      order: [['fullName', 'ASC']],
-      limit, offset,
-      attributes: ['id', 'fullName']
+    // 1. Fetch all classes for the main dropdown
+    const classes = await Class.findAll({
+      include: ['department'],
+      order: [['name', 'ASC']]
     });
 
-    // Fetch attendance only for the students on this page (keeps memory bounded).
-    const studentIds = students.map(s => s.id);
-    const attendance = studentIds.length
-      ? await Attendance.findAll({
-          where: { classId: req.query.classId, studentId: studentIds },
-          attributes: ['studentId', 'status', 'date'],
-          order: [['date', 'DESC']]
-        })
-      : [];
+    // 2. Build map for cascading stream dropdown
+    const classStreamMap = {};
+    for (const cls of classes) {
+      const streams = await Stream.findAll({ where: { classId: cls.id } });
+      classStreamMap[cls.id] = streams.map(s => ({ id: s.id, name: s.name }));
+    }
 
-    // Compute school days (weekdays minus holidays) in current year range
-    let schoolDays = 0;
-    if (currentYear) {
-      const holidays = await PublicHoliday.findAll({ attributes: ['date'] });
-      const holidayDates = new Set(holidays.map(h => h.date));
-      let d = moment(currentYear.startDate);
-      const end = moment(currentYear.endDate);
-      while (d.isSameOrBefore(end, 'day')) {
-        const dow = d.day();
-        if (dow !== 0 && dow !== 6 && !holidayDates.has(d.format('YYYY-MM-DD'))) schoolDays++;
-        d.add(1, 'day');
+    let report = null;
+    let className = '';
+    let total = 0;
+    let summary = [];
+
+    // 3. Process report if a class was selected
+    if (classId) {
+      const cls = await Class.findByPk(classId, { include: ['department'] });
+      className = cls ? cls.name : 'Unknown Class';
+
+      // 4. Construct Date Filter constraints
+      let dateFilter = {};
+      if (fromDate && toDate) {
+        dateFilter.date = { [Op.between]: [fromDate, toDate] };
+      } else if (fromDate) {
+        dateFilter.date = { [Op.gte]: fromDate };
+      } else if (toDate) {
+        dateFilter.date = { [Op.lte]: toDate };
+      }
+
+      // 5. Fetch students with pagination and stream filter
+      const studentWhere = activeStudentWhere({ classId });
+      if (streamId) studentWhere.streamId = streamId;
+
+      const { count, rows: students } = await Student.findAndCountAll({
+        where: studentWhere,
+        include: ['stream'],
+        order: [['fullName', 'ASC']],
+        limit,
+        offset: (page - 1) * limit
+      });
+
+      total = count;
+
+      // 6. If students exist, fetch attendance and calculate summary
+      if (students.length > 0) {
+        const attendance = await Attendance.findAll({
+          where: {
+            studentId: { [Op.in]: students.map(s => s.id) },
+            ...dateFilter // Inject from/to dates
+          }
+        });
+
+        // Calculate actual unique school days recorded within the date range
+        const uniqueDates = new Set(attendance.map(a => a.date));
+        const schoolDays = uniqueDates.size;
+
+        summary = students.map(s => {
+          const records = attendance.filter(a => a.studentId === s.id);
+          return {
+            student: s,
+            present: records.filter(r => r.status === 'present').length,
+            absent: records.filter(r => r.status === 'absent').length,
+            sick: records.filter(r => r.status === 'sick').length,
+            total: records.length,
+            schoolDays: schoolDays 
+          };
+        });
+        report = { summary: summary };
       }
     }
 
-    const summary = students.map(s => {
-      const records = attendance.filter(a => a.studentId === s.id);
-      return {
-        student: s,
-        present: records.filter(r => r.status === 'present').length,
-        absent: records.filter(r => r.status === 'absent').length,
-        sick: records.filter(r => r.status === 'sick').length,
-        total: records.length,
-        schoolDays
-      };
+    // 7. Render view and pass all state variables
+    res.render('admin/report-attendance', {
+      title: 'Attendance Report',
+      classes,
+      classStreamMap,
+      selectedClass: classId,
+      selectedStream: streamId,
+      fromDate, 
+      toDate, 
+      className,
+      report,
+      summary, 
+      pagination: total > 0 ? { page, pages: Math.ceil(total / limit), total } : null,
+      admin: req.session.admin,
+      error: flash(req, 'error'),
+      success: flash(req, 'success')
     });
 
-    report = { summary, totalStudents };
+  } catch (err) {
+    console.error('Attendance Report Error:', err);
+    req.flash('error', 'Error generating report: ' + err.message);
+    res.redirect('/admin/dashboard');
   }
-
-  res.render('admin/report-attendance', {
-    title: 'Attendance Report', classes, report, className, allTerms: allTermsAtt,
-    selectedClass: req.query.classId,
-    pagination: report ? { page, pages: Math.ceil(report.totalStudents / limit), total: report.totalStudents } : null,
-    admin: req.session.admin, error: req.flash('error'), success: req.flash('success')
-  });
 });
 
 // ── Print Attendance (full class, no pagination) ───────────────────────────────
 router.get('/reports/attendance/print', async (req, res) => {
   try {
-    const cls = await Class.findByPk(req.query.classId, { include: ['department'] });
-    const students = await Student.findAll({ where: activeStudentWhere({ classId: req.query.classId }), order: [['fullName', 'ASC']] });
-    const attendance = await Attendance.findAll({
-      where: { classId: req.query.classId },
-      include: ['student'], order: [['date', 'DESC']]
-    });
-    const currentYear = await getCurrentYear();
-    let schoolDays = 0;
-    if (currentYear) {
-      const holidays = await PublicHoliday.findAll();
-      const holidayDates = new Set(holidays.map(h => h.date));
-      let d = moment(currentYear.startDate);
-      const end = moment(currentYear.endDate);
-      while (d.isSameOrBefore(end, 'day')) {
-        const dow = d.day();
-        if (dow !== 0 && dow !== 6 && !holidayDates.has(d.format('YYYY-MM-DD'))) schoolDays++;
-        d.add(1, 'day');
-      }
+    const { classId, streamId, fromDate, toDate } = req.query;
+
+    // A class is required to generate a print report
+    if (!classId) {
+      req.flash('error', 'Please select a class to print the report.');
+      return res.redirect('/admin/reports/attendance');
     }
-    const summary = students.map(s => {
-      const records = attendance.filter(a => a.studentId === s.id);
-      return {
-        student: s,
-        present: records.filter(r => r.status === 'present').length,
-        absent: records.filter(r => r.status === 'absent').length,
-        sick: records.filter(r => r.status === 'sick').length,
-        total: records.length, schoolDays
-      };
+
+    // 1. Fetch class info for the print header
+    const cls = await Class.findByPk(classId, { include: ['department'] });
+    if (!cls) {
+      req.flash('error', 'Class not found.');
+      return res.redirect('/admin/reports/attendance');
+    }
+
+    // 2. Construct Date Filter constraints
+    let dateFilter = {};
+    if (fromDate && toDate) {
+      dateFilter.date = { [Op.between]: [fromDate, toDate] };
+    } else if (fromDate) {
+      dateFilter.date = { [Op.gte]: fromDate };
+    } else if (toDate) {
+      dateFilter.date = { [Op.lte]: toDate };
+    }
+
+    // 3. Build student query (Filter by class and optional stream)
+    const studentWhere = activeStudentWhere({ classId });
+    if (streamId) studentWhere.streamId = streamId;
+
+    // 4. Fetch ALL matching students (Notice: no limit or offset for printing)
+    const students = await Student.findAll({
+      where: studentWhere,
+      include: ['stream'],
+      order: [['fullName', 'ASC']]
     });
-    res.render('admin/print-attendance', { title: 'Print Attendance', cls, summary, currentYear, admin: req.session.admin });
+
+    let summary = [];
+
+    // 5. Fetch attendance and calculate summary if students exist
+    if (students.length > 0) {
+      const attendance = await Attendance.findAll({
+        where: {
+          studentId: { [Op.in]: students.map(s => s.id) },
+          ...dateFilter // Inject from/to dates
+        }
+      });
+
+      // Calculate actual unique school days recorded within the date range
+      const uniqueDates = new Set(attendance.map(a => a.date));
+      const schoolDays = uniqueDates.size;
+
+      summary = students.map(s => {
+        const records = attendance.filter(a => a.studentId === s.id);
+        return {
+          student: s,
+          present: records.filter(r => r.status === 'present').length,
+          absent: records.filter(r => r.status === 'absent').length,
+          sick: records.filter(r => r.status === 'sick').length,
+          total: records.length,
+          schoolDays: schoolDays
+        };
+      });
+    }
+
+    // 6. Render the print-specific view
+    res.render('admin/print-attendance', {
+      title: 'Print Attendance Report',
+      cls,
+      summary,
+      fromDate,
+      toDate
+    });
+
   } catch (err) {
-    req.flash('error', err.message);
+    console.error('Print Attendance Report Error:', err);
+    req.flash('error', 'Error generating print report: ' + err.message);
     res.redirect('/admin/reports/attendance');
   }
 });

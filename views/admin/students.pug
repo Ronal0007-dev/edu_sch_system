@@ -49,6 +49,9 @@ block body
         form.filter-form(method='GET', action='/admin/students')
           .form-row
             .form-group
+              label Search
+              input(type='text', name='search', placeholder='Student name...', value=searchQuery)
+            .form-group
               label Department
               select(name='deptId', id='filterDeptSel')
                 option(value='') All Departments
@@ -70,7 +73,8 @@ block body
             button.btn.btn-primary(type='submit')
               i.fas.fa-search
               span Filter
-            if selectedDeptId || selectedClassId || selectedStatus
+            // UPDATE THE CLEAR BUTTON CONDITION TO INCLUDE searchQuery
+            if selectedDeptId || selectedClassId || selectedStatus !== 'Active' || searchQuery
               a.btn.btn-outline(href='/admin/students') Clear
 
       .card-header(style='border-top:1px solid var(--border)')
@@ -106,6 +110,9 @@ block body
                     else
                       span.badge.badge-success Active
                   td
+                    a.btn.btn-sm.btn-outline(href=`/admin/students/${student.id}/edit`, title='Edit')
+                      i.fas.fa-edit
+                      span Edit
                     form(method='POST', action=`/admin/students/${student.id}/promote`, style='display:inline')
                       button.btn.btn-sm.btn-outline(type='submit', onclick='return confirm("Promote this student to the next class?")')
                         i.fas.fa-level-up-alt
@@ -128,7 +135,7 @@ block body
             p No students found.
 
         if pagination.pages > 1
-          - const query = {deptId: selectedDeptId, classId: selectedClassId}
+          - const query = {deptId: selectedDeptId, classId: selectedClassId, status: selectedStatus, search: searchQuery}
           include ../partials/pagination
 
   script.
