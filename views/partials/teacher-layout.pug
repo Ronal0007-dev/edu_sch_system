@@ -15,6 +15,7 @@ block content
           a.nav-item(href='/teacher/dashboard', class=title==='Teacher Dashboard'?'active':'')
             i.fas.fa-home
             span Dashboard
+        
         .nav-section
           span.nav-label Attendance
           a.nav-item(href='/teacher/attendance', class=title==='Take Attendance'?'active':'')
@@ -23,6 +24,11 @@ block content
           a.nav-item(href='/teacher/attendance/history', class=title==='Attendance History'?'active':'')
             i.fas.fa-history
             span History
+        .nav-section
+          span.nav-label My Timetable
+          a.nav-item(href='/teacher/timetable', class=title==='My Timetable'?'active':'')
+            i.fas.fa-calendar-alt
+            span Timetable  
         .nav-section
           span.nav-label Examinations
           a.nav-item(href='/teacher/marks', class=title==='Enter Marks'?'active':'')

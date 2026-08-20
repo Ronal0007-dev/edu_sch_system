@@ -1,0 +1,76 @@
+extends ../partials/teacher-layout
+
+block body
+  .dashboard-grid
+    //- ── Teacher Info Card ──────────────────────────────────────────────────
+    .card
+      .card-header
+        h2 Teacher Information
+        i.fas.fa-id-badge
+      .card-body
+        .year-info-grid(style="margin-bottom: 0;")
+          .year-info-item
+            label Full Name
+            strong #{teacher.fullName}
+          .year-info-item
+            label Department
+            strong #{teacher.department ? teacher.department.name : 'Not Assigned'}
+          .year-info-item
+            label Phone
+            strong #{teacher.phone}
+          .year-info-item
+            label Email
+            strong #{teacher.email}
+          .year-info-item
+            label System Role
+            span.badge.badge-primary(style="display: inline-block; margin-top: 5px;") #{teacher.role}
+
+    //- ── Timetable Viewer ───────────────────────────────────────────────────
+    .card
+      .card-header
+        h2 #{teacher.fullName}'s Timetable
+        i.fas.fa-calendar-alt
+      .card-body
+        //- Filter to switch terms/years
+        form.filter-form(action=`/academician/teachers/view/${teacher.id}` method='GET' style='margin-bottom: 20px;')
+          .form-row
+            .form-group
+              select(name='term')
+                option(value='Term 1' selected=(term === 'Term 1')) Term 1
+                option(value='Term 2' selected=(term === 'Term 2')) Term 2
+                option(value='Term 3' selected=(term === 'Term 3')) Term 3
+            .form-group
+              input(type='text' name='year' value=year placeholder='e.g., 2024/2025')
+            .form-group
+              button.btn.btn-outline(type='submit') 
+                i.fas.fa-filter
+                span Filter
+              
+        if timetables && timetables.length
+          table.data-table
+            thead
+              tr
+                th Day
+                th Time
+                th Subject
+                th Class
+                th Location
+            tbody
+              each entry in timetables
+                tr
+                  td
+                    strong #{entry.day}
+                  td #{entry.startTime} - #{entry.endTime}
+                  td
+                    span.badge.badge-subject #{entry.subject ? entry.subject.name : '-'}
+                  td #{entry.subject && entry.subject.class ? entry.subject.class.name : '-'}
+                  td #{entry.location || '-'}
+        else
+          .empty-state
+            i.fas.fa-calendar-times
+            p No timetable entries found for this term.
+            
+  div(style="margin-top: 20px;")
+    a.btn.btn-outline(href='/academician/teachers')
+      i.fas.fa-arrow-left
+      span Back to Directory

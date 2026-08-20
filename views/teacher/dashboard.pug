@@ -35,6 +35,19 @@ block body
           h3 #{teacher.classTeacherClasses.length}
           p Class Teacher
 
+  //- ── QUICK ACTIONS SECTION ────────────────────────────────────────────────
+  div(style="margin-top: 20px; margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap;")
+    a.btn.btn-primary(href='/teacher/timetable' style="display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; padding: 10px 20px;")
+      i.fas.fa-calendar-alt
+      span Manage My Timetable
+
+    //- Only visible if the teacher has the academician role
+    if teacher && teacher.role === 'academician'
+      a.btn.btn-info(href='/academician/teachers' style="display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; padding: 10px 20px; background-color: #0d9488; color: white;")
+        i.fas.fa-users
+        span View All Teachers & Timetables
+  //- ──────────────────────────────────────────────────────────────────────────
+
   if teacher && teacher.classTeacherClasses && teacher.classTeacherClasses.length
     .alert.alert-info
       i.fas.fa-chalkboard-teacher
@@ -106,7 +119,7 @@ block body
       h2 Recent Attendance Taken
       i.fas.fa-history
     .card-body
-      if recentAttendance.length
+      if recentAttendance && recentAttendance.length
         table.data-table
           thead
             tr

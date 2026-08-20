@@ -9,6 +9,7 @@ const { Sequelize } = require('sequelize');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const sequelize = require('./config/database');
 const { Student } = require('./models');
+const academicianRoutes = require('./routes/academician');
 
 const app = express();
 
@@ -56,7 +57,7 @@ app.get('/', (req, res) => {
 app.use('/auth', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
 app.use('/teacher', require('./routes/teacher'));
-
+app.use('/academician', academicianRoutes);
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).send(`

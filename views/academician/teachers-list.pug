@@ -1,0 +1,39 @@
+extends ../partials/teacher-layout
+
+block body
+  .card
+    .card-header
+      h2 Teachers Directory
+      i.fas.fa-users
+    .card-body
+      if teachers && teachers.length
+        table.data-table
+          thead
+            tr
+              th #
+              th Name
+              th Department
+              th Phone
+              th Email
+              th Actions
+          tbody
+            each t, i in teachers
+              tr
+                td #{i + 1}
+                td
+                  strong #{t.fullName}
+                  if t.role === 'head_of_dept'
+                    span.badge.badge-warning HOD
+                  else if t.role === 'academician'
+                    span.badge.badge-info Academician
+                td #{t.department ? t.department.name : '-'}
+                td #{t.phone}
+                td #{t.email}
+                td
+                  a.btn.btn-sm.btn-primary(href=`/academician/teachers/view/${t.id}`)
+                    i.fas.fa-eye
+                    span View Profile & Timetable
+      else
+        .empty-state
+          i.fas.fa-user-slash
+          p No teachers found in the system.

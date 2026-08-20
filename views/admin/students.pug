@@ -84,6 +84,9 @@ block body
           a.btn.btn-sm.btn-outline(href='/admin/students/import')
             i.fas.fa-file-csv
             span Import CSV
+          a.btn.btn-sm.btn-outline(href='/admin/students/export')
+            i.fas.fa-file-export
+            span Export CSV
       .card-body
         if students && students.length
           table.data-table

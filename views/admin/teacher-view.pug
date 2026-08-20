@@ -1,0 +1,69 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Teacher Profile
+      i.fas.fa-user
+    .card-body
+      if error && error.length
+        each msg in error
+          .alert.alert-error
+            i.fas.fa-exclamation-circle
+            span #{msg}
+      if success && success.length
+        each msg in success
+          .alert.alert-success
+            i.fas.fa-check-circle
+            span #{msg}
+
+      .profile
+        p
+          strong Name:
+          |  #{teacher.fullName}
+        p
+          strong Phone:
+          |  #{teacher.phone}
+        p
+          strong Email:
+          |  #{teacher.email}
+        p
+          strong Department:
+          |  #{teacher.department ? teacher.department.name : '-'}
+        p
+          strong Role:
+          |  #{teacher.role}
+        p
+          strong Status:
+          |  #{teacher.isActive ? 'Active' : 'Inactive'}
+
+  .card
+    .card-header
+      h2 Timetable
+      i.fas.fa-calendar-alt
+    .card-body
+      if timetables && timetables.length
+        table.data-table
+          thead
+            tr
+              th Subject
+              th Day
+              th Start
+              th End
+              th Location
+              th Term
+              th Year
+          tbody
+            each t in timetables
+              tr
+                td #{t.subject ? (t.subject.name + (t.subject.class ? ' - ' + t.subject.class.name : '')) : 'Unknown'}
+                td #{t.day}
+                td #{t.startTime}
+                td #{t.endTime}
+                td #{t.location || '-'}
+                td #{t.term}
+                td #{t.academicYear}
+      else
+        p No timetable entries found for this teacher.
+
+  a.btn.btn-outline(href='/admin/teachers') Back to teachers

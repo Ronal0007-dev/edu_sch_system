@@ -1,6 +1,9 @@
 extends ../partials/admin-layout
 
 block body
+  //- Tiny inline function to guarantee YYYY-MM-DD format
+  - const formatYYYYMMDD = (dateVal) => { const d = new Date(dateVal); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
   .two-col-layout
     .card.form-card
       .card-header
@@ -67,7 +70,8 @@ block body
                   strong #{yr.name}
                   if yr.isCurrent
                     span.current-badge Current
-                .year-dates #{yr.startDate} → #{yr.endDate}
+                //- Formatted Start and End Date
+                .year-dates #{yr.startDate ? formatYYYYMMDD(yr.startDate) : ''} → #{yr.endDate ? formatYYYYMMDD(yr.endDate) : ''}
                 .year-actions
                   if !yr.isCurrent
                     form(method='POST', action=`/admin/academic-years/${yr.id}/set-current`, style='display:inline')
@@ -92,8 +96,10 @@ block body
                       tr
                         td
                           span.term-badge #{term.name}
-                        td #{term.startDate}
-                        td #{term.endDate}
+                        //- Formatted Term Open Date
+                        td #{term.startDate ? formatYYYYMMDD(term.startDate) : ''}
+                        //- Formatted Term Close Date
+                        td #{term.endDate ? formatYYYYMMDD(term.endDate) : ''}
                         td
                           span.school-days ~#{weekdays} days
                         td

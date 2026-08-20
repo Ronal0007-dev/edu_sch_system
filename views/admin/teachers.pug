@@ -65,7 +65,7 @@ block body
                         select.select-sm(name='role')
                           option(value='teacher', selected=teacher.role==='teacher') Teacher
                           option(value='class_teacher', selected=teacher.role==='class_teacher') Class Teacher
-                          option(value='head_of_dept', selected=teacher.role==='head_of_dept') Head of Dept
+                          option(value='academician', selected=teacher.role==='academician') Academician
                           option(value='admin', selected=teacher.role==='admin') Admin
                         button.btn.btn-sm.btn-outline(type='submit') Set Role
                       form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/revoke-role`)
@@ -73,6 +73,9 @@ block body
                       form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
                         button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
                           | #{teacher.isActive ? 'Deactivate' : 'Activate'}
+                      a.btn.btn-sm.btn-outline(href=`/admin/teachers/view/${teacher.id}`)
+                        i.fas.fa-eye
+                        span View
                       a.btn.btn-sm.btn-outline(href=`/admin/teachers/edit/${teacher.id}`)
                         i.fas.fa-edit
                         span Edit

@@ -1,217 +1,3 @@
-//- extends ../partials/admin-layout
-
-//- block body
-//-   if !currentYear
-//-     .alert.alert-warning
-//-       i.fas.fa-exclamation-triangle
-//-       span No current academic year set.
-//-       a(href='/admin/academic-years') Set up Academic Year →
-
-//-   .stats-grid
-//-     .stat-card
-//-       .stat-icon.students
-//-         i.fas.fa-user-graduate
-//-       .stat-info
-//-         h3 #{totalStudents}
-//-         p Total Students
-//-     .stat-card
-//-       .stat-icon.teachers
-//-         i.fas.fa-chalkboard-teacher
-//-       .stat-info
-//-         h3 #{totalTeachers}
-//-         p Total Teachers
-//-     .stat-card
-//-       .stat-icon.classes
-//-         i.fas.fa-door-open
-//-       .stat-info
-//-         h3 #{totalClasses}
-//-         p Total Classes
-//-     .stat-card
-//-       .stat-icon.depts
-//-         i.fas.fa-building
-//-       .stat-info
-//-         h3 #{totalDepts}
-//-         p Departments
-
-//-   .dashboard-grid
-//-     .card
-//-       .card-header
-//-         h2 Students per Class
-//-         i.fas.fa-chart-bar
-//-       .card-body
-//-         if attendanceData && attendanceData.length && attendanceData.some(d => d.total > 0)
-//-           .chart-container
-//-             canvas#enrollmentBarChart(style='width:100%;max-width:450px;height:300px;display:block;margin:0 auto')
-//-         else
-//-           .empty-state
-//-             i.fas.fa-chart-bar
-//-             p No class enrollment data yet.
-            
-//-     //- .card
-//-       .card-header
-//-         h2 Class Enrollment Summary (Top 5)
-//-         i.fas.fa-list
-//-       .card-body
-//-         if classes && classes.length
-//-           table.data-table
-//-             thead
-//-               tr
-//-                 th Class
-//-                 th Department
-//-                 th Students
-//-                 th Actions
-//-             tbody
-//-               each cls in classes
-//-                 tr
-//-                   td
-//-                     span.badge.badge-class #{cls.name}
-//-                   td #{cls.department ? cls.department.code : '-'}
-//-                   td
-//-                     span.count-badge #{cls.students ? cls.students.length : 0}
-//-                   td
-//-                     a.btn.btn-sm(href=`/admin/reports/attendance?classId=${cls.id}`) Attendance
-//-                     a.btn.btn-sm.btn-outline(href=`/admin/reports/exam-analysis?classId=${cls.id}`) Exam Analysis
-//-         else
-//-           .empty-state
-//-             i.fas.fa-inbox
-//-             p No classes yet.
-//-             a.btn.btn-primary(href='/admin/classes') Add Classes
-
-//-   if currentYear
-//-     .card.mb-4
-//-       .card-header
-//-         h2 Current Academic Year — #{currentYear.name}
-//-         i.fas.fa-calendar-check
-//-       .card-body
-//-         .year-info-grid
-//-           .year-info-item
-//-             label Start
-//-             strong #{currentYear.startDate}
-//-           .year-info-item
-//-             label End
-//-             strong #{currentYear.endDate}
-//-           if currentYear.terms && currentYear.terms.length
-//-             each term in currentYear.terms
-//-               .year-info-item
-//-                 label #{term.name}
-//-                 strong #{term.startDate} → #{term.endDate}
-//-                 span(class=`status-dot ${term.isOpen ? 'active' : 'inactive'}`) #{term.isOpen ? 'Open' : 'Closed'}
-
-//-   .quick-actions
-//-     h2 Quick Actions
-//-     .action-grid
-//-       a.action-card(href='/admin/academic-years')
-//-         i.fas.fa-calendar-alt
-//-         span Academic Years
-//-       a.action-card(href='/admin/departments')
-//-         i.fas.fa-building
-//-         span Add Department
-//-       a.action-card(href='/admin/teachers')
-//-         i.fas.fa-user-plus
-//-         span Add Teacher
-//-       a.action-card(href='/admin/classes')
-//-         i.fas.fa-plus-circle
-//-         span Add Class
-//-       a.action-card(href='/admin/students')
-//-         i.fas.fa-user-graduate
-//-         span Add Student
-//-       a.action-card(href='/admin/reports/exam-analysis')
-//-         i.fas.fa-chart-bar
-//-         span Exam Analysis
-//-       a.action-card(href='/admin/holidays')
-//-         i.fas.fa-umbrella-beach
-//-         span Manage Holidays
-
-//-   script.
-//-     document.addEventListener('DOMContentLoaded', function() {
-//-       var rawData = !{JSON.stringify(attendanceData || [])};
-//-       var canvas = document.getElementById('enrollmentBarChart');
-//-       if (!canvas) return;
-
-//-       var items = rawData.filter(function(d) { return d.total > 0; });
-//-       if (!items.length) { canvas.style.display = 'none'; return; }
-
-//-       var WIDTH = 450;
-//-       var HEIGHT = 300;
-//-       canvas.width = WIDTH;
-//-       canvas.height = HEIGHT;
-
-//-       var ctx = canvas.getContext('2d');
-      
-//-       // Configuration parameters
-//-       var padding = { top: 30, right: 20, bottom: 40, left: 40 };
-//-       var chartWidth = WIDTH - padding.left - padding.right;
-//-       var chartHeight = HEIGHT - padding.top - padding.bottom;
-
-//-       // Mathematical Max Scale determination
-//-       var maxVal = items.reduce(function(max, item) { return item.total > max ? item.total : max; }, 0);
-//-       if (maxVal === 0) maxVal = 10; 
-//-       maxVal = Math.ceil(maxVal * 1.1); // Provide 10% breathing space above bars
-
-//-       // Build Axes
-//-       ctx.beginPath();
-//-       ctx.strokeStyle = '#cbd5e1';
-//-       ctx.lineWidth = 1;
-//-       ctx.moveTo(padding.left, padding.top);
-//-       ctx.lineTo(padding.left, HEIGHT - padding.bottom);
-//-       ctx.lineTo(WIDTH - padding.right, HEIGHT - padding.bottom);
-//-       ctx.stroke();
-
-//-       // Horizontal reference lines and numerical strings
-//-       var gridLines = 4;
-//-       ctx.fillStyle = '#64748b';
-//-       ctx.font = '10px sans-serif';
-//-       ctx.textAlign = 'right';
-//-       ctx.textBaseline = 'middle';
-//-       for (var g = 0; g <= gridLines; g++) {
-//-         var val = Math.round((maxVal / gridLines) * g);
-//-         var yPos = HEIGHT - padding.bottom - ((val / maxVal) * chartHeight);
-        
-//-         ctx.fillText(val, padding.left - 8, yPos);
-        
-//-         if (g > 0) {
-//-           ctx.beginPath();
-//-           ctx.strokeStyle = '#f1f5f9';
-//-           ctx.moveTo(padding.left, yPos);
-//-           ctx.lineTo(WIDTH - padding.right, yPos);
-//-           ctx.stroke();
-//-         }
-//-       }
-
-//-       // Bar layouts
-//-       var barSpacing = 15;
-//-       var totalSpacing = barSpacing * (items.length + 1);
-//-       var barWidth = (chartWidth - totalSpacing) / items.length;
-//-       var barColor = '#1a56db';
-
-//-       items.forEach(function(item, i) {
-//-         var barHeight = (item.total / maxVal) * chartHeight;
-//-         var xPos = padding.left + barSpacing + i * (barWidth + barSpacing);
-//-         var yPos = HEIGHT - padding.bottom - barHeight;
-
-//-         // Render filled path rect
-//-         ctx.fillStyle = barColor;
-//-         ctx.fillRect(xPos, yPos, barWidth, barHeight);
-
-//-         // Print context details over bar tops
-//-         ctx.fillStyle = '#1e293b';
-//-         ctx.font = 'bold 11px sans-serif';
-//-         ctx.textAlign = 'center';
-//-         ctx.textBaseline = 'bottom';
-//-         ctx.fillText(item.total, xPos + barWidth / 2, yPos - 4);
-
-//-         // String measurement and truncation bounds
-//-         ctx.fillStyle = '#64748b';
-//-         ctx.font = '10px sans-serif';
-//-         ctx.textBaseline = 'top';
-//-         var label = item.name;
-//-         if (ctx.measureText(label).width > barWidth + barSpacing) {
-//-           label = label.substring(0, Math.floor(barWidth / 6)) + '...';
-//-         }
-//-         ctx.fillText(label, xPos + barWidth / 2, HEIGHT - padding.bottom + 6);
-//-       });
-//-     });
-
 extends ../partials/admin-layout
 
 block body
@@ -262,6 +48,9 @@ block body
           p No class enrollment data yet.
 
   if currentYear
+    //- Tiny inline function to guarantee YYYY-MM-DD format
+    - const formatYYYYMMDD = (dateVal) => { const d = new Date(dateVal); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
     .card.mb-4
       .card-header
         h2 Current Academic Year — #{currentYear.name}
@@ -270,15 +59,15 @@ block body
         .year-info-grid
           .year-info-item
             label Start
-            strong #{currentYear.startDate}
+            strong #{currentYear.startDate ? formatYYYYMMDD(currentYear.startDate) : ''}
           .year-info-item
             label End
-            strong #{currentYear.endDate}
+            strong #{currentYear.endDate ? formatYYYYMMDD(currentYear.endDate) : ''}
           if currentYear.terms && currentYear.terms.length
             each term in currentYear.terms
               .year-info-item
                 label #{term.name}
-                strong #{term.startDate} → #{term.endDate}
+                strong #{term.startDate ? formatYYYYMMDD(term.startDate) : ''} → #{term.endDate ? formatYYYYMMDD(term.endDate) : ''}
                 span(class=`status-dot ${term.isOpen ? 'active' : 'inactive'}`) #{term.isOpen ? 'Open' : 'Closed'}
 
   .quick-actions
