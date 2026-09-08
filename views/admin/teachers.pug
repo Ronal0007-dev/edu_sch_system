@@ -33,7 +33,7 @@ block body
     .card
       .card-header
         h2 All Teachers
-        span.count-badge #{teachers.length}
+        span.count-badge #{pagination.total}
       .card-body
         if teachers.length
           table.data-table
@@ -83,6 +83,10 @@ block body
                         button.btn.btn-sm.btn-outline(type='submit', title='Send reset link to teacher email')
                           i.fas.fa-envelope
                           span Reset Pwd
+                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/delete`, onsubmit='return confirm("Delete this teacher and their related records? This cannot be undone.")')
+                        button.btn.btn-sm.btn-danger(type='submit')
+                          i.fas.fa-trash
+                          span Delete
         else
           .empty-state
             i.fas.fa-chalkboard-teacher

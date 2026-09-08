@@ -405,13 +405,23 @@ ClassSubject.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 Student.hasMany(Attendance, { foreignKey: "studentId", as: "attendances" });
 Attendance.belongsTo(Student, { foreignKey: "studentId", as: "student" });
 Attendance.belongsTo(Class, { foreignKey: "classId", as: "class" });
-Attendance.belongsTo(Teacher, { foreignKey: "takenBy", as: "teacher" });
+// Attendance may be entered by either a teacher or an administrator account.
+Attendance.belongsTo(Teacher, {
+  foreignKey: "takenBy",
+  as: "teacher",
+  constraints: false,
+});
 
 Student.hasMany(Mark, { foreignKey: "studentId", as: "marks" });
 Mark.belongsTo(Student, { foreignKey: "studentId", as: "student" });
 Mark.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 Mark.belongsTo(Class, { foreignKey: "classId", as: "class" });
-Mark.belongsTo(Teacher, { foreignKey: "enteredBy", as: "teacher" });
+// Marks may be entered by either a teacher or an administrator account.
+Mark.belongsTo(Teacher, {
+  foreignKey: "enteredBy",
+  as: "teacher",
+  constraints: false,
+});
 
 // Timetable associations
 Teacher.hasMany(Timetable, { foreignKey: "teacherId", as: "timetables" });

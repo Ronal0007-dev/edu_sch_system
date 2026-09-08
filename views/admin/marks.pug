@@ -1,0 +1,130 @@
+extends ../partials/admin-layout
+
+block body
+  .filter-bar
+    form.filter-form(method='GET', action='/admin/marks')
+      .form-row
+        .form-group
+          label Class
+          select(name='classId', id='classSelect', required)
+            option(value='') Select class
+            each cls in classes
+              option(value=cls.id, selected=selectedClassId==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+        .form-group
+          label Subject
+          select(name='subjectId', id='subjectSelect', required)
+            option(value='') Select subject
+            each subject in (classSubjectMap[selectedClassId] || [])
+              option(value=subject.id, selected=selectedSubjectId==subject.id.toString()) #{subject.name}
+        .form-group
+          label Term
+          select(name='term')
+            option(value='Term 1', selected=term==='Term 1') Term 1
+            option(value='Term 2', selected=term==='Term 2') Term 2
+            option(value='Term 3', selected=term==='Term 3') Term 3
+        .form-group
+          label Academic Year
+          input(type='text', name='year', value=year, required)
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-search
+          span Load Students
+
+  if selectedClass && selectedSubject && students.length
+    .section-title
+      i.fas.fa-pen-alt
+      span #{selectedSubject.name} — #{selectedClass.name} | #{term}
+    form(method='POST', action='/admin/marks/save')
+      input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='subjectId', value=selectedSubject.id)
+      input(type='hidden', name='term', value=term)
+      input(type='hidden', name='academicYear', value=year)
+      input(type='hidden', name='section', value='ca')
+      input(type='hidden', name='isArtDesign', value=isArtDesign ? '1' : '0')
+      .marks-table-wrap
+        table.marks-table.data-table
+          thead
+            tr
+              th Student
+              th H/W
+              th G/W
+              th QZ
+              th C/W
+              th U/T
+              th Method
+          tbody
+            each student in students
+              - const existing = existingMarks[student.id]
+              tr
+                td #{student.fullName}
+                td
+                  input.mark-input(type='number', min=0, max=100, step=0.5, name=`hw_${student.id}`, value=existing ? existing.homework : '')
+                td
+                  input.mark-input(type='number', min=0, max=100, step=0.5, name=`gw_${student.id}`, value=existing ? existing.groupWork : '')
+                td
+                  input.mark-input(type='number', min=0, max=100, step=0.5, name=`qz_${student.id}`, value=existing ? existing.quiz : '')
+                td
+                  input.mark-input(type='number', min=0, max=100, step=0.5, name=`cw_${student.id}`, value=existing ? existing.classWork : '')
+                td
+                  input.mark-input(type='number', min=0, max=100, step=0.5, name=`ut_${student.id}`, value=existing ? existing.unitTest : '')
+                td
+                  if isArtDesign
+                    span Art summation
+                  else
+                    select(name=`method_${student.id}`)
+                      option(value='weighted', selected=!existing || existing.gradingMethod==='weighted') Weighted
+                      option(value='unweighted', selected=existing && existing.gradingMethod==='unweighted') Unweighted
+      .form-actions
+        button.btn.btn-primary.btn-lg(type='submit')
+          i.fas.fa-save
+          span Save Marks
+    .section-title.section-exam
+      i.fas.fa-file-alt
+      span Final Examination — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+    form(method='POST', action='/admin/marks/save')
+      input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='subjectId', value=selectedSubject.id)
+      input(type='hidden', name='term', value=term)
+      input(type='hidden', name='academicYear', value=year)
+      input(type='hidden', name='section', value='fe')
+      .marks-table-wrap
+        table.marks-table.data-table
+          thead
+            tr
+              th Student
+              th Final Exam Score
+              th Max Mark
+          tbody
+            each student in students
+              - const existing = existingMarks[student.id]
+              tr
+                td #{student.fullName}
+                td
+                  input.mark-input(type='number', min=0, step=0.5, name=`fe_${student.id}`, value=existing && existing.finalExam != null ? existing.finalExam : '')
+                td
+                  input.mark-input(type='number', min=1, step=1, name=`femax_${student.id}`, value=existing && existing.finalExamMax ? existing.finalExamMax : '')
+      .form-actions
+        button.btn.btn-primary.btn-lg(type='submit')
+          i.fas.fa-save
+          span Save Final Exam Marks
+  else if selectedClass && selectedSubject
+    .empty-state
+      i.fas.fa-user-slash
+      p No active students in this class.
+  else
+    .empty-state
+      i.fas.fa-hand-pointer
+      p Select a class and subject to enter marks.
+
+  script.
+    const subjectMap = !{JSON.stringify(classSubjectMap || {})};
+    const classSelect = document.getElementById('classSelect');
+    const subjectSelect = document.getElementById('subjectSelect');
+    classSelect.addEventListener('change', function() {
+      subjectSelect.innerHTML = '<option value="">Select subject</option>';
+      (subjectMap[classSelect.value] || []).forEach(function(subject) {
+        const option = document.createElement('option');
+        option.value = subject.id;
+        option.textContent = subject.name;
+        subjectSelect.appendChild(option);
+      });
+    });

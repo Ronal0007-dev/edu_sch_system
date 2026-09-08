@@ -59,6 +59,12 @@ block content
             span Teacher → Subject
         .nav-section
           span.nav-label Reports
+          a.nav-item(href='/admin/attendance', class=title==='Admin Attendance'?'active':'')
+             i.fas.fa-clipboard-check
+             span Call Attendance
+          a.nav-item(href='/admin/marks', class=title==='Admin Marks'?'active':'')
+             i.fas.fa-pen
+             span Enter Marks
           a.nav-item(href='/admin/reports/attendance', class=title==='Attendance Report'?'active':'')
             i.fas.fa-calendar-check
             span Attendance

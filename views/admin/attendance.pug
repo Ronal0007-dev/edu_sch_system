@@ -1,0 +1,79 @@
+extends ../partials/admin-layout
+
+block body
+  .filter-bar
+    form.filter-form(method='GET', action='/admin/attendance')
+      .form-row
+        .form-group
+          label Class
+          select(name='classId', required)
+            option(value='') Select class
+            each cls in classes
+              option(value=cls.id, selected=selectedClassId==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+        .form-group
+          label Stream
+          select(name='streamId')
+            option(value='') All Streams
+            each stream in (classStreamMap[selectedClassId] || [])
+              option(value=stream.id, selected=selectedStreamId==stream.id.toString()) #{stream.name}
+        .form-group
+          label Date
+          input(type='date', name='date', value=date, max=today, required)
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-search
+          span Load Class
+
+  if selectedClass && students.length
+    .attendance-header
+      .attendance-meta
+        h2
+          i.fas.fa-calendar-check
+          | #{selectedClass.name} — #{date}
+        .date-note Admin can record attendance for any previous date.
+    form(method='POST', action='/admin/attendance/submit')
+      input(type='hidden', name='classId', value=selectedClass.id)
+      input(type='hidden', name='streamId', value=selectedStream ? selectedStream.id : '')
+      input(type='hidden', name='date', value=date)
+      .quick-mark.no-print
+        span Mark all:
+        button.btn.btn-sm(type='button', onclick='markAll("present")') ✓ All Present
+        button.btn.btn-sm.btn-outline(type='button', onclick='markAll("absent")') ✗ All Absent
+      .students-attendance-list
+        each student in students
+          .student-row(class=student.existingStatus ? 'has-record' : '')
+            .student-info
+              .student-avatar #{student.fullName.charAt(0)}
+              .student-details
+                strong #{student.fullName}
+                if student.stream
+                  span.stream-tag #{student.stream.name}
+            .status-buttons
+              label.status-btn.present-btn
+                input(type='radio', name=`status_${student.id}`, value='present', checked=student.existingStatus==='present')
+                i.fas.fa-check
+                span Present
+              label.status-btn.absent-btn
+                input(type='radio', name=`status_${student.id}`, value='absent', checked=student.existingStatus==='absent')
+                i.fas.fa-times
+                span Absent
+              label.status-btn.sick-btn
+                input(type='radio', name=`status_${student.id}`, value='sick', checked=student.existingStatus==='sick')
+                i.fas.fa-thermometer-half
+                span Sick
+      .form-actions
+        button.btn.btn-primary.btn-lg(type='submit')
+          i.fas.fa-save
+          span Save Attendance
+  else if selectedClass
+    .empty-state
+      i.fas.fa-user-slash
+      p No active students in this class.
+  else
+    .empty-state
+      i.fas.fa-hand-pointer
+      p Select a class, stream, and date to call attendance.
+
+  script.
+    function markAll(status) {
+      document.querySelectorAll('input[type="radio"][value="' + status + '"]').forEach(function(input) { input.checked = true; });
+    }

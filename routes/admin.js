@@ -13,6 +13,8 @@ const {
   isArtDesignSubject,
   ART_MAX,
   artGrade,
+  calculateScore,
+  calculateArtScore,
 } = require("../utils/grading");
 const { sendPasswordResetEmail } = require("../utils/mailer");
 const crypto = require("crypto");
@@ -411,6 +413,8 @@ router.get("/departments", async (req, res) => {
       { model: Class, as: "classes" },
       { model: Teacher, as: "teachers" },
     ],
+    distinct: true,
+    col: "id",
     limit,
     offset: (page - 1) * limit,
   });
@@ -652,6 +656,225 @@ router.post("/teachers/:id/toggle", async (req, res) => {
   res.redirect("/admin/teachers");
 });
 
+router.post("/teachers/:id/delete", async (req, res) => {
+  const transaction = await require("../config/database").transaction();
+  try {
+    const teacher = await Teacher.findById(req.params.id, { transaction });
+    if (!teacher) throw new Error("Teacher not found");
+
+    await Promise.all([
+      TeacherClass.destroy({ where: { teacherId: teacher.id }, transaction }),
+      TeacherSubject.destroy({ where: { teacherId: teacher.id }, transaction }),
+      Timetable.destroy({ where: { teacherId: teacher.id }, transaction }),
+      ReportComment.destroy({ where: { teacherId: teacher.id }, transaction }),
+      Attendance.destroy({ where: { takenBy: teacher.id }, transaction }),
+      Mark.destroy({ where: { enteredBy: teacher.id }, transaction }),
+    ]);
+    await teacher.destroy({ transaction });
+    await transaction.commit();
+    req.flash("success", `Teacher "${teacher.fullName}" deleted successfully`);
+  } catch (err) {
+    await transaction.rollback();
+    req.flash("error", "Error deleting teacher: " + err.message);
+  }
+  res.redirect("/admin/teachers");
+});
+
+// ── Admin attendance entry ─────────────────────────────────────────────────────
+router.get("/attendance", async (req, res) => {
+  const classes = await Class.findAll({
+    include: [{ model: Department, as: "department" }],
+    order: [["name", "ASC"]],
+  });
+  const streams = await Stream.findAll({ order: [["name", "ASC"]] });
+  const classStreamMap = {};
+  streams.forEach((stream) => {
+    if (!classStreamMap[stream.classId]) classStreamMap[stream.classId] = [];
+    classStreamMap[stream.classId].push(stream.toJSON());
+  });
+  const today = moment().format("YYYY-MM-DD");
+  const requestedDate = req.query.date || today;
+  const date = moment(requestedDate, "YYYY-MM-DD", true).isValid() &&
+    requestedDate <= today ? requestedDate : today;
+  const selectedClass = req.query.classId
+    ? await Class.findById(req.query.classId, {
+        include: [{ model: Department, as: "department" }],
+      })
+    : null;
+  const selectedStream = req.query.streamId
+    ? await Stream.findById(req.query.streamId)
+    : null;
+  const validSelectedStream =
+    selectedStream && selectedClass && selectedStream.classId === selectedClass.id
+      ? selectedStream
+      : null;
+  let students = [];
+  if (selectedClass) {
+    const where = activeStudentWhere({ classId: selectedClass.id });
+    if (validSelectedStream) where.streamId = validSelectedStream.id;
+    const existing = await Attendance.findAll({
+      where: { classId: selectedClass.id, date },
+    });
+    students = await Student.findAll({
+      where,
+      include: [{ model: Stream, as: "stream" }],
+      order: [["fullName", "ASC"]],
+    });
+    students = students.map((student) => ({
+      ...student.toJSON(),
+      existingStatus:
+        (existing.find((record) => record.studentId === student.id) || {})
+          .status || null,
+    }));
+  }
+  res.render("admin/attendance", {
+    title: "Admin Attendance",
+    classes,
+    classStreamMap,
+    students,
+    selectedClass,
+    selectedStream: validSelectedStream,
+    selectedClassId: req.query.classId || "",
+    selectedStreamId: req.query.streamId || "",
+    date,
+    today,
+    admin: req.session.admin,
+    error: req.flash("error"),
+    success: req.flash("success"),
+  });
+});
+
+router.post("/attendance/submit", async (req, res) => {
+  try {
+    const { classId, streamId, date } = req.body;
+    const today = moment().format("YYYY-MM-DD");
+    if (!moment(date, "YYYY-MM-DD", true).isValid() || date > today) {
+      throw new Error("Attendance date must be today or an earlier date");
+    }
+    const where = activeStudentWhere({ classId });
+    if (streamId) where.streamId = streamId;
+    const students = await Student.findAll({ where });
+    for (const student of students) {
+      const status = req.body[`status_${student.id}`];
+      if (["present", "absent", "sick"].includes(status)) {
+        await Attendance.upsert({
+          studentId: student.id,
+          classId,
+          date,
+          status,
+          takenBy: req.session.admin.id,
+        });
+      }
+    }
+    req.flash("success", "Attendance saved successfully");
+  } catch (err) {
+    req.flash("error", "Error: " + err.message);
+  }
+  res.redirect(`/admin/attendance?classId=${req.body.classId}&streamId=${req.body.streamId || ""}&date=${req.body.date || ""}`);
+});
+
+// ── Admin marks entry ───────────────────────────────────────────────────────────
+router.get("/marks", async (req, res) => {
+  const currentYear = await getCurrentYear();
+  const [departments, classes, subjects] = await Promise.all([
+    Department.findAll({ order: [["name", "ASC"]] }),
+    Class.findAll({ include: [{ model: Department, as: "department" }], order: [["name", "ASC"]] }),
+    Subject.findAll({ order: [["name", "ASC"]] }),
+  ]);
+  const classSubjectMap = {};
+  subjects.forEach((subject) => {
+    if (!classSubjectMap[subject.classId]) classSubjectMap[subject.classId] = [];
+    classSubjectMap[subject.classId].push(subject.toJSON());
+  });
+  const selectedClass = req.query.classId
+    ? await Class.findById(req.query.classId, { include: [{ model: Department, as: "department" }] })
+    : null;
+  const selectedSubject = req.query.subjectId
+    ? await Subject.findById(req.query.subjectId)
+    : null;
+  const term =
+    req.query.term ||
+    (currentYear && currentYear.terms && currentYear.terms[0]
+      ? currentYear.terms[0].name
+      : "Term 1");
+  const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
+  let students = [];
+  let existingMarks = {};
+  if (selectedClass && selectedSubject) {
+    students = await Student.findAll({
+      where: activeStudentWhere({ classId: selectedClass.id }),
+      include: [{ model: Stream, as: "stream" }],
+      order: [["fullName", "ASC"]],
+    });
+    const marks = await Mark.findAll({
+      where: { classId: selectedClass.id, subjectId: selectedSubject.id, term, academicYear: year },
+    });
+    marks.forEach((mark) => { existingMarks[mark.studentId] = mark; });
+  }
+  const deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : "";
+  const isArtDesign = isArtDesignSubject(
+    selectedSubject ? selectedSubject.name : "",
+    selectedClass ? selectedClass.name : "",
+    deptCode,
+  );
+  res.render("admin/marks", {
+    title: "Admin Marks",
+    departments, classes, classSubjectMap, students, selectedClass, selectedSubject,
+    existingMarks, term, year, currentYear, deptCode, isArtDesign, ART_MAX,
+    selectedClassId: req.query.classId || "",
+    selectedSubjectId: req.query.subjectId || "",
+    admin: req.session.admin,
+    error: req.flash("error"), success: req.flash("success"),
+  });
+});
+
+router.post("/marks/save", async (req, res) => {
+  try {
+    const { classId, subjectId, term, academicYear, section } = req.body;
+    const subject = await Subject.findById(subjectId);
+    const cls = await Class.findById(classId, { include: [{ model: Department, as: "department" }] });
+    if (!subject || !cls || String(subject.classId) !== String(classId)) {
+      throw new Error("The selected subject does not belong to the selected class");
+    }
+    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
+    const validIds = new Set(students.map((student) => String(student.id)));
+    const enteredBy = req.session.admin.id;
+    const artMode = isArtDesignSubject(subject.name, cls.name, cls.department ? cls.department.code : "") && section !== "fe";
+    const studentIds = Object.keys(req.body)
+      .filter((key) => (section === "fe" ? key.startsWith("fe_") : key.startsWith("hw_")))
+      .map((key) => key.replace(section === "fe" ? "fe_" : "hw_", ""))
+      .filter((id) => validIds.has(String(id)));
+    for (const studentId of studentIds) {
+      if (section === "fe") {
+        const finalExam = parseFloat(req.body[`fe_${studentId}`]);
+        if (isNaN(finalExam)) continue;
+        const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
+        const [mark] = await Mark.findOrCreate({
+          where: { studentId, subjectId, classId, term, academicYear },
+          defaults: { homework: 0, groupWork: 0, quiz: 0, classWork: 0, unitTest: 0, totalScore: 0, grade: "F", enteredBy },
+        });
+        await mark.update({ finalExam, finalExamMax, enteredBy });
+      } else {
+        const marks = {
+          homework: parseFloat(req.body[`hw_${studentId}`]) || 0,
+          groupWork: parseFloat(req.body[`gw_${studentId}`]) || 0,
+          quiz: parseFloat(req.body[`qz_${studentId}`]) || 0,
+          classWork: parseFloat(req.body[`cw_${studentId}`]) || 0,
+          unitTest: parseFloat(req.body[`ut_${studentId}`]) || 0,
+        };
+        const method = artMode ? "unweighted" : (req.body[`method_${studentId}`] || "weighted");
+        const totalScore = artMode ? calculateArtScore(marks) : calculateScore(marks, method);
+        const grade = artMode ? artGrade(totalScore) : getGrade(totalScore);
+        await Mark.upsert({ studentId, subjectId, classId, term, academicYear, ...marks, gradingMethod: method, totalScore, grade, enteredBy });
+      }
+    }
+    req.flash("success", section === "fe" ? "Final Exam marks saved" : "Marks saved successfully");
+  } catch (err) {
+    req.flash("error", "Error: " + err.message);
+  }
+  res.redirect(`/admin/marks?classId=${req.body.classId}&subjectId=${req.body.subjectId}&term=${req.body.term}&year=${req.body.academicYear}`);
+});
+
 
 // ── Classes ────────────────────────────────────────────────────────────────────
 router.get("/classes", async (req, res) => {
@@ -669,6 +892,10 @@ router.get("/classes", async (req, res) => {
           required: false,
         },
       ],
+      // The joins above are needed for the row details, but the badge must
+      // count distinct class records rather than joined stream/student rows.
+      distinct: true,
+      col: "id",
       limit,
       offset: (page - 1) * limit,
     }),
