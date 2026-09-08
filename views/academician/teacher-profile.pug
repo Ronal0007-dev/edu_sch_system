@@ -25,6 +25,29 @@ block body
             label System Role
             span.badge.badge-primary(style="display: inline-block; margin-top: 5px;") #{teacher.role}
 
+    //- ── Subjects Taught ───────────────────────────────────────────────────────
+    .card
+      .card-header
+        h2 Subjects Taught
+        i.fas.fa-book-open
+      .card-body
+        if teacherSubjects && teacherSubjects.length
+          table.data-table
+            thead
+              tr
+                th Subject
+                th Class
+            tbody
+              each assignment in teacherSubjects
+                tr
+                  td
+                    span.badge.badge-subject #{assignment.subject ? assignment.subject.name : '-'}
+                  td #{assignment.class ? assignment.class.name : '-'}
+        else
+          .empty-state
+            i.fas.fa-book
+            p No subjects assigned yet.
+
     //- ── Timetable Viewer ───────────────────────────────────────────────────
     .card
       .card-header

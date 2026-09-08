@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { Teacher, Department, Timetable, Subject, Class } = require('../models');
+const {
+  Teacher,
+  Department,
+  Timetable,
+  Subject,
+  Class,
+  TeacherSubject
+} = require('../models');
 
 // Middleware to ensure user is logged in as an academician (or admin)
 function requireAcademician(req, res, next) {
@@ -63,9 +70,19 @@ router.get('/teachers/view/:id', async (req, res) => {
       order: [['day', 'ASC'], ['startTime', 'ASC']]
     });
 
+    const teacherSubjects = await TeacherSubject.findAll({
+      where: { teacherId: teacher.id },
+      include: [
+        { model: Subject, as: 'subject' },
+        { model: Class, as: 'class' }
+      ],
+      order: [['id', 'ASC']]
+    });
+
     res.render('academician/teacher-profile', {
       title: `Profile: ${teacher.fullName}`,
       teacher: teacher.toJSON(),
+      teacherSubjects: teacherSubjects.map(ts => ts.toJSON()),
       timetables: timetables.map(t => t.toJSON()),
       term,
       year,

@@ -698,8 +698,8 @@ router.get("/attendance", async (req, res) => {
     requestedDate <= today ? requestedDate : today;
   const selectedClass = req.query.classId
     ? await Class.findById(req.query.classId, {
-        include: [{ model: Department, as: "department" }],
-      })
+      include: [{ model: Department, as: "department" }],
+    })
     : null;
   const selectedStream = req.query.streamId
     ? await Stream.findById(req.query.streamId)
