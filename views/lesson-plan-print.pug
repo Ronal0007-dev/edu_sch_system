@@ -1,0 +1,77 @@
+doctype html
+html
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport' content='width=device-width, initial-scale=1')
+    title LESSON PLAN - #{plan.topic}
+    link(rel='stylesheet' href='/css/style.css')
+  body.lesson-plan-print-body
+    - const shortDate = (value) => { if (!value) return '-'; const iso = String(value instanceof Date ? value.toISOString() : value).slice(0, 10); const parts = iso.split('-'); return parts.length === 3 && parts[0].length === 4 ? parts[2] + '-' + parts[1] + '-' + parts[0] : String(value); }
+    - const fields = [{key:'mainCompetence',label:'1. Main competence'},{key:'keyConcepts',label:'2. Key concept/topics'},{key:'specificCompetence',label:'3. Specific competence'},{key:'essentialQuestions',label:'4. Essential questions'},{key:'formativeAssessment',label:'5. Formative assessment'},{key:'summativeAssessment',label:'6. Summative assessment'},{key:'lessonSteps',label:'7. Lesson plan steps'},{key:'materials',label:'8. Material and resources'},{key:'assignment',label:'9. Assignment'},{key:'differentiationStrategies',label:'10. Differentiation strategies'},{key:'instructionalStrategies',label:'11. Instructional strategies'}]
+    .print-page
+      .print-controls.no-print
+        button.btn.btn-primary(onclick='window.print()')
+          i.fas.fa-print
+          | Print / Save as PDF
+      header.print-academic-header
+        .print-brand
+          .school-logo-img
+              img(src='/images/logo.png', alt='School Logo' width='50')
+          div
+            span.print-kicker ACADEMIC PLANNING DOCUMENT
+            h1 LESSON PLAN
+            p Canon Andrea Mwaka School
+        .print-status
+          span Status
+          strong(class=`print-status-${plan.status}`) #{plan.status}
+      .print-title-block
+        span.print-kicker SUBJECT PLAN
+        h2 #{plan.topic}
+        if plan.subtitle
+          p #{plan.subtitle}
+      table.print-overview-table
+        tbody
+          tr
+            th Class
+            td #{plan.class ? plan.class.name : '-'}
+            th Subject
+            td #{plan.subject ? plan.subject.name : '-'}
+          tr
+            th Teacher
+            td #{plan.teacher ? plan.teacher.fullName : '-'}
+            th Department
+            td #{plan.teacher && plan.teacher.department ? plan.teacher.department.name : '-'}
+          tr
+            th Date range
+            td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
+            th Period
+            td #{plan.periodType || '-'}
+          tr
+            th Term
+            td #{plan.term || '-'}
+            th Academic year
+            td #{plan.academicYear || '-'}
+      if tags && tags.length
+        .print-objectives
+          strong Objective tags
+          .print-tags
+            each tag in tags
+              span.print-tag #{tag}
+      .print-section-heading
+        span 01
+        div
+          span.print-kicker TEACHING FRAMEWORK
+          h3 Lesson plan sequence
+      table.print-framework-table
+        tbody
+          each field in fields
+            tr
+              th #{field.label}
+              td
+                if plan[field.key]
+                  .rich-content!= plan[field.key]
+                else
+                  span.print-empty Not provided
+      footer.print-footer
+        span Prepared by #{plan.teacher ? plan.teacher.fullName : '-'}
+        span LESSON PLAN • #{shortDate(plan.startDate)}

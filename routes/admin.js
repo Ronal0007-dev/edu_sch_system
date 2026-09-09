@@ -605,10 +605,41 @@ router.get("/teachers/view/:id", async (req, res) => {
         ["startTime", "ASC"],
       ],
     });
+    const teacherSubjects = await TeacherSubject.findAll({
+      where: { teacherId: teacher.id },
+      include: [
+        { model: Subject, as: "subject" },
+        { model: Class, as: "class", include: [{ model: Department, as: "department" }] },
+      ],
+      order: [["id", "ASC"]],
+    });
+    const assignedSubjectGroups = [];
+    teacherSubjects.forEach((assignment) => {
+      const classRecord = assignment.class;
+      const classId = classRecord ? classRecord.id : "unassigned";
+      let group = assignedSubjectGroups.find(
+        (item) => String(item.id) === String(classId),
+      );
+      if (!group) {
+        group = {
+          id: classId,
+          name: classRecord ? classRecord.name : "Unassigned Class",
+          department: classRecord && classRecord.department
+            ? classRecord.department.name
+            : "-",
+          assignments: [],
+        };
+        assignedSubjectGroups.push(group);
+      }
+      group.assignments.push(assignment);
+    });
+    assignedSubjectGroups.sort((a, b) => a.name.localeCompare(b.name));
     res.render("admin/teacher-view", {
       title: "Teacher Profile",
       teacher: teacher.toJSON(),
       timetables,
+      teacherSubjects,
+      assignedSubjectGroups,
       admin: req.session.admin,
       error: req.flash("error"),
       success: req.flash("success"),

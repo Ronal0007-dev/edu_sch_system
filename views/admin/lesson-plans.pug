@@ -1,0 +1,37 @@
+extends ../partials/admin-layout
+
+block body
+  - const shortDate = (value) => { const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 ? parts[2] + '-' + parts[1] + '-' + parts[0] : '-'; }
+  .card
+    .card-header
+      h2 LESSON PLAN REVIEW
+    .card-body
+      if departmentGroups && departmentGroups.length
+        each group in departmentGroups
+          h3(style='margin-top: 1.5rem') #{group.name}
+          table.data-table
+            thead
+              tr
+                th Topic
+                th Teacher
+                th Class / Subject
+                th Dates
+                th Status
+                th Action
+            tbody
+              each plan in group.plans
+                tr
+                  td #{plan.topic}
+                  td #{plan.teacher ? plan.teacher.fullName : '-'}
+                  td #{plan.class ? plan.class.name : '-'} / #{plan.subject ? plan.subject.name : '-'}
+                  td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
+                  td
+                    span.status-badge(class=`${plan.status}`) #{plan.status}
+                  td
+                    a.btn.btn-sm.btn-outline(href=`/admin/lesson-plans/${plan.id}`)
+                      i.fas.fa-eye
+                      |  Review
+      else
+        .empty-state
+          i.fas.fa-file-signature
+          p No lesson plans have been submitted.

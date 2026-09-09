@@ -58,6 +58,9 @@ app.use('/auth', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
 app.use('/teacher', require('./routes/teacher'));
 app.use('/academician', academicianRoutes);
+app.use('/teacher/lesson-plans', require('./routes/lessonPlans'));
+app.use('/academician/lesson-plans', require('./routes/lessonPlans'));
+app.use('/admin/lesson-plans', require('./routes/lessonPlans'));
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).send(`

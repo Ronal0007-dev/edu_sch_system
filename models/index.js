@@ -327,6 +327,55 @@ const Timetable = sequelize.define(
   { tableName: "timetables", timestamps: true },
 );
 
+// ─── Lesson Plans ─────────────────────────────────────────────────────────────
+const LessonPlan = sequelize.define(
+  "LessonPlan",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    teacherId: { type: DataTypes.INTEGER, allowNull: false },
+    createdByTeacherId: { type: DataTypes.INTEGER, allowNull: true },
+    classId: { type: DataTypes.INTEGER, allowNull: false },
+    subjectId: { type: DataTypes.INTEGER, allowNull: false },
+    periodType: { type: DataTypes.ENUM("day", "week", "term"), allowNull: false },
+    startDate: { type: DataTypes.DATEONLY, allowNull: false },
+    endDate: { type: DataTypes.DATEONLY, allowNull: false },
+    term: { type: DataTypes.STRING(30), allowNull: true },
+    academicYear: { type: DataTypes.STRING(20), allowNull: true },
+    topic: { type: DataTypes.STRING(255), allowNull: false },
+    subtitle: { type: DataTypes.STRING(255), allowNull: true },
+    mainCompetence: { type: DataTypes.TEXT, allowNull: true },
+    keyConcepts: { type: DataTypes.TEXT, allowNull: true },
+    specificCompetence: { type: DataTypes.TEXT, allowNull: true },
+    essentialQuestions: { type: DataTypes.TEXT, allowNull: true },
+    formativeAssessment: { type: DataTypes.TEXT, allowNull: true },
+    summativeAssessment: { type: DataTypes.TEXT, allowNull: true },
+    lessonSteps: { type: DataTypes.TEXT, allowNull: true },
+    materials: { type: DataTypes.TEXT, allowNull: true },
+    assignment: { type: DataTypes.TEXT, allowNull: true },
+    differentiationStrategies: { type: DataTypes.TEXT, allowNull: true },
+    instructionalStrategies: { type: DataTypes.TEXT, allowNull: true },
+    objectiveTags: { type: DataTypes.TEXT, allowNull: true },
+    status: {
+      type: DataTypes.ENUM("pending", "approved", "returned"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+  },
+  { tableName: "lesson_plans", timestamps: true },
+);
+
+const LessonPlanFeedback = sequelize.define(
+  "LessonPlanFeedback",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    lessonPlanId: { type: DataTypes.INTEGER, allowNull: false },
+    authorName: { type: DataTypes.STRING(100), allowNull: false },
+    authorRole: { type: DataTypes.STRING(30), allowNull: false },
+    comment: { type: DataTypes.TEXT, allowNull: false },
+  },
+  { tableName: "lesson_plan_feedback", timestamps: true },
+);
+
 // ─── Associations ─────────────────────────────────────────────────────────────
 AcademicYear.hasMany(Term, { foreignKey: "academicYearId", as: "terms" });
 Term.belongsTo(AcademicYear, {
@@ -430,6 +479,14 @@ Timetable.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
 Timetable.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 Subject.hasMany(Timetable, { foreignKey: "subjectId", as: "timetables" });
 
+Teacher.hasMany(LessonPlan, { foreignKey: "teacherId", as: "lessonPlans" });
+LessonPlan.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
+LessonPlan.belongsTo(Teacher, { foreignKey: "createdByTeacherId", as: "createdBy" });
+LessonPlan.belongsTo(Class, { foreignKey: "classId", as: "class" });
+LessonPlan.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
+LessonPlan.hasMany(LessonPlanFeedback, { foreignKey: "lessonPlanId", as: "feedback" });
+LessonPlanFeedback.belongsTo(LessonPlan, { foreignKey: "lessonPlanId", as: "lessonPlan" });
+
 module.exports = {
   sequelize,
   AcademicYear,
@@ -449,4 +506,6 @@ module.exports = {
   Attendance,
   Mark,
   Timetable,
+  LessonPlan,
+  LessonPlanFeedback,
 };

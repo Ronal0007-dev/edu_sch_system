@@ -1,0 +1,53 @@
+extends ../partials/teacher-layout
+
+block body
+  - const shortDate = (value) => { const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 ? parts[2] + '-' + parts[1] + '-' + parts[0] : '-'; }
+  .card
+    .card-header
+      h2 LESSON PLAN
+      if !isReviewer
+        a.btn.btn-primary(href='/teacher/lesson-plans/new')
+          i.fas.fa-plus
+          |  New lesson plan
+    .card-body
+      if plans && plans.length
+        table.data-table
+          thead
+            tr
+              th Topic
+              th Class / Subject
+              th Period
+              th Status
+              if isReviewer
+                th Teacher
+              th Action
+          tbody
+            each plan in plans
+              tr
+                td
+                  strong #{plan.topic}
+                  if plan.subtitle
+                    br
+                    small #{plan.subtitle}
+                td #{plan.class ? plan.class.name : '-'} / #{plan.subject ? plan.subject.name : '-'}
+                td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
+                td
+                  span.status-badge(class=`${plan.status}`) #{plan.status}
+                if isReviewer
+                  td #{plan.teacher ? plan.teacher.fullName : '-'}
+                td
+                  a.btn.btn-sm.btn-outline(href=`/${isReviewer && admin ? 'admin' : isReviewer ? 'academician' : 'teacher'}/lesson-plans/${plan.id}`)
+                    i.fas.fa-eye
+                    |  View
+                  if !isReviewer && plan.status !== 'approved'
+                    a.btn.btn-sm.btn-primary(href=`/teacher/lesson-plans/${plan.id}/edit` style='margin-left:.35rem')
+                      i.fas.fa-edit
+                      | Edit
+                    form(style='display:inline-block; margin-left:.35rem' method='POST' action=`/teacher/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
+                      button.btn.btn-sm.btn-danger(type='submit')
+                        i.fas.fa-trash
+                        | Delete
+      else
+        .empty-state
+          i.fas.fa-file-signature
+          p No lesson plans have been created yet.

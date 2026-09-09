@@ -36,7 +36,36 @@ block body
         p
           strong Status:
           |  #{teacher.isActive ? 'Active' : 'Inactive'}
-
+  br
+  .card
+    .card-header
+      h2 Assigned Subjects
+      i.fas.fa-book-open
+    .card-body
+      if assignedSubjectGroups && assignedSubjectGroups.length
+        each group in assignedSubjectGroups
+          .assigned-class-group
+            .assigned-class-heading
+              div
+                h3 #{group.name}
+                //- span #{group.department}
+              span.assigned-subject-count #{group.assignments.length} subject#{group.assignments.length === 1 ? '' : 's'}
+            table.data-table
+              thead
+                tr
+                  th Subject
+                  th Department
+              tbody
+                each assignment in group.assignments
+                  tr
+                    td
+                      span.badge.badge-subject #{assignment.subject ? assignment.subject.name : '-'}
+                    td #{group.department}
+      else
+        .empty-state
+          i.fas.fa-book
+          p No subjects assigned to this teacher.
+  br
   .card
     .card-header
       h2 Timetable
@@ -65,5 +94,5 @@ block body
                 td #{t.academicYear}
       else
         p No timetable entries found for this teacher.
-
+  br
   a.btn.btn-outline(href='/admin/teachers') Back to teachers

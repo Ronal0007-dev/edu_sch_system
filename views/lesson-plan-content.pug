@@ -1,0 +1,142 @@
+.card.lesson-plan-detail
+  - const shortDate = (value) => { if (!value) return '-'; const iso = String(value instanceof Date ? value.toISOString() : value).slice(0, 10); const parts = iso.split('-'); return parts.length === 3 && parts[0].length === 4 ? parts[2] + '-' + parts[1] + '-' + parts[0] : String(value); }
+  .card-header
+    div
+      h2 LESSON PLAN
+      p #{plan.topic}#{plan.subtitle ? ' — ' + plan.subtitle : ''}
+    .detail-actions.no-print
+      a.btn.btn-outline(href=`${portalBase}/lesson-plans`)
+        i.fas.fa-arrow-left
+        | Back to lesson plans
+      if canEdit
+        a.btn.btn-primary(href=`/teacher/lesson-plans/${plan.id}/edit`)
+          i.fas.fa-edit
+          | Edit
+        form(method='POST' action=`/teacher/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
+          button.btn.btn-danger(type='submit')
+            i.fas.fa-trash
+            | Delete
+      a.btn.btn-outline(href=`${portalBase}/lesson-plans/${plan.id}/print` target='_blank')
+        i.fas.fa-print
+        | Print / download
+  .card-body
+    table.data-table.lesson-plan-meta-table
+      tbody
+        tr
+          th Class
+          td #{plan.class ? plan.class.name : '-'}
+          th Subject
+          td #{plan.subject ? plan.subject.name : '-'}
+        tr
+          th Teacher
+          td #{plan.teacher ? plan.teacher.fullName : '-'}
+          th Department
+          td #{plan.teacher && plan.teacher.department ? plan.teacher.department.name : '-'}
+        tr
+          th Topic
+          td #{plan.topic}
+          th Subtitle
+          td #{plan.subtitle || '-'}
+        tr
+          th Date range
+          td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
+          th Period
+          td #{plan.periodType}
+        tr
+          th Status
+          td(colspan='3')
+            span.status-badge(class=`${plan.status}`) #{plan.status}
+    if tags && tags.length
+      .chips
+        each tag in tags
+          span.chip #{tag}
+    .lesson-plan-content-heading
+      span.lesson-plan-eyebrow LESSON PLAN FRAMEWORK
+      h3 Planning details
+      p The complete teaching plan arranged in sequence for review and implementation.
+    - const fields = [{key:'mainCompetence',label:'1. Main competence'},{key:'keyConcepts',label:'2. Key concept/topics'},{key:'specificCompetence',label:'3. Specific competence'},{key:'essentialQuestions',label:'4. Essential questions'},{key:'formativeAssessment',label:'5. Formative assessment'},{key:'summativeAssessment',label:'6. Summative assessment'},{key:'lessonSteps',label:'7. Lesson plan steps'},{key:'materials',label:'8. Material and resources'},{key:'assignment',label:'9. Assignment'},{key:'differentiationStrategies',label:'10. Differentiation strategies'},{key:'instructionalStrategies',label:'11. Instructional strategies'}]
+    table.data-table.lesson-plan-fields-table
+      tbody
+        each field in fields
+          tr
+            th #{field.label}
+            td
+              if plan[field.key]
+                .rich-content!= plan[field.key]
+              else
+                p.muted Not provided.
+    if isReviewer
+      .review-panel.no-print
+        .review-panel-heading
+          div
+            span.review-eyebrow REVIEW WORKSPACE
+            h3 Review controls
+            p Approve the plan, request changes, or assign it to another teacher.
+          i.fas.fa-clipboard-check.review-panel-icon
+        .review-actions
+          form.review-action-card(method='POST' action=`/${admin ? 'admin' : 'academician'}/lesson-plans/${plan.id}/status`)
+            .review-action-heading
+              span.review-action-icon.status-icon
+                i.fas.fa-check-circle
+              div
+                label Update status
+                small Set the current review state
+            .review-action-controls
+              select(name='status')
+                option(value='pending' selected=plan.status==='pending') Pending
+                option(value='approved' selected=plan.status==='approved') Approved
+                option(value='returned' selected=plan.status==='returned') Returned
+              button.btn.btn-primary.review-submit(type='submit')
+                i.fas.fa-check
+                | Save status
+          form.review-action-card(method='POST' action=`/${admin ? 'admin' : 'academician'}/lesson-plans/${plan.id}/feedback`)
+            .review-action-heading
+              span.review-action-icon.feedback-icon
+                i.fas.fa-comment-dots
+              div
+                label Add feedback
+                small Share guidance with the teacher
+            textarea(name='comment' rows='3' required placeholder='Write clear feedback for the teacher')
+            button.btn.btn-outline.review-submit(type='submit')
+              i.fas.fa-comment
+              | Add feedback
+          form.review-action-card(method='POST' action=`/${admin ? 'admin' : 'academician'}/lesson-plans/${plan.id}/hand-over`)
+            .review-action-heading
+              span.review-action-icon.handover-icon
+                i.fas.fa-exchange-alt
+              div
+                label Hand over plan
+                small Assign it to a replacement teacher
+            .review-action-controls
+              select(name='teacherId' required)
+                option(value='') Select replacement teacher
+                each replacement in replacementTeachers
+                  option(value=replacement.id) #{replacement.fullName}
+              button.btn.btn-warning.review-submit(type='submit')
+                i.fas.fa-exchange-alt
+                | Hand over
+    .feedback-list
+      .feedback-list-heading
+        div
+          span.feedback-eyebrow COMMUNICATION
+          h3 Feedback history
+          p Guidance and comments shared by the academic reviewer.
+        span.feedback-count #{plan.feedback ? plan.feedback.length : 0}
+      if plan.feedback && plan.feedback.length
+        each item in plan.feedback
+          .feedback-item
+            .feedback-item-heading
+              .feedback-author
+                span.feedback-avatar
+                  i.fas.fa-user
+                div
+                  strong #{item.authorName}
+                  span.feedback-role #{item.authorRole}
+              time(datetime=item.createdAt.toISOString()) #{new Date(item.createdAt).toLocaleString()}
+            p.feedback-comment #{item.comment}
+      else
+        .feedback-empty
+          span.feedback-empty-icon
+            i.fas.fa-comments
+          strong No feedback yet
+          p Reviewer comments will appear here after this lesson plan has been reviewed.

@@ -1,0 +1,117 @@
+extends ../partials/teacher-layout
+
+block body
+  - const editing = !!plan
+  - const selectedValue = (value, fallback) => value !== undefined && value !== null ? value : fallback
+  form.card.lesson-plan-form(method='POST' action=editing ? `/teacher/lesson-plans/${plan.id}/update` : '/teacher/lesson-plans/save')
+    .card-header
+      h2 LESSON PLAN
+      .lesson-plan-form-header
+        if editing
+          a.btn.btn-sm.btn-outline(href=`/teacher/lesson-plans/${plan.id}`)
+            i.fas.fa-arrow-left
+            | Back to lesson plan
+        span.badge.badge-warning #{editing ? 'Editing — pending review' : 'Pending review'}
+    .card-body
+      .form-row
+        .form-group
+          label(for='classId') Class
+          select#classId(name='classId' required)
+            option(value='') Select class
+            each item in assignments
+              option(value=item.classId data-subject-id=item.subjectId data-department=item.class && item.class.department ? item.class.department.name : '' selected=editing && String(plan.classId) === String(item.classId)) #{item.class ? item.class.name : 'Class'}
+          small#classDepartmentHint.form-hint Select a class to confirm its department.
+        .form-group
+          label(for='subjectId') Subject
+          select#subjectId(name='subjectId' required)
+            option(value='') Select class first
+            each item in assignments
+              option(value=item.subjectId data-class-id=item.classId selected=editing && String(plan.subjectId) === String(item.subjectId)) #{item.subject ? item.subject.name : 'Subject'}
+      .form-row
+        .form-group
+          label(for='periodType') Date range type
+          select#periodType(name='periodType' required)
+            option(value='day' selected=editing && plan.periodType === 'day') Day
+            option(value='week' selected=editing && plan.periodType === 'week') Week
+            option(value='term' selected=editing && plan.periodType === 'term') Term
+        .form-group
+          label(for='term') Term (optional)
+          select#term(name='term')
+            option(value='' selected=!editing || !plan.term) Select term
+            each item in terms
+              option(value=item.name selected=editing && plan.term === item.name) #{item.name}
+      .form-row
+        .form-group
+          label(for='startDate') Start date
+          input#startDate(type='date' name='startDate' required value=selectedValue(editing && plan.startDate, ''))
+        .form-group
+          label(for='endDate') End date
+          input#endDate(type='date' name='endDate' required value=selectedValue(editing && plan.endDate, ''))
+        .form-group
+          label(for='academicYear') Academic year
+          input(type='text' name='academicYear' placeholder='e.g. 2026/2027' value=selectedValue(editing && plan.academicYear, ''))
+      .form-group
+        label(for='topic') Topic
+        input#topic(type='text' name='topic' required maxlength='255' placeholder='Lesson topic' value=selectedValue(editing && plan.topic, ''))
+      .form-group
+        label(for='subtitle') Subtitle
+        input(type='text' name='subtitle' maxlength='255' value=selectedValue(editing && plan.subtitle, ''))
+      .form-group
+        label Key concepts / objective tags
+        .chip-input
+          input#tagInput(type='text' placeholder='Type an objective and press Enter')
+          .chips#chips
+        input#objectiveTags(type='hidden' name='objectiveTags' value=JSON.stringify(tags || []))
+      - const fields = [{key:'mainCompetence',label:'Main competence'},{key:'keyConcepts',label:'Key concept/topics'},{key:'specificCompetence',label:'Specific competence'},{key:'essentialQuestions',label:'Essential questions'},{key:'formativeAssessment',label:'Formative assessment'},{key:'summativeAssessment',label:'Summative assessment'},{key:'lessonSteps',label:'Lesson plan steps'},{key:'materials',label:'Material and resources'},{key:'assignment',label:'Assignment'},{key:'differentiationStrategies',label:'Differentiation strategies'},{key:'instructionalStrategies',label:'Instructional strategies'}]
+      each field in fields
+        .form-group
+          label(for=field.key) #{field.label}
+          textarea.rich-editor(id=field.key name=field.key rows='4' placeholder=`Write ${field.label.toLowerCase()}...`)!= selectedValue(editing && plan[field.key], '')
+      .form-actions
+        a.btn.btn-outline(href=editing ? `/teacher/lesson-plans/${plan.id}` : '/teacher/lesson-plans') Cancel
+        button.btn.btn-primary(type='submit')
+          i.fas.fa-paper-plane
+          | #{editing ? 'Save changes' : 'Submit lesson plan'}
+  link(rel='stylesheet' href='https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css')
+  script(src='https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js')
+  script.
+    document.querySelectorAll('textarea.rich-editor').forEach(function (textarea) {
+      var editor = document.createElement('div');
+      editor.className = 'quill-editor';
+      textarea.style.display = 'none';
+      textarea.parentNode.insertBefore(editor, textarea);
+      var quill = new Quill(editor, { theme: 'snow', modules: { toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link']] } });
+      textarea.form.addEventListener('submit', function () { textarea.value = quill.root.innerHTML; });
+    });
+    var classSelect = document.getElementById('classId');
+    var subjectSelect = document.getElementById('subjectId');
+    classSelect.addEventListener('change', function () {
+      var selectedClass = classSelect.options[classSelect.selectedIndex];
+      var departmentHint = document.getElementById('classDepartmentHint');
+      departmentHint.textContent = selectedClass && selectedClass.dataset.department
+        ? 'Department: ' + selectedClass.dataset.department
+        : 'Select a class to confirm its department.';
+      departmentHint.className = selectedClass && selectedClass.dataset.department ? 'form-hint form-hint-selected' : 'form-hint';
+      Array.from(subjectSelect.options).forEach(function (option) {
+        option.hidden = option.value && option.dataset.classId !== classSelect.value;
+      });
+      subjectSelect.value = '';
+    });
+    classSelect.dispatchEvent(new Event('change'));
+    var tags = JSON.parse(document.getElementById('objectiveTags').value || '[]');
+    renderTags();
+    var tagInput = document.getElementById('tagInput');
+    var chips = document.getElementById('chips');
+    var tagField = document.getElementById('objectiveTags');
+    function renderTags() {
+      chips.innerHTML = '';
+      tags.forEach(function (tag, index) {
+        var chip = document.createElement('button'); chip.type = 'button'; chip.className = 'chip'; chip.textContent = tag + ' ×';
+        chip.onclick = function () { tags.splice(index, 1); renderTags(); };
+        chips.appendChild(chip);
+      });
+      tagField.value = JSON.stringify(tags);
+    }
+    tagInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); var tag = tagInput.value.trim(); if (tag && tags.indexOf(tag) < 0) tags.push(tag); tagInput.value = ''; renderTags(); }
+    });
