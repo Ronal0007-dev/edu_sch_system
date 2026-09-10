@@ -3419,6 +3419,7 @@ a:hover {
 }
 .detail-actions .btn i { font-size: .75rem; }
 .detail-actions .btn-danger { box-shadow: 0 2px 5px rgba(220, 38, 38, .16); }
+.report-period-note { display: block; margin-top: .3rem; color: var(--text-muted); font-size: .78rem; font-weight: 500; }
 .lesson-plan-form .form-hint { display: block; margin-top: -.75rem; margin-bottom: 1rem; color: var(--text-muted); font-size: .75rem; }
 .lesson-plan-form .form-hint-selected { color: #1d4ed8; font-weight: 700; }
 @media (max-width: 900px) {

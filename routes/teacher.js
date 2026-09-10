@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const moment = require("moment");
-const { Op } = require("sequelize");
+//const { Op } = require("sequelize");
 const { requireTeacher } = require("../middleware/auth");
 const {
   calculateScore,

@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const moment = require("moment");
-const { Op } = require("sequelize");
 const { requireAdmin } = require("../middleware/auth");
 const {
   getRemark,
@@ -77,6 +76,52 @@ async function getCurrentYear() {
   });
 }
 
+async function getOpenTermDateRange(fromDate, toDate) {
+  const currentYear = await getCurrentYear();
+  const today = moment().format("YYYY-MM-DD");
+  const openTerms = currentYear && currentYear.terms
+    ? currentYear.terms.filter((term) => term.isOpen)
+    : [];
+  const activeTerm =
+    openTerms.find(
+      (term) =>
+        moment(today).isSameOrAfter(term.startDate, "day") &&
+        moment(today).isSameOrBefore(term.endDate, "day"),
+    ) || openTerms[0];
+
+  if (!activeTerm) return null;
+
+  const start = fromDate && moment(fromDate).isAfter(activeTerm.startDate, "day")
+    ? fromDate
+    : activeTerm.startDate;
+  const end = toDate && moment(toDate).isBefore(activeTerm.endDate, "day")
+    ? toDate
+    : activeTerm.endDate;
+
+  return {
+    startDate: start,
+    endDate: end,
+    term: activeTerm,
+    valid: !moment(start).isAfter(end, "day"),
+  };
+}
+
+async function countSchoolDays(startDate, endDate) {
+  if (!startDate || !endDate || moment(startDate).isAfter(endDate, "day")) return 0;
+  const holidays = await PublicHoliday.findAll({
+    where: { date: { $between: [startDate, endDate] } },
+  });
+  const holidayDates = new Set(holidays.map((holiday) => String(holiday.date).slice(0, 10)));
+  let count = 0;
+  const date = moment(startDate);
+  const end = moment(endDate);
+  while (date.isSameOrBefore(end, "day")) {
+    if (date.isoWeekday() <= 5 && !holidayDates.has(date.format("YYYY-MM-DD"))) count++;
+    date.add(1, "day");
+  }
+  return count;
+}
+
 function activeStudentWhere(extra = {}) {
   return { isActive: true, status: "Active", ...extra };
 }
@@ -149,7 +194,7 @@ async function promoteStudents(studentsOrClassId, targetClassId, options = {}) {
   const where = { isActive: true, status: "Active" };
 
   if (Array.isArray(studentsOrClassId)) {
-    where.id = { [Op.in]: studentsOrClassId };
+    where.id = { $in: studentsOrClassId };
   } else {
     where.classId = studentsOrClassId;
   }
@@ -558,11 +603,11 @@ router.post("/teachers/edit/:id", async (req, res) => {
     if (!teacher) throw new Error("Teacher not found");
     // Unique checks excluding self
     const dupEmail = await Teacher.findOne({
-      where: { email, id: { [Op.ne]: req.params.id } },
+      where: { email, id: { $ne: req.params.id } },
     });
     if (dupEmail) throw new Error("Email is already used by another teacher");
     const dupPhone = await Teacher.findOne({
-      where: { phone, id: { [Op.ne]: req.params.id } },
+      where: { phone, id: { $ne: req.params.id } },
     });
     if (dupPhone)
       throw new Error("Phone number is already used by another teacher");
@@ -652,11 +697,21 @@ router.get("/teachers/view/:id", async (req, res) => {
 
 router.post("/teachers/:id/role", async (req, res) => {
   try {
-    await Teacher.update(
-      { role: req.body.role },
-      { where: { id: req.params.id } },
+    const allowedRoles = ["teacher", "class_teacher", "academician", "admin"];
+    const role = String(req.body.role || "").trim();
+    if (!allowedRoles.includes(role)) throw new Error("Invalid teacher role selected");
+    const teacher = await Teacher.findById(req.params.id);
+    if (!teacher) throw new Error("Teacher not found");
+    const [updatedRows] = await Teacher.update(
+      { role },
+      { where: { id: teacher.id } },
     );
-    req.flash("success", "Role updated");
+    if (!updatedRows) throw new Error("No teacher record was updated");
+    const savedTeacher = await Teacher.findById(teacher.id);
+    if (!savedTeacher || savedTeacher.role !== role) {
+      throw new Error(`The database did not retain role "${role}"`);
+    }
+    req.flash("success", `${savedTeacher.fullName}'s role updated to ${role.replace("_", " ")}.`);
   } catch (err) {
     req.flash("error", "Error: " + err.message);
   }
@@ -1245,7 +1300,7 @@ router.get("/students", async (req, res) => {
 
   //searchQuery filter
   if (searchQuery) {
-    studentWhere.fullName = { [Op.like]: `%${searchQuery}%` };
+    studentWhere.fullName = { $like: `%${searchQuery}%` };
   }
 
   let students = [],
@@ -2499,6 +2554,7 @@ router.get("/reports/attendance", async (req, res) => {
     let className = "";
     let total = 0;
     let summary = [];
+    let reportPeriod = null;
 
     // 3. Process report if a class was selected
     if (classId) {
@@ -2507,15 +2563,22 @@ router.get("/reports/attendance", async (req, res) => {
       });
       className = cls ? cls.name : "Unknown Class";
 
-      // 4. Construct Date Filter constraints
+      const termRange = await getOpenTermDateRange(fromDate, toDate);
+      if (!termRange) throw new Error("No open term is configured for the current academic year.");
+      if (!termRange.valid) throw new Error("The selected dates are outside the open term.");
+      const reportFromDate = termRange.startDate;
+      const reportToDate = termRange.endDate;
+      const schoolDays = await countSchoolDays(reportFromDate, reportToDate);
+      reportPeriod = {
+        fromDate: reportFromDate,
+        toDate: reportToDate,
+        term: termRange.term.name,
+        schoolDays,
+      };
+
+      // 4. Construct Date Filter constraints from the open term range
       let dateFilter = {};
-      if (fromDate && toDate) {
-        dateFilter.date = { [Op.between]: [fromDate, toDate] };
-      } else if (fromDate) {
-        dateFilter.date = { [Op.gte]: fromDate };
-      } else if (toDate) {
-        dateFilter.date = { [Op.lte]: toDate };
-      }
+      dateFilter.date = { $between: [reportFromDate, reportToDate] };
 
       // 5. Fetch students with pagination and stream filter
       const studentWhere = activeStudentWhere({ classId });
@@ -2535,14 +2598,10 @@ router.get("/reports/attendance", async (req, res) => {
       if (students.length > 0) {
         const attendance = await Attendance.findAll({
           where: {
-            studentId: { [Op.in]: students.map((s) => s.id) },
+            studentId: { $in: students.map((s) => s.id) },
             ...dateFilter, // Inject from/to dates
           },
         });
-
-        // Calculate actual unique school days recorded within the date range
-        const uniqueDates = new Set(attendance.map((a) => a.date));
-        const schoolDays = uniqueDates.size;
 
         summary = students.map((s) => {
           const records = attendance.filter((a) => a.studentId === s.id);
@@ -2568,6 +2627,7 @@ router.get("/reports/attendance", async (req, res) => {
       selectedStream: streamId,
       fromDate,
       toDate,
+      reportPeriod,
       className,
       report,
       summary,
@@ -2604,15 +2664,16 @@ router.get("/reports/attendance/print", async (req, res) => {
       return res.redirect("/admin/reports/attendance");
     }
 
-    // 2. Construct Date Filter constraints
+    const termRange = await getOpenTermDateRange(fromDate, toDate);
+    if (!termRange) throw new Error("No open term is configured for the current academic year.");
+    if (!termRange.valid) throw new Error("The selected dates are outside the open term.");
+    const reportFromDate = termRange.startDate;
+    const reportToDate = termRange.endDate;
+    const schoolDays = await countSchoolDays(reportFromDate, reportToDate);
+
+    // 2. Construct Date Filter constraints from the open term range
     let dateFilter = {};
-    if (fromDate && toDate) {
-      dateFilter.date = { [Op.between]: [fromDate, toDate] };
-    } else if (fromDate) {
-      dateFilter.date = { [Op.gte]: fromDate };
-    } else if (toDate) {
-      dateFilter.date = { [Op.lte]: toDate };
-    }
+    dateFilter.date = { $between: [reportFromDate, reportToDate] };
 
     // 3. Build student query (Filter by class and optional stream)
     const studentWhere = activeStudentWhere({ classId });
@@ -2631,14 +2692,10 @@ router.get("/reports/attendance/print", async (req, res) => {
     if (students.length > 0) {
       const attendance = await Attendance.findAll({
         where: {
-          studentId: { [Op.in]: students.map((s) => s.id) },
+          studentId: { $in: students.map((s) => s.id) },
           ...dateFilter, // Inject from/to dates
         },
       });
-
-      // Calculate actual unique school days recorded within the date range
-      const uniqueDates = new Set(attendance.map((a) => a.date));
-      const schoolDays = uniqueDates.size;
 
       summary = students.map((s) => {
         const records = attendance.filter((a) => a.studentId === s.id);
@@ -2658,8 +2715,12 @@ router.get("/reports/attendance/print", async (req, res) => {
       title: "Print Attendance Report",
       cls,
       summary,
-      fromDate,
-      toDate,
+      fromDate: reportFromDate,
+      toDate: reportToDate,
+      reportPeriod: {
+        term: termRange.term.name,
+        schoolDays,
+      },
     });
   } catch (err) {
     console.error("Print Attendance Report Error:", err);
@@ -3005,11 +3066,19 @@ router.post("/teachers/:id/reset-password", async (req, res) => {
       resetTokenExpiry: expiry,
       mustChangePassword: true,
     });
+    const resetUrl = `${process.env.APP_URL || "https://rams.dodomacams.org"}/auth/teacher/reset-password/${raw}?email=${encodeURIComponent(teacher.email)}`;
+    if (process.env.SM_US && process.env.SM_PA) {
     await sendPasswordResetEmail(teacher, raw);
     req.flash(
       "success",
       `Password reset link sent to ${teacher.email} (expires in 30 minutes)`,
     );
+    } else {
+      req.flash(
+        "success",
+        `Email is not configured. Share this one-time reset link with ${teacher.fullName} (expires in 30 minutes): ${resetUrl}`,
+      );
+    }
   } catch (err) {
     req.flash("error", "Error: " + err.message);
   }
@@ -3067,7 +3136,7 @@ router.get("/backup", async (req, res) => {
     title: "Database Backup",
     backupFiles,
     backupEmail:
-      process.env.BACKUP_EMAIL || process.env.MAIL_USER || "Not configured",
+      process.env.BACKUP_EMAIL || process.env.SM_US || "Not configured",
     admin: req.session.admin,
     error: fe,
     success: fs2,

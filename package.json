@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "start": "node app.js",
-    "seed": "node seed.js",
     "dev": "node app.js",
     "migrate": "node utils/run-migrations.js"
   },

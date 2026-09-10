@@ -37,6 +37,8 @@ block body
   if report
     .report-toolbar.no-print
       h2 Attendance Summary — #{className}
+      if reportPeriod
+        small.report-period-note #{reportPeriod.term} · School days: #{reportPeriod.schoolDays}
       .toolbar-actions
         // PRINT BUTTON WITH STREAM AND DATE PARAMETERS
         a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}${selectedStream ? '&streamId=' + selectedStream : ''}${fromDate ? '&fromDate=' + fromDate : ''}${toDate ? '&toDate=' + toDate : ''}`, target='_blank')

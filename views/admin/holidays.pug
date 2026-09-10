@@ -1,6 +1,7 @@
 extends ../partials/admin-layout
 
 block body
+  - const shortDate = (value) => { const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 && parts[0].length === 4 ? parts[2] + '-' + parts[1] + '-' + parts[0] : String(value || '-'); }
   .two-col-layout
     .card.form-card
       .card-header
@@ -37,7 +38,7 @@ block body
                   td
                     i.fas.fa-flag.mr-2
                     | #{h.name}
-                  td #{h.date}
+                  td #{shortDate(h.date)}
                   td
                     span.day-badge #{new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long'})}
                   td

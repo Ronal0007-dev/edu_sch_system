@@ -2,12 +2,12 @@ const nodemailer = require('nodemailer');
 
 function createTransport() {
   return nodemailer.createTransport({
-    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.MAIL_PORT) || 587,
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
     secure: false,
     auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS
+      user: process.env.SM_US,
+      pass: process.env.SM_PA
     },
     tls: { rejectUnauthorized: false }
   });
@@ -15,7 +15,7 @@ function createTransport() {
 
 async function sendPasswordResetEmail(teacher, resetToken) {
   const transporter = createTransport();
-  const resetUrl = `${process.env.APP_URL || 'http://localhost:3000'}/auth/teacher/reset-password/${resetToken}?email=${encodeURIComponent(teacher.email)}`;
+  const resetUrl = `${process.env.APP_URL || 'https://rams.dodomacams.org'}/auth/teacher/reset-password/${resetToken}?email=${encodeURIComponent(teacher.email)}`;
 
   const html = `
     <!DOCTYPE html>
@@ -63,7 +63,7 @@ async function sendPasswordResetEmail(teacher, resetToken) {
   `;
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <noreply@school.edu>',
+    from: process.env.SM_US || 'Canon Andrea Mwaka School <noreply@dodomacams.org>',
     to: `${teacher.fullName} <${teacher.email}>`,
     subject: 'Canon Andrea Mwaka School — Password Reset Request',
     html
