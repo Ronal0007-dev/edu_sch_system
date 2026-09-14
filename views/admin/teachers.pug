@@ -35,6 +35,15 @@ block body
         h2 All Teachers
         span.count-badge #{pagination.total}
       .card-body
+        form.filter-form.teacher-search-form(method='GET', action='/admin/teachers')
+          .form-group
+            label(for='teacherSearch') Search teachers
+            input#teacherSearch(type='search', name='search', value=search || '', placeholder='Name, phone, or email', autocomplete='off')
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-search
+            span Search
+          if search
+            a.btn.btn-outline(href='/admin/teachers') Clear
         if teachers.length
           table.data-table
             thead
@@ -93,5 +102,5 @@ block body
             p No teachers added yet.
 
         if pagination && pagination.pages > 1
-          - const query = {}
+          - const query = {search: search || ''}
           include ../partials/pagination

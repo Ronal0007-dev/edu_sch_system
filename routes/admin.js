@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const moment = require("moment");
-const { requireAdmin } = require("../middleware/auth");
+const {
+  requireAdmin
+} = require("../middleware/auth");
 const {
   getRemark,
   getPrimaryExamGrade,
@@ -15,18 +17,27 @@ const {
   calculateScore,
   calculateArtScore,
 } = require("../utils/grading");
-const { sendPasswordResetEmail } = require("../utils/mailer");
+const {
+  sendPasswordResetEmail
+} = require("../utils/mailer");
 const crypto = require("crypto");
 const multer = require("multer");
-const { runBackup, pruneOldBackups } = require("../utils/backup");
-const { importStudentsFromCSV } = require("../utils/csvImport");
+const {
+  runBackup,
+  pruneOldBackups
+} = require("../utils/backup");
+const {
+  importStudentsFromCSV
+} = require("../utils/csvImport");
 const fs = require("fs");
 const path = require("path");
 
 // Multer config — store uploaded CSVs in /uploads
 const upload = multer({
   dest: path.join(__dirname, "../uploads/"),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  }, // 5 MB max
   fileFilter: (req, file, cb) => {
     if (
       file.mimetype === "text/csv" ||
@@ -71,32 +82,37 @@ function flash(req, type) {
 // ── Helper: get current academic year ─────────────────────────────────────────
 async function getCurrentYear() {
   return AcademicYear.findOne({
-    where: { isCurrent: true },
-    include: [{ model: Term, as: "terms" }],
+    where: {
+      isCurrent: true
+    },
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
   });
 }
 
 async function getOpenTermDateRange(fromDate, toDate) {
   const currentYear = await getCurrentYear();
   const today = moment().format("YYYY-MM-DD");
-  const openTerms = currentYear && currentYear.terms
-    ? currentYear.terms.filter((term) => term.isOpen)
-    : [];
+  const openTerms = currentYear && currentYear.terms ?
+    currentYear.terms.filter((term) => term.isOpen) :
+    [];
   const activeTerm =
     openTerms.find(
       (term) =>
-        moment(today).isSameOrAfter(term.startDate, "day") &&
-        moment(today).isSameOrBefore(term.endDate, "day"),
+      moment(today).isSameOrAfter(term.startDate, "day") &&
+      moment(today).isSameOrBefore(term.endDate, "day"),
     ) || openTerms[0];
 
   if (!activeTerm) return null;
 
-  const start = fromDate && moment(fromDate).isAfter(activeTerm.startDate, "day")
-    ? fromDate
-    : activeTerm.startDate;
-  const end = toDate && moment(toDate).isBefore(activeTerm.endDate, "day")
-    ? toDate
-    : activeTerm.endDate;
+  const start = fromDate && moment(fromDate).isAfter(activeTerm.startDate, "day") ?
+    fromDate :
+    activeTerm.startDate;
+  const end = toDate && moment(toDate).isBefore(activeTerm.endDate, "day") ?
+    toDate :
+    activeTerm.endDate;
 
   return {
     startDate: start,
@@ -109,7 +125,11 @@ async function getOpenTermDateRange(fromDate, toDate) {
 async function countSchoolDays(startDate, endDate) {
   if (!startDate || !endDate || moment(startDate).isAfter(endDate, "day")) return 0;
   const holidays = await PublicHoliday.findAll({
-    where: { date: { $between: [startDate, endDate] } },
+    where: {
+      date: {
+        $between: [startDate, endDate]
+      }
+    },
   });
   const holidayDates = new Set(holidays.map((holiday) => String(holiday.date).slice(0, 10)));
   let count = 0;
@@ -123,7 +143,11 @@ async function countSchoolDays(startDate, endDate) {
 }
 
 function activeStudentWhere(extra = {}) {
-  return { isActive: true, status: "Active", ...extra };
+  return {
+    isActive: true,
+    status: "Active",
+    ...extra
+  };
 }
 
 async function validateUniqueSubjectForClass(classId, name, subjectId = null) {
@@ -134,7 +158,9 @@ async function validateUniqueSubjectForClass(classId, name, subjectId = null) {
   if (!parsedClassId) throw new Error("Please select a valid class");
 
   const existingSubjects = await Subject.findAll({
-    where: { classId: parsedClassId },
+    where: {
+      classId: parsedClassId
+    },
   });
   const normalizedName = trimmedName.toLowerCase();
   const duplicate = existingSubjects.find((subject) => {
@@ -169,7 +195,9 @@ async function resolvePromotionTargetClass(
     .slice(numberMatch.index + numberMatch[0].length)
     .trim();
   const sameDepartmentClasses = await Class.findAll({
-    where: { departmentId: currentClass.departmentId },
+    where: {
+      departmentId: currentClass.departmentId
+    },
   });
 
   const nextClass = sameDepartmentClasses.find((cls) => {
@@ -190,11 +218,18 @@ async function resolvePromotionTargetClass(
 }
 
 async function promoteStudents(studentsOrClassId, targetClassId, options = {}) {
-  const { streamId = null, status = "Active" } = options;
-  const where = { isActive: true, status: "Active" };
+  const {
+    streamId = null, status = "Active"
+  } = options;
+  const where = {
+    isActive: true,
+    status: "Active"
+  };
 
   if (Array.isArray(studentsOrClassId)) {
-    where.id = { $in: studentsOrClassId };
+    where.id = {
+      $in: studentsOrClassId
+    };
   } else {
     where.classId = studentsOrClassId;
   }
@@ -204,11 +239,15 @@ async function promoteStudents(studentsOrClassId, targetClassId, options = {}) {
     streamId: streamId || null,
     status,
   };
-  return Student.update(updateData, { where });
+  return Student.update(updateData, {
+    where
+  });
 }
 
 async function promoteStudentsForYearTransition(previousCurrentYearId) {
-  if (!previousCurrentYearId) return { promoted: 0 };
+  if (!previousCurrentYearId) return {
+    promoted: 0
+  };
 
   const classes = await Class.findAll();
   const promoted = [];
@@ -218,7 +257,9 @@ async function promoteStudentsForYearTransition(previousCurrentYearId) {
     if (!targetClassId) continue;
 
     const students = await Student.findAll({
-      where: activeStudentWhere({ classId: cls.id }),
+      where: activeStudentWhere({
+        classId: cls.id
+      }),
     });
 
     if (!students.length) continue;
@@ -227,16 +268,27 @@ async function promoteStudentsForYearTransition(previousCurrentYearId) {
       streamId: null,
       status: "Active",
     });
-    promoted.push({ classId: cls.id, targetClassId, count: students.length });
+    promoted.push({
+      classId: cls.id,
+      targetClassId,
+      count: students.length
+    });
   }
 
-  return { promoted, previousCurrentYearId };
+  return {
+    promoted,
+    previousCurrentYearId
+  };
 }
 
 // ── Helper: paginate ───────────────────────────────────────────────────────────
 function paginate(query, page, limit = 15) {
   const p = parseInt(page) || 1;
-  return { ...query, limit, offset: (p - 1) * limit };
+  return {
+    ...query,
+    limit,
+    offset: (p - 1) * limit
+  };
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
@@ -268,13 +320,21 @@ router.get("/dashboard", async (req, res) => {
       classes,
       academicYears,
     ] = await Promise.all([
-      Student.count({ where: activeStudentWhere() }),
-      Teacher.count({ where: { isActive: true } }),
+      Student.count({
+        where: activeStudentWhere()
+      }),
+      Teacher.count({
+        where: {
+          isActive: true
+        }
+      }),
       Class.count(),
       Department.count(),
       Class.findAll({
-        include: [
-          { model: Department, as: "department" },
+        include: [{
+            model: Department,
+            as: "department"
+          },
           {
             model: Student,
             as: "students",
@@ -284,8 +344,13 @@ router.get("/dashboard", async (req, res) => {
         ],
       }),
       AcademicYear.findAll({
-        include: [{ model: Term, as: "terms" }],
-        order: [["startDate", "DESC"]],
+        include: [{
+          model: Term,
+          as: "terms"
+        }],
+        order: [
+          ["startDate", "DESC"]
+        ],
       }),
     ]);
 
@@ -300,10 +365,10 @@ router.get("/dashboard", async (req, res) => {
       flashSuccess = [];
     try {
       flashError = req.flash("error") || [];
-    } catch (e) { }
+    } catch (e) {}
     try {
       flashSuccess = req.flash("success") || [];
-    } catch (e) { }
+    } catch (e) {}
 
     res.render("admin/dashboard", {
       ...defaults,
@@ -324,8 +389,11 @@ router.get("/dashboard", async (req, res) => {
     let flashError = [err.message];
     try {
       flashError = [err.message, ...(req.flash("error") || [])];
-    } catch (e) { }
-    res.render("admin/dashboard", { ...defaults, error: flashError });
+    } catch (e) {}
+    res.render("admin/dashboard", {
+      ...defaults,
+      error: flashError
+    });
   }
 });
 
@@ -333,16 +401,28 @@ router.get("/dashboard", async (req, res) => {
 router.get("/academic-years", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const { count, rows: years } = await AcademicYear.findAndCountAll({
-    include: [{ model: Term, as: "terms" }],
-    order: [["startDate", "DESC"]],
+  const {
+    count,
+    rows: years
+  } = await AcademicYear.findAndCountAll({
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
+    order: [
+      ["startDate", "DESC"]
+    ],
     limit,
     offset: (page - 1) * limit,
   });
   res.render("admin/academic-years", {
     title: "Academic Years",
     years,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -351,9 +431,18 @@ router.get("/academic-years", async (req, res) => {
 
 router.post("/academic-years", async (req, res) => {
   try {
-    const { name, startDate, endDate, isCurrent } = req.body;
+    const {
+      name,
+      startDate,
+      endDate,
+      isCurrent
+    } = req.body;
     if (isCurrent)
-      await AcademicYear.update({ isCurrent: false }, { where: {} });
+      await AcademicYear.update({
+        isCurrent: false
+      }, {
+        where: {}
+      });
     await AcademicYear.create({
       name,
       startDate,
@@ -370,11 +459,18 @@ router.post("/academic-years", async (req, res) => {
 router.post("/academic-years/:id/set-current", async (req, res) => {
   try {
     const previousCurrentYear = await getCurrentYear();
-    await AcademicYear.update({ isCurrent: false }, { where: {} });
-    await AcademicYear.update(
-      { isCurrent: true },
-      { where: { id: req.params.id } },
-    );
+    await AcademicYear.update({
+      isCurrent: false
+    }, {
+      where: {}
+    });
+    await AcademicYear.update({
+      isCurrent: true
+    }, {
+      where: {
+        id: req.params.id
+      }
+    }, );
 
     if (
       previousCurrentYear &&
@@ -402,7 +498,11 @@ router.post("/academic-years/:id/set-current", async (req, res) => {
 
 router.post("/academic-years/:id/delete", async (req, res) => {
   try {
-    await AcademicYear.destroy({ where: { id: req.params.id } });
+    await AcademicYear.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Academic year deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -413,7 +513,12 @@ router.post("/academic-years/:id/delete", async (req, res) => {
 // ── Terms ─────────────────────────────────────────────────────────────────────
 router.post("/terms", async (req, res) => {
   try {
-    const { academicYearId, name, startDate, endDate } = req.body;
+    const {
+      academicYearId,
+      name,
+      startDate,
+      endDate
+    } = req.body;
     await Term.create({
       academicYearId,
       name,
@@ -431,7 +536,9 @@ router.post("/terms", async (req, res) => {
 router.post("/terms/:id/toggle", async (req, res) => {
   try {
     const term = await Term.findById(req.params.id);
-    await term.update({ isOpen: !term.isOpen });
+    await term.update({
+      isOpen: !term.isOpen
+    });
     req.flash("success", `Term ${term.isOpen ? "opened" : "closed"}`);
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -441,7 +548,11 @@ router.post("/terms/:id/toggle", async (req, res) => {
 
 router.post("/terms/:id/delete", async (req, res) => {
   try {
-    await Term.destroy({ where: { id: req.params.id } });
+    await Term.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Term deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -453,10 +564,18 @@ router.post("/terms/:id/delete", async (req, res) => {
 router.get("/departments", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const { count, rows: departments } = await Department.findAndCountAll({
-    include: [
-      { model: Class, as: "classes" },
-      { model: Teacher, as: "teachers" },
+  const {
+    count,
+    rows: departments
+  } = await Department.findAndCountAll({
+    include: [{
+        model: Class,
+        as: "classes"
+      },
+      {
+        model: Teacher,
+        as: "teachers"
+      },
     ],
     distinct: true,
     col: "id",
@@ -466,7 +585,11 @@ router.get("/departments", async (req, res) => {
   res.render("admin/departments", {
     title: "Departments",
     departments,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -475,7 +598,10 @@ router.get("/departments", async (req, res) => {
 
 router.post("/departments", async (req, res) => {
   try {
-    await Department.create({ name: req.body.name, code: req.body.code });
+    await Department.create({
+      name: req.body.name,
+      code: req.body.code
+    });
     req.flash("success", "Department created");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -485,7 +611,11 @@ router.post("/departments", async (req, res) => {
 
 router.post("/departments/:id/delete", async (req, res) => {
   try {
-    await Department.destroy({ where: { id: req.params.id } });
+    await Department.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Department deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -495,8 +625,18 @@ router.post("/departments/:id/delete", async (req, res) => {
 
 router.post("/departments/:id/edit", async (req, res) => {
   try {
-    const { name, code } = req.body;
-    await Department.update({ name, code }, { where: { id: req.params.id } });
+    const {
+      name,
+      code
+    } = req.body;
+    await Department.update({
+      name,
+      code
+    }, {
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Department updated");
   } catch (err) {
     req.flash("error", err.message);
@@ -508,12 +648,42 @@ router.post("/departments/:id/edit", async (req, res) => {
 router.get("/teachers", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const [{ count, rows: teachers }, departments] = await Promise.all([
+  const search = String(req.query.search || "").trim();
+  const teacherWhere = search ?
+    {
+      $or: [{
+          fullName: {
+            $like: `%${search}%`
+          }
+        },
+        {
+          phone: {
+            $like: `%${search}%`
+          }
+        },
+        {
+          email: {
+            $like: `%${search}%`
+          }
+        },
+      ],
+    } :
+    {};
+  const [{
+    count,
+    rows: teachers
+  }, departments] = await Promise.all([
     Teacher.findAndCountAll({
-      include: [{ model: Department, as: "department" }],
+      where: teacherWhere,
+      include: [{
+        model: Department,
+        as: "department"
+      }],
       limit,
       offset: (page - 1) * limit,
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
     }),
     Department.findAll(),
   ]);
@@ -521,7 +691,12 @@ router.get("/teachers", async (req, res) => {
     title: "Teachers",
     teachers,
     departments,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    search,
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -531,7 +706,13 @@ router.get("/teachers", async (req, res) => {
 // ── Admin: Assign Academician Role ──────────────────────────────────────────
 router.post('/teachers/:id/role-academician', async (req, res) => {
   try {
-    await Teacher.update({ role: 'academician' }, { where: { id: req.params.id } });
+    await Teacher.update({
+      role: 'academician'
+    }, {
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash('success', 'Teacher assigned as Academician successfully.');
   } catch (err) {
     req.flash('error', 'Error: ' + err.message);
@@ -541,11 +722,24 @@ router.post('/teachers/:id/role-academician', async (req, res) => {
 
 router.post("/teachers", async (req, res) => {
   try {
-    const { fullName, phone, email, departmentId } = req.body;
+    const {
+      fullName,
+      phone,
+      email,
+      departmentId
+    } = req.body;
     // Validate unique email
-    const existing = await Teacher.findOne({ where: { email } });
+    const existing = await Teacher.findOne({
+      where: {
+        email
+      }
+    });
     if (existing) throw new Error("A teacher with this email already exists");
-    const existingPhone = await Teacher.findOne({ where: { phone } });
+    const existingPhone = await Teacher.findOne({
+      where: {
+        phone
+      }
+    });
     if (existingPhone)
       throw new Error("A teacher with this phone number already exists");
     const dept = await Department.findById(departmentId);
@@ -574,9 +768,16 @@ router.get("/teachers/edit/:id", async (req, res) => {
   try {
     const [teacher, departments] = await Promise.all([
       Teacher.findById(req.params.id, {
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       }),
-      Department.findAll({ order: [["name", "ASC"]] }),
+      Department.findAll({
+        order: [
+          ["name", "ASC"]
+        ]
+      }),
     ]);
     if (!teacher) {
       req.flash("error", "Teacher not found");
@@ -598,20 +799,40 @@ router.get("/teachers/edit/:id", async (req, res) => {
 
 router.post("/teachers/edit/:id", async (req, res) => {
   try {
-    const { fullName, phone, email, departmentId } = req.body;
+    const {
+      fullName,
+      phone,
+      email,
+      departmentId
+    } = req.body;
     const teacher = await Teacher.findById(req.params.id);
     if (!teacher) throw new Error("Teacher not found");
     // Unique checks excluding self
     const dupEmail = await Teacher.findOne({
-      where: { email, id: { $ne: req.params.id } },
+      where: {
+        email,
+        id: {
+          $ne: req.params.id
+        }
+      },
     });
     if (dupEmail) throw new Error("Email is already used by another teacher");
     const dupPhone = await Teacher.findOne({
-      where: { phone, id: { $ne: req.params.id } },
+      where: {
+        phone,
+        id: {
+          $ne: req.params.id
+        }
+      },
     });
     if (dupPhone)
       throw new Error("Phone number is already used by another teacher");
-    await teacher.update({ fullName, phone, email, departmentId });
+    await teacher.update({
+      fullName,
+      phone,
+      email,
+      departmentId
+    });
     req.flash("success", `Teacher "${fullName}" updated successfully`);
     res.redirect("/admin/teachers");
   } catch (err) {
@@ -623,7 +844,10 @@ router.post("/teachers/edit/:id", async (req, res) => {
 router.get("/teachers/view/:id", async (req, res) => {
   try {
     const teacher = await Teacher.findById(req.params.id, {
-      include: [{ model: Department, as: "department" }],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
     if (!teacher) {
       req.flash("error", "Teacher not found");
@@ -632,31 +856,49 @@ router.get("/teachers/view/:id", async (req, res) => {
     const currentYear = await getCurrentYear();
     const term =
       req.query.term ||
-      (currentYear && currentYear.terms && currentYear.terms[0]
-        ? currentYear.terms[0].name
-        : "Term 1");
+      (currentYear && currentYear.terms && currentYear.terms[0] ?
+        currentYear.terms[0].name :
+        "Term 1");
     const year = req.query.year || (currentYear ? currentYear.name : "");
     const timetables = await Timetable.findAll({
-      where: { teacherId: teacher.id, term, academicYear: year },
-      include: [
-        {
-          model: Subject,
-          as: "subject",
-          include: [{ model: Class, as: "class" }],
-        },
-      ],
+      where: {
+        teacherId: teacher.id,
+        term,
+        academicYear: year
+      },
+      include: [{
+        model: Subject,
+        as: "subject",
+        include: [{
+          model: Class,
+          as: "class"
+        }],
+      }, ],
       order: [
         ["day", "ASC"],
         ["startTime", "ASC"],
       ],
     });
     const teacherSubjects = await TeacherSubject.findAll({
-      where: { teacherId: teacher.id },
-      include: [
-        { model: Subject, as: "subject" },
-        { model: Class, as: "class", include: [{ model: Department, as: "department" }] },
+      where: {
+        teacherId: teacher.id
+      },
+      include: [{
+          model: Subject,
+          as: "subject"
+        },
+        {
+          model: Class,
+          as: "class",
+          include: [{
+            model: Department,
+            as: "department"
+          }]
+        },
       ],
-      order: [["id", "ASC"]],
+      order: [
+        ["id", "ASC"]
+      ],
     });
     const assignedSubjectGroups = [];
     teacherSubjects.forEach((assignment) => {
@@ -669,9 +911,9 @@ router.get("/teachers/view/:id", async (req, res) => {
         group = {
           id: classId,
           name: classRecord ? classRecord.name : "Unassigned Class",
-          department: classRecord && classRecord.department
-            ? classRecord.department.name
-            : "-",
+          department: classRecord && classRecord.department ?
+            classRecord.department.name :
+            "-",
           assignments: [],
         };
         assignedSubjectGroups.push(group);
@@ -702,10 +944,13 @@ router.post("/teachers/:id/role", async (req, res) => {
     if (!allowedRoles.includes(role)) throw new Error("Invalid teacher role selected");
     const teacher = await Teacher.findById(req.params.id);
     if (!teacher) throw new Error("Teacher not found");
-    const [updatedRows] = await Teacher.update(
-      { role },
-      { where: { id: teacher.id } },
-    );
+    const [updatedRows] = await Teacher.update({
+      role
+    }, {
+      where: {
+        id: teacher.id
+      }
+    }, );
     if (!updatedRows) throw new Error("No teacher record was updated");
     const savedTeacher = await Teacher.findById(teacher.id);
     if (!savedTeacher || savedTeacher.role !== role) {
@@ -720,7 +965,13 @@ router.post("/teachers/:id/role", async (req, res) => {
 
 router.post("/teachers/:id/revoke-role", async (req, res) => {
   try {
-    await Teacher.update({ role: "teacher" }, { where: { id: req.params.id } });
+    await Teacher.update({
+      role: "teacher"
+    }, {
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Role revoked");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -731,7 +982,9 @@ router.post("/teachers/:id/revoke-role", async (req, res) => {
 router.post("/teachers/:id/toggle", async (req, res) => {
   try {
     const teacher = await Teacher.findById(req.params.id);
-    await teacher.update({ isActive: !teacher.isActive });
+    await teacher.update({
+      isActive: !teacher.isActive
+    });
     req.flash(
       "success",
       `Teacher ${teacher.isActive ? "activated" : "deactivated"}`,
@@ -745,18 +998,52 @@ router.post("/teachers/:id/toggle", async (req, res) => {
 router.post("/teachers/:id/delete", async (req, res) => {
   const transaction = await require("../config/database").transaction();
   try {
-    const teacher = await Teacher.findById(req.params.id, { transaction });
+    const teacher = await Teacher.findById(req.params.id, {
+      transaction
+    });
     if (!teacher) throw new Error("Teacher not found");
 
     await Promise.all([
-      TeacherClass.destroy({ where: { teacherId: teacher.id }, transaction }),
-      TeacherSubject.destroy({ where: { teacherId: teacher.id }, transaction }),
-      Timetable.destroy({ where: { teacherId: teacher.id }, transaction }),
-      ReportComment.destroy({ where: { teacherId: teacher.id }, transaction }),
-      Attendance.destroy({ where: { takenBy: teacher.id }, transaction }),
-      Mark.destroy({ where: { enteredBy: teacher.id }, transaction }),
+      TeacherClass.destroy({
+        where: {
+          teacherId: teacher.id
+        },
+        transaction
+      }),
+      TeacherSubject.destroy({
+        where: {
+          teacherId: teacher.id
+        },
+        transaction
+      }),
+      Timetable.destroy({
+        where: {
+          teacherId: teacher.id
+        },
+        transaction
+      }),
+      ReportComment.destroy({
+        where: {
+          teacherId: teacher.id
+        },
+        transaction
+      }),
+      Attendance.destroy({
+        where: {
+          takenBy: teacher.id
+        },
+        transaction
+      }),
+      Mark.destroy({
+        where: {
+          enteredBy: teacher.id
+        },
+        transaction
+      }),
     ]);
-    await teacher.destroy({ transaction });
+    await teacher.destroy({
+      transaction
+    });
     await transaction.commit();
     req.flash("success", `Teacher "${teacher.fullName}" deleted successfully`);
   } catch (err) {
@@ -769,10 +1056,19 @@ router.post("/teachers/:id/delete", async (req, res) => {
 // ── Admin attendance entry ─────────────────────────────────────────────────────
 router.get("/attendance", async (req, res) => {
   const classes = await Class.findAll({
-    include: [{ model: Department, as: "department" }],
-    order: [["name", "ASC"]],
+    include: [{
+      model: Department,
+      as: "department"
+    }],
+    order: [
+      ["name", "ASC"]
+    ],
   });
-  const streams = await Stream.findAll({ order: [["name", "ASC"]] });
+  const streams = await Stream.findAll({
+    order: [
+      ["name", "ASC"]
+    ]
+  });
   const classStreamMap = {};
   streams.forEach((stream) => {
     if (!classStreamMap[stream.classId]) classStreamMap[stream.classId] = [];
@@ -782,35 +1078,47 @@ router.get("/attendance", async (req, res) => {
   const requestedDate = req.query.date || today;
   const date = moment(requestedDate, "YYYY-MM-DD", true).isValid() &&
     requestedDate <= today ? requestedDate : today;
-  const selectedClass = req.query.classId
-    ? await Class.findById(req.query.classId, {
-      include: [{ model: Department, as: "department" }],
-    })
-    : null;
-  const selectedStream = req.query.streamId
-    ? await Stream.findById(req.query.streamId)
-    : null;
+  const selectedClass = req.query.classId ?
+    await Class.findById(req.query.classId, {
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+    }) :
+    null;
+  const selectedStream = req.query.streamId ?
+    await Stream.findById(req.query.streamId) :
+    null;
   const validSelectedStream =
-    selectedStream && selectedClass && selectedStream.classId === selectedClass.id
-      ? selectedStream
-      : null;
+    selectedStream && selectedClass && selectedStream.classId === selectedClass.id ?
+    selectedStream :
+    null;
   let students = [];
   if (selectedClass) {
-    const where = activeStudentWhere({ classId: selectedClass.id });
+    const where = activeStudentWhere({
+      classId: selectedClass.id
+    });
     if (validSelectedStream) where.streamId = validSelectedStream.id;
     const existing = await Attendance.findAll({
-      where: { classId: selectedClass.id, date },
+      where: {
+        classId: selectedClass.id,
+        date
+      },
     });
     students = await Student.findAll({
       where,
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
     students = students.map((student) => ({
       ...student.toJSON(),
-      existingStatus:
-        (existing.find((record) => record.studentId === student.id) || {})
-          .status || null,
+      existingStatus: (existing.find((record) => record.studentId === student.id) || {})
+        .status || null,
     }));
   }
   res.render("admin/attendance", {
@@ -832,14 +1140,22 @@ router.get("/attendance", async (req, res) => {
 
 router.post("/attendance/submit", async (req, res) => {
   try {
-    const { classId, streamId, date } = req.body;
+    const {
+      classId,
+      streamId,
+      date
+    } = req.body;
     const today = moment().format("YYYY-MM-DD");
     if (!moment(date, "YYYY-MM-DD", true).isValid() || date > today) {
       throw new Error("Attendance date must be today or an earlier date");
     }
-    const where = activeStudentWhere({ classId });
+    const where = activeStudentWhere({
+      classId
+    });
     if (streamId) where.streamId = streamId;
-    const students = await Student.findAll({ where });
+    const students = await Student.findAll({
+      where
+    });
     for (const student of students) {
       const status = req.body[`status_${student.id}`];
       if (["present", "absent", "sick"].includes(status)) {
@@ -863,39 +1179,74 @@ router.post("/attendance/submit", async (req, res) => {
 router.get("/marks", async (req, res) => {
   const currentYear = await getCurrentYear();
   const [departments, classes, subjects] = await Promise.all([
-    Department.findAll({ order: [["name", "ASC"]] }),
-    Class.findAll({ include: [{ model: Department, as: "department" }], order: [["name", "ASC"]] }),
-    Subject.findAll({ order: [["name", "ASC"]] }),
+    Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    }),
+    Class.findAll({
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ]
+    }),
+    Subject.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    }),
   ]);
   const classSubjectMap = {};
   subjects.forEach((subject) => {
     if (!classSubjectMap[subject.classId]) classSubjectMap[subject.classId] = [];
     classSubjectMap[subject.classId].push(subject.toJSON());
   });
-  const selectedClass = req.query.classId
-    ? await Class.findById(req.query.classId, { include: [{ model: Department, as: "department" }] })
-    : null;
-  const selectedSubject = req.query.subjectId
-    ? await Subject.findById(req.query.subjectId)
-    : null;
+  const selectedClass = req.query.classId ?
+    await Class.findById(req.query.classId, {
+      include: [{
+        model: Department,
+        as: "department"
+      }]
+    }) :
+    null;
+  const selectedSubject = req.query.subjectId ?
+    await Subject.findById(req.query.subjectId) :
+    null;
   const term =
     req.query.term ||
-    (currentYear && currentYear.terms && currentYear.terms[0]
-      ? currentYear.terms[0].name
-      : "Term 1");
+    (currentYear && currentYear.terms && currentYear.terms[0] ?
+      currentYear.terms[0].name :
+      "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
   let students = [];
   let existingMarks = {};
   if (selectedClass && selectedSubject) {
     students = await Student.findAll({
-      where: activeStudentWhere({ classId: selectedClass.id }),
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      where: activeStudentWhere({
+        classId: selectedClass.id
+      }),
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
     const marks = await Mark.findAll({
-      where: { classId: selectedClass.id, subjectId: selectedSubject.id, term, academicYear: year },
+      where: {
+        classId: selectedClass.id,
+        subjectId: selectedSubject.id,
+        term,
+        academicYear: year
+      },
     });
-    marks.forEach((mark) => { existingMarks[mark.studentId] = mark; });
+    marks.forEach((mark) => {
+      existingMarks[mark.studentId] = mark;
+    });
   }
   const deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : "";
   const isArtDesign = isArtDesignSubject(
@@ -905,24 +1256,51 @@ router.get("/marks", async (req, res) => {
   );
   res.render("admin/marks", {
     title: "Admin Marks",
-    departments, classes, classSubjectMap, students, selectedClass, selectedSubject,
-    existingMarks, term, year, currentYear, deptCode, isArtDesign, ART_MAX,
+    departments,
+    classes,
+    classSubjectMap,
+    students,
+    selectedClass,
+    selectedSubject,
+    existingMarks,
+    term,
+    year,
+    currentYear,
+    deptCode,
+    isArtDesign,
+    ART_MAX,
     selectedClassId: req.query.classId || "",
     selectedSubjectId: req.query.subjectId || "",
     admin: req.session.admin,
-    error: req.flash("error"), success: req.flash("success"),
+    error: req.flash("error"),
+    success: req.flash("success"),
   });
 });
 
 router.post("/marks/save", async (req, res) => {
   try {
-    const { classId, subjectId, term, academicYear, section } = req.body;
+    const {
+      classId,
+      subjectId,
+      term,
+      academicYear,
+      section
+    } = req.body;
     const subject = await Subject.findById(subjectId);
-    const cls = await Class.findById(classId, { include: [{ model: Department, as: "department" }] });
+    const cls = await Class.findById(classId, {
+      include: [{
+        model: Department,
+        as: "department"
+      }]
+    });
     if (!subject || !cls || String(subject.classId) !== String(classId)) {
       throw new Error("The selected subject does not belong to the selected class");
     }
-    const students = await Student.findAll({ where: activeStudentWhere({ classId }) });
+    const students = await Student.findAll({
+      where: activeStudentWhere({
+        classId
+      })
+    });
     const validIds = new Set(students.map((student) => String(student.id)));
     const enteredBy = req.session.admin.id;
     const artMode = isArtDesignSubject(subject.name, cls.name, cls.department ? cls.department.code : "") && section !== "fe";
@@ -936,10 +1314,29 @@ router.post("/marks/save", async (req, res) => {
         if (isNaN(finalExam)) continue;
         const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
         const [mark] = await Mark.findOrCreate({
-          where: { studentId, subjectId, classId, term, academicYear },
-          defaults: { homework: 0, groupWork: 0, quiz: 0, classWork: 0, unitTest: 0, totalScore: 0, grade: "F", enteredBy },
+          where: {
+            studentId,
+            subjectId,
+            classId,
+            term,
+            academicYear
+          },
+          defaults: {
+            homework: 0,
+            groupWork: 0,
+            quiz: 0,
+            classWork: 0,
+            unitTest: 0,
+            totalScore: 0,
+            grade: "F",
+            enteredBy
+          },
         });
-        await mark.update({ finalExam, finalExamMax, enteredBy });
+        await mark.update({
+          finalExam,
+          finalExamMax,
+          enteredBy
+        });
       } else {
         const marks = {
           homework: parseFloat(req.body[`hw_${studentId}`]) || 0,
@@ -951,7 +1348,18 @@ router.post("/marks/save", async (req, res) => {
         const method = artMode ? "unweighted" : (req.body[`method_${studentId}`] || "weighted");
         const totalScore = artMode ? calculateArtScore(marks) : calculateScore(marks, method);
         const grade = artMode ? artGrade(totalScore) : getGrade(totalScore);
-        await Mark.upsert({ studentId, subjectId, classId, term, academicYear, ...marks, gradingMethod: method, totalScore, grade, enteredBy });
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          ...marks,
+          gradingMethod: method,
+          totalScore,
+          grade,
+          enteredBy
+        });
       }
     }
     req.flash("success", section === "fe" ? "Final Exam marks saved" : "Marks saved successfully");
@@ -966,11 +1374,19 @@ router.post("/marks/save", async (req, res) => {
 router.get("/classes", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const [{ count, rows: classes }, departments] = await Promise.all([
+  const [{
+    count,
+    rows: classes
+  }, departments] = await Promise.all([
     Class.findAndCountAll({
-      include: [
-        { model: Department, as: "department" },
-        { model: Stream, as: "streams" },
+      include: [{
+          model: Department,
+          as: "department"
+        },
+        {
+          model: Stream,
+          as: "streams"
+        },
         {
           model: Student,
           as: "students",
@@ -991,7 +1407,11 @@ router.get("/classes", async (req, res) => {
     title: "Classes",
     classes,
     departments,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -1013,7 +1433,11 @@ router.post("/classes", async (req, res) => {
 
 router.post("/classes/:id/delete", async (req, res) => {
   try {
-    await Class.destroy({ where: { id: req.params.id } });
+    await Class.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Class deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1023,11 +1447,18 @@ router.post("/classes/:id/delete", async (req, res) => {
 
 router.post("/classes/:id/edit", async (req, res) => {
   try {
-    const { name, departmentId } = req.body;
-    await Class.update(
-      { name, departmentId },
-      { where: { id: req.params.id } },
-    );
+    const {
+      name,
+      departmentId
+    } = req.body;
+    await Class.update({
+      name,
+      departmentId
+    }, {
+      where: {
+        id: req.params.id
+      }
+    }, );
     req.flash("success", "Class updated");
   } catch (err) {
     req.flash("error", err.message);
@@ -1039,13 +1470,21 @@ router.post("/classes/:id/edit", async (req, res) => {
 router.get("/streams", async (req, res) => {
   const [classes, totalStreams] = await Promise.all([
     Class.findAll({
-      include: [
-        { model: Department, as: "department" },
-        { model: Stream, as: "streams" },
+      include: [{
+          model: Department,
+          as: "department"
+        },
+        {
+          model: Stream,
+          as: "streams"
+        },
       ],
       order: [
         ["name", "ASC"],
-        [{ model: Stream, as: "streams" }, "name", "ASC"],
+        [{
+          model: Stream,
+          as: "streams"
+        }, "name", "ASC"],
       ],
     }),
     Stream.count(),
@@ -1054,7 +1493,11 @@ router.get("/streams", async (req, res) => {
     title: "Streams",
     classes,
     totalStreams,
-    pagination: { page: 1, pages: 1, total: totalStreams },
+    pagination: {
+      page: 1,
+      pages: 1,
+      total: totalStreams
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -1063,7 +1506,10 @@ router.get("/streams", async (req, res) => {
 
 router.post("/streams", async (req, res) => {
   try {
-    await Stream.create({ name: req.body.name, classId: req.body.classId });
+    await Stream.create({
+      name: req.body.name,
+      classId: req.body.classId
+    });
     req.flash("success", "Stream created");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1073,7 +1519,11 @@ router.post("/streams", async (req, res) => {
 
 router.post("/streams/:id/delete", async (req, res) => {
   try {
-    await Stream.destroy({ where: { id: req.params.id } });
+    await Stream.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Stream deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1083,8 +1533,18 @@ router.post("/streams/:id/delete", async (req, res) => {
 
 router.post("/streams/:id/edit", async (req, res) => {
   try {
-    const { name, classId } = req.body;
-    await Stream.update({ name, classId }, { where: { id: req.params.id } });
+    const {
+      name,
+      classId
+    } = req.body;
+    await Stream.update({
+      name,
+      classId
+    }, {
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Stream updated");
   } catch (err) {
     req.flash("error", err.message);
@@ -1097,7 +1557,11 @@ router.post("/streams/:id/edit", async (req, res) => {
 router.get("/subjects", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const departments = await Department.findAll({ order: [["name", "ASC"]] });
+  const departments = await Department.findAll({
+    order: [
+      ["name", "ASC"]
+    ]
+  });
 
   // Filter by dept → class cascade
   const selectedDeptId = req.query.deptId || "";
@@ -1106,8 +1570,13 @@ router.get("/subjects", async (req, res) => {
   let classes = [];
   if (selectedDeptId) {
     classes = await Class.findAll({
-      where: { departmentId: selectedDeptId },
-      include: [{ model: Department, as: "department" }],
+      where: {
+        departmentId: selectedDeptId
+      },
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
   }
 
@@ -1118,24 +1587,35 @@ router.get("/subjects", async (req, res) => {
     subjectWhere.classId = classes.map((c) => c.id);
   }
 
-  const { count, rows: subjects } = await Subject.findAndCountAll({
+  const {
+    count,
+    rows: subjects
+  } = await Subject.findAndCountAll({
     where: Object.keys(subjectWhere).length ? subjectWhere : {},
-    include: [
-      {
-        model: Class,
-        as: "class",
-        include: [{ model: Department, as: "department" }],
-      },
+    include: [{
+      model: Class,
+      as: "class",
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+    }, ],
+    order: [
+      ["name", "ASC"]
     ],
-    order: [["name", "ASC"]],
     limit,
     offset: (page - 1) * limit,
   });
 
   // For the form: all classes if no dept selected, filtered if dept selected
   const allClasses = await Class.findAll({
-    include: [{ model: Department, as: "department" }],
-    order: [["name", "ASC"]],
+    include: [{
+      model: Department,
+      as: "department"
+    }],
+    order: [
+      ["name", "ASC"]
+    ],
   });
 
   // Build dept→classes map for cascade JS
@@ -1143,7 +1623,10 @@ router.get("/subjects", async (req, res) => {
   allClasses.forEach((c) => {
     const did = c.departmentId;
     if (!deptClassMap[did]) deptClassMap[did] = [];
-    deptClassMap[did].push({ id: c.id, name: c.name });
+    deptClassMap[did].push({
+      id: c.id,
+      name: c.name
+    });
   });
 
   // ── Group subjects compactly under each Class ─────────────────────────────
@@ -1169,10 +1652,10 @@ router.get("/subjects", async (req, res) => {
     ss = [];
   try {
     se = req.flash("error") || [];
-  } catch (e2) { }
+  } catch (e2) {}
   try {
     ss = req.flash("success") || [];
-  } catch (e2) { }
+  } catch (e2) {}
 
   res.render("admin/subjects", {
     title: "Subjects",
@@ -1184,7 +1667,11 @@ router.get("/subjects", async (req, res) => {
     deptClassMap: deptClassMap || {},
     selectedDeptId: selectedDeptId || "",
     selectedClassId: selectedClassId || "",
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: se,
     success: ss,
@@ -1197,7 +1684,10 @@ router.post("/subjects", async (req, res) => {
       req.body.classId,
       req.body.name,
     );
-    await Subject.create({ name: cleanedName, classId: req.body.classId });
+    await Subject.create({
+      name: cleanedName,
+      classId: req.body.classId
+    });
     req.flash("success", "Subject created");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1207,7 +1697,11 @@ router.post("/subjects", async (req, res) => {
 
 router.post("/subjects/:id/delete", async (req, res) => {
   try {
-    await Subject.destroy({ where: { id: req.params.id } });
+    await Subject.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Subject deleted");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1217,16 +1711,23 @@ router.post("/subjects/:id/delete", async (req, res) => {
 
 router.post("/subjects/:id/edit", async (req, res) => {
   try {
-    const { name, classId } = req.body;
+    const {
+      name,
+      classId
+    } = req.body;
     const cleanedName = await validateUniqueSubjectForClass(
       classId,
       name,
       req.params.id,
     );
-    await Subject.update(
-      { name: cleanedName, classId },
-      { where: { id: req.params.id } },
-    );
+    await Subject.update({
+      name: cleanedName,
+      classId
+    }, {
+      where: {
+        id: req.params.id
+      }
+    }, );
     req.flash("success", "Subject updated");
   } catch (err) {
     req.flash("error", err.message);
@@ -1247,20 +1748,33 @@ router.get("/students", async (req, res) => {
     classRows = [],
     streamRows = [];
   try {
-    deptRows = await Department.findAll({ order: [["name", "ASC"]] });
+    deptRows = await Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    });
   } catch (e) {
     console.error("students dept error:", e.message);
   }
   try {
     classRows = await Class.findAll({
-      include: [{ model: Department, as: "department" }],
-      order: [["name", "ASC"]],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ],
     });
   } catch (e) {
     console.error("students class error:", e.message);
   }
   try {
-    streamRows = await Stream.findAll({ order: [["name", "ASC"]] });
+    streamRows = await Stream.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    });
   } catch (e) {
     console.error("students stream error:", e.message);
   }
@@ -1275,20 +1789,29 @@ router.get("/students", async (req, res) => {
   allClasses.forEach((c) => {
     const key = String(c.departmentId);
     if (!deptClassMap[key]) deptClassMap[key] = [];
-    deptClassMap[key].push({ id: c.id, name: c.name });
+    deptClassMap[key].push({
+      id: c.id,
+      name: c.name
+    });
   });
   const classStreamMap = {};
   allStreams.forEach((s) => {
     const key = String(s.classId);
     if (!classStreamMap[key]) classStreamMap[key] = [];
-    classStreamMap[key].push({ id: s.id, name: s.name });
+    classStreamMap[key].push({
+      id: s.id,
+      name: s.name
+    });
   });
 
   // Filter students by dept → class
   const studentWhere =
-    selectedStatus === "Moved"
-      ? { isActive: true, status: "Moved" }
-      : activeStudentWhere();
+    selectedStatus === "Moved" ?
+    {
+      isActive: true,
+      status: "Moved"
+    } :
+    activeStudentWhere();
   if (selectedClassId) {
     studentWhere.classId = parseInt(selectedClassId);
   } else if (selectedDeptId) {
@@ -1300,7 +1823,9 @@ router.get("/students", async (req, res) => {
 
   //searchQuery filter
   if (searchQuery) {
-    studentWhere.fullName = { $like: `%${searchQuery}%` };
+    studentWhere.fullName = {
+      $like: `%${searchQuery}%`
+    };
   }
 
   let students = [],
@@ -1308,11 +1833,18 @@ router.get("/students", async (req, res) => {
   try {
     const result = await Student.findAndCountAll({
       where: studentWhere,
-      include: [
-        { model: Class, as: "class" },
-        { model: Stream, as: "stream" },
+      include: [{
+          model: Class,
+          as: "class"
+        },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
       limit,
       offset: (page - 1) * limit,
     });
@@ -1326,10 +1858,10 @@ router.get("/students", async (req, res) => {
     fs2 = [];
   try {
     fe = req.flash("error") || [];
-  } catch (e) { }
+  } catch (e) {}
   try {
     fs2 = req.flash("success") || [];
-  } catch (e) { }
+  } catch (e) {}
 
   res.render("admin/students", {
     title: "Students",
@@ -1343,7 +1875,11 @@ router.get("/students", async (req, res) => {
     selectedClassId,
     selectedStatus,
     searchQuery,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: fe,
     success: fs2,
@@ -1354,13 +1890,22 @@ router.get("/students/export", async (req, res) => {
   try {
     const students = await Student.findAll({
       where: activeStudentWhere(),
-      include: [
-        { model: Class, as: "class" },
-        { model: Stream, as: "stream" },
+      include: [{
+          model: Class,
+          as: "class"
+        },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
-    const rows = [["Full Name", "Gender", "Class", "Stream", "Status"]];
+    const rows = [
+      ["Full Name", "Gender", "Class", "Stream", "Status"]
+    ];
     students.forEach((s) =>
       rows.push([
         s.fullName || "",
@@ -1373,8 +1918,8 @@ router.get("/students/export", async (req, res) => {
     const csv = rows
       .map((r) =>
         r
-          .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
-          .join(","),
+        .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
+        .join(","),
       )
       .join("\n");
     res.setHeader("Content-Type", "text/csv");
@@ -1390,12 +1935,17 @@ router.get("/students/export", async (req, res) => {
 router.get("/timetables/export", async (req, res) => {
   try {
     const tts = await Timetable.findAll({
-      include: [
-        { model: Teacher, as: "teacher" },
+      include: [{
+          model: Teacher,
+          as: "teacher"
+        },
         {
           model: Subject,
           as: "subject",
-          include: [{ model: Class, as: "class" }],
+          include: [{
+            model: Class,
+            as: "class"
+          }],
         },
       ],
     });
@@ -1428,8 +1978,8 @@ router.get("/timetables/export", async (req, res) => {
     const csv = rows
       .map((r) =>
         r
-          .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
-          .join(","),
+        .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
+        .join(","),
       )
       .join("\n");
     res.setHeader("Content-Type", "text/csv");
@@ -1463,9 +2013,15 @@ router.post(
         header.forEach((h, i) => (map[h] = cols[i] || ""));
         // find teacher
         const teacher = await Teacher.findOne({
-          where: { fullName: map["teacher"] },
+          where: {
+            fullName: map["teacher"]
+          },
         });
-        const subj = await Subject.findOne({ where: { name: map["subject"] } });
+        const subj = await Subject.findOne({
+          where: {
+            name: map["subject"]
+          }
+        });
         if (!teacher || !subj) continue; // skip rows we can't resolve
         await Timetable.create({
           teacherId: teacher.id,
@@ -1480,13 +2036,13 @@ router.post(
       }
       try {
         require("fs").unlinkSync(req.file.path);
-      } catch (e) { }
+      } catch (e) {}
       req.flash("success", "Timetables imported");
     } catch (err) {
       if (req.file && req.file.path)
         try {
           require("fs").unlinkSync(req.file.path);
-        } catch (e) { }
+        } catch (e) {}
       req.flash("error", "Import failed: " + err.message);
     }
     res.redirect("/admin/teachers");
@@ -1495,7 +2051,9 @@ router.post(
 
 router.get("/students/export", async (req, res) => {
   try {
-    const { classId } = req.query;
+    const {
+      classId
+    } = req.query;
 
     const studentWhere = activeStudentWhere();
     if (classId) {
@@ -1504,14 +2062,23 @@ router.get("/students/export", async (req, res) => {
 
     const students = await Student.findAll({
       where: studentWhere,
-      include: [
-        { model: Class, as: "class" },
-        { model: Stream, as: "stream" },
+      include: [{
+          model: Class,
+          as: "class"
+        },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
 
-    const rows = [["Full Name", "Gender", "Class", "Stream", "Status"]];
+    const rows = [
+      ["Full Name", "Gender", "Class", "Stream", "Status"]
+    ];
     students.forEach((s) =>
       rows.push([
         s.fullName || "",
@@ -1525,16 +2092,16 @@ router.get("/students/export", async (req, res) => {
     const csv = rows
       .map((r) =>
         r
-          .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
-          .join(","),
+        .map((cell) => '"' + String(cell || "").replace(/"/g, '""') + '"')
+        .join(","),
       )
       .join("\n");
 
     // Dynamic filename based on whether a class filter was applied
     const filename =
-      classId && students.length > 0 && students[0].class
-        ? `students_${students[0].class.name.replace(/\s+/g, "_")}.csv`
-        : "all_students.csv";
+      classId && students.length > 0 && students[0].class ?
+      `students_${students[0].class.name.replace(/\s+/g, "_")}.csv` :
+      "all_students.csv";
 
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -1547,7 +2114,12 @@ router.get("/students/export", async (req, res) => {
 
 router.post("/students", async (req, res) => {
   try {
-    const { fullName, gender, classId, streamId } = req.body;
+    const {
+      fullName,
+      gender,
+      classId,
+      streamId
+    } = req.body;
     await Student.create({
       fullName,
       gender,
@@ -1565,10 +2137,14 @@ router.post("/students", async (req, res) => {
 
 router.post("/students/:id/delete", async (req, res) => {
   try {
-    await Student.update(
-      { isActive: false, status: "Active" },
-      { where: { id: req.params.id } },
-    );
+    await Student.update({
+      isActive: false,
+      status: "Active"
+    }, {
+      where: {
+        id: req.params.id
+      }
+    }, );
     req.flash("success", "Student removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1587,16 +2163,17 @@ router.post("/students/:id/promote", async (req, res) => {
     );
     if (!targetClassId) throw new Error("No promotion target class found");
 
-    await Student.update(
-      {
-        classId: targetClassId,
-        status: "Active",
-        streamId: req.body.streamId || null,
+    await Student.update({
+      classId: targetClassId,
+      status: "Active",
+      streamId: req.body.streamId || null,
+    }, {
+      where: {
+        id: req.params.id,
+        isActive: true,
+        status: "Active"
       },
-      {
-        where: { id: req.params.id, isActive: true, status: "Active" },
-      },
-    );
+    }, );
     req.flash("success", "Student promoted successfully");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1606,18 +2183,27 @@ router.post("/students/:id/promote", async (req, res) => {
 
 router.post("/students/:id/status", async (req, res) => {
   try {
-    const { status } = req.body;
+    const {
+      status
+    } = req.body;
     if (status === "Moved") {
-      await Student.update(
-        { status: "Moved" },
-        { where: { id: req.params.id, isActive: true } },
-      );
+      await Student.update({
+        status: "Moved"
+      }, {
+        where: {
+          id: req.params.id,
+          isActive: true
+        }
+      }, );
       req.flash("success", "Student marked as moved");
     } else {
-      await Student.update(
-        { status: "Active" },
-        { where: { id: req.params.id } },
-      );
+      await Student.update({
+        status: "Active"
+      }, {
+        where: {
+          id: req.params.id
+        }
+      }, );
       req.flash("success", "Student status restored to active");
     }
   } catch (err) {
@@ -1631,13 +2217,26 @@ router.get("/students/moved", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 15;
-    const { count, rows } = await Student.findAndCountAll({
-      where: { isActive: true, status: "Moved" },
-      include: [
-        { model: Class, as: "class" },
-        { model: Stream, as: "stream" },
+    const {
+      count,
+      rows
+    } = await Student.findAndCountAll({
+      where: {
+        isActive: true,
+        status: "Moved"
+      },
+      include: [{
+          model: Class,
+          as: "class"
+        },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
       limit,
       offset: (page - 1) * limit,
     });
@@ -1645,7 +2244,11 @@ router.get("/students/moved", async (req, res) => {
     res.render("admin/moved-students", {
       title: "Moved Students",
       students: rows.map((s) => s.toJSON()),
-      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      pagination: {
+        page,
+        pages: Math.ceil(count / limit),
+        total: count
+      },
       admin: req.session && req.session.admin ? req.session.admin : {},
       error: req.flash("error") || [],
       success: req.flash("success") || [],
@@ -1659,18 +2262,22 @@ router.get("/students/moved", async (req, res) => {
 router.get("/students/import", async (req, res) => {
   let departments = [];
   try {
-    departments = (await Department.findAll({ order: [["name", "ASC"]] })).map(
+    departments = (await Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    })).map(
       (d) => d.toJSON(),
     );
-  } catch (e) { }
+  } catch (e) {}
   let fe = [],
     fs2 = [];
   try {
     fe = req.flash("error") || [];
-  } catch (e) { }
+  } catch (e) {}
   try {
     fs2 = req.flash("success") || [];
-  } catch (e) { }
+  } catch (e) {}
   res.render("admin/students-import", {
     title: "Import Students (CSV)",
     departments,
@@ -1683,7 +2290,9 @@ router.get("/students/import", async (req, res) => {
 router.post("/students/import", upload.single("csvFile"), async (req, res) => {
   try {
     if (!req.file) throw new Error("No CSV file uploaded");
-    const { departmentId } = req.body;
+    const {
+      departmentId
+    } = req.body;
     if (!departmentId) throw new Error("Please select a department");
 
     const results = await importStudentsFromCSV(req.file.path, departmentId);
@@ -1703,7 +2312,7 @@ router.post("/students/import", upload.single("csvFile"), async (req, res) => {
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
-      } catch (e) { }
+      } catch (e) {}
     }
     req.flash("error", "Import failed: " + err.message);
     res.redirect("/admin/students/import");
@@ -1721,10 +2330,10 @@ router.get("/students/import-results", (req, res) => {
     fs2 = [];
   try {
     fe = req.flash("error") || [];
-  } catch (e) { }
+  } catch (e) {}
   try {
     fs2 = req.flash("success") || [];
-  } catch (e) { }
+  } catch (e) {}
   res.render("admin/students-import-results", {
     title: "Import Results",
     results,
@@ -1738,9 +2347,14 @@ router.get("/students/import-results", (req, res) => {
 router.get("/students/:id/edit", async (req, res) => {
   try {
     const student = await Student.findById(req.params.id, {
-      include: [
-        { model: Class, as: "class" },
-        { model: Stream, as: "stream" },
+      include: [{
+          model: Class,
+          as: "class"
+        },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
     });
     if (!student) {
@@ -1749,12 +2363,24 @@ router.get("/students/:id/edit", async (req, res) => {
     }
 
     const departments = (
-      await Department.findAll({ order: [["name", "ASC"]] })
+      await Department.findAll({
+        order: [
+          ["name", "ASC"]
+        ]
+      })
     ).map((d) => d.toJSON());
-    const classes = (await Class.findAll({ order: [["name", "ASC"]] })).map(
+    const classes = (await Class.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    })).map(
       (c) => c.toJSON(),
     );
-    const streams = (await Stream.findAll({ order: [["name", "ASC"]] })).map(
+    const streams = (await Stream.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    })).map(
       (s) => s.toJSON(),
     );
 
@@ -1763,13 +2389,19 @@ router.get("/students/:id/edit", async (req, res) => {
     classes.forEach((c) => {
       const key = String(c.departmentId);
       if (!deptClassMap[key]) deptClassMap[key] = [];
-      deptClassMap[key].push({ id: c.id, name: c.name });
+      deptClassMap[key].push({
+        id: c.id,
+        name: c.name
+      });
     });
     const classStreamMap = {};
     streams.forEach((s) => {
       const key = String(s.classId);
       if (!classStreamMap[key]) classStreamMap[key] = [];
-      classStreamMap[key].push({ id: s.id, name: s.name });
+      classStreamMap[key].push({
+        id: s.id,
+        name: s.name
+      });
     });
 
     res.render("admin/student-edit", {
@@ -1793,11 +2425,22 @@ router.get("/students/:id/edit", async (req, res) => {
 // Update student
 router.post("/students/:id/edit", async (req, res) => {
   try {
-    const { fullName, gender, classId, streamId } = req.body;
-    await Student.update(
-      { fullName, gender, classId, streamId: streamId || null },
-      { where: { id: req.params.id } },
-    );
+    const {
+      fullName,
+      gender,
+      classId,
+      streamId
+    } = req.body;
+    await Student.update({
+      fullName,
+      gender,
+      classId,
+      streamId: streamId || null
+    }, {
+      where: {
+        id: req.params.id
+      }
+    }, );
     req.flash("success", "Student updated");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -1814,7 +2457,9 @@ router.post("/classes/:id/promote", async (req, res) => {
     if (!targetClassId) throw new Error("No promotion target class found");
 
     const students = await Student.findAll({
-      where: activeStudentWhere({ classId: req.params.id }),
+      where: activeStudentWhere({
+        classId: req.params.id
+      }),
     });
     if (!students.length)
       throw new Error("No active students found in this class");
@@ -1844,17 +2489,38 @@ router.get("/assignments/teacher-class", async (req, res) => {
     // Fetch all active teachers, departments, and classes for form selections
     const [teachers, departments, allClasses] = await Promise.all([
       Teacher.findAll({
-        where: { isActive: true },
-        include: [{ model: Department, as: "department" }],
-        order: [["fullName", "ASC"]],
-      }),
-      Department.findAll({ order: [["name", "ASC"]] }),
-      Class.findAll({
-        include: [
-          { model: Department, as: "department" },
-          { model: Stream, as: "streams", order: [["name", "ASC"]] },
+        where: {
+          isActive: true
+        },
+        include: [{
+          model: Department,
+          as: "department"
+        }],
+        order: [
+          ["fullName", "ASC"]
         ],
-        order: [["name", "ASC"]],
+      }),
+      Department.findAll({
+        order: [
+          ["name", "ASC"]
+        ]
+      }),
+      Class.findAll({
+        include: [{
+            model: Department,
+            as: "department"
+          },
+          {
+            model: Stream,
+            as: "streams",
+            order: [
+              ["name", "ASC"]
+            ]
+          },
+        ],
+        order: [
+          ["name", "ASC"]
+        ],
       }),
     ]);
 
@@ -1866,7 +2532,10 @@ router.get("/assignments/teacher-class", async (req, res) => {
       deptClassMap[key].push({
         id: c.id,
         name: c.name,
-        streams: (c.streams || []).map((s) => ({ id: s.id, name: s.name })),
+        streams: (c.streams || []).map((s) => ({
+          id: s.id,
+          name: s.name
+        })),
       });
     });
 
@@ -1876,11 +2545,11 @@ router.get("/assignments/teacher-class", async (req, res) => {
     });
 
     // Provide filtered classes array if a department filter is selected
-    const filteredClasses = selectedDeptId
-      ? allClasses.filter(
+    const filteredClasses = selectedDeptId ?
+      allClasses.filter(
         (c) => String(c.departmentId) === String(selectedDeptId),
-      )
-      : [];
+      ) :
+      [];
 
     // Build the query where clause based on filter selection
     const assignWhere = {};
@@ -1891,20 +2560,37 @@ router.get("/assignments/teacher-class", async (req, res) => {
     }
 
     // Fetch paginated assignments matching the filter criteria
-    const { count, rows: assignments } = await TeacherClass.findAndCountAll({
+    const {
+      count,
+      rows: assignments
+    } = await TeacherClass.findAndCountAll({
       where: Object.keys(assignWhere).length ? assignWhere : {},
-      include: [
-        { model: Teacher, as: "teacher" },
+      include: [{
+          model: Teacher,
+          as: "teacher"
+        },
         {
           model: Class,
           as: "class",
-          include: [{ model: Department, as: "department" }],
+          include: [{
+            model: Department,
+            as: "department"
+          }],
         },
-        { model: Stream, as: "stream" },
+        {
+          model: Stream,
+          as: "stream"
+        },
       ],
       order: [
-        [{ model: Class, as: "class" }, "name", "ASC"],
-        [{ model: Teacher, as: "teacher" }, "fullName", "ASC"],
+        [{
+          model: Class,
+          as: "class"
+        }, "name", "ASC"],
+        [{
+          model: Teacher,
+          as: "teacher"
+        }, "fullName", "ASC"],
       ],
       limit,
       offset: (page - 1) * limit,
@@ -1915,10 +2601,10 @@ router.get("/assignments/teacher-class", async (req, res) => {
       flashSuccess = [];
     try {
       flashError = req.flash("error") || [];
-    } catch (e) { }
+    } catch (e) {}
     try {
       flashSuccess = req.flash("success") || [];
-    } catch (e) { }
+    } catch (e) {}
 
     res.render("admin/assign-teacher-class", {
       title: "Assign Teachers to Classes",
@@ -1930,7 +2616,11 @@ router.get("/assignments/teacher-class", async (req, res) => {
       deptCodeMap,
       selectedDeptId,
       selectedClassId,
-      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      pagination: {
+        page,
+        pages: Math.ceil(count / limit),
+        total: count
+      },
       admin: req.session && req.session.admin ? req.session.admin : {},
       error: flashError,
       success: flashSuccess,
@@ -1951,34 +2641,65 @@ router.get("/assignments/teacher-subject", async (req, res) => {
 
   const [teachers, departments, allClasses] = await Promise.all([
     Teacher.findAll({
-      where: { isActive: true },
-      include: [{ model: Department, as: "department" }],
-      order: [["fullName", "ASC"]],
+      where: {
+        isActive: true
+      },
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     }),
-    Department.findAll({ order: [["name", "ASC"]] }),
+    Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    }),
     Class.findAll({
-      include: [{ model: Department, as: "department" }],
-      order: [["name", "ASC"]],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ],
     }),
   ]);
 
   // Classes filtered by dept for the form select
-  const classes = selectedDeptId
-    ? allClasses.filter((c) => c.departmentId == selectedDeptId)
-    : allClasses;
+  const classes = selectedDeptId ?
+    allClasses.filter((c) => c.departmentId == selectedDeptId) :
+    allClasses;
 
   // Subjects filtered by class for the form select
-  const subjects = selectedClassId
-    ? await Subject.findAll({
-      where: { classId: selectedClassId },
-      include: [{ model: Class, as: "class" }],
-    })
-    : selectedDeptId
-      ? await Subject.findAll({
-        where: { classId: classes.map((c) => c.id) },
-        include: [{ model: Class, as: "class" }],
-      })
-      : await Subject.findAll({ include: [{ model: Class, as: "class" }] });
+  const subjects = selectedClassId ?
+    await Subject.findAll({
+      where: {
+        classId: selectedClassId
+      },
+      include: [{
+        model: Class,
+        as: "class"
+      }],
+    }) :
+    selectedDeptId ?
+    await Subject.findAll({
+      where: {
+        classId: classes.map((c) => c.id)
+      },
+      include: [{
+        model: Class,
+        as: "class"
+      }],
+    }) :
+    await Subject.findAll({
+      include: [{
+        model: Class,
+        as: "class"
+      }]
+    });
 
   // Assignments filtered by dept/class
   const assignWhere = {};
@@ -1986,18 +2707,34 @@ router.get("/assignments/teacher-subject", async (req, res) => {
   else if (selectedDeptId && classes.length)
     assignWhere.classId = classes.map((c) => c.id);
 
-  const { count, rows: assignments } = await TeacherSubject.findAndCountAll({
+  const {
+    count,
+    rows: assignments
+  } = await TeacherSubject.findAndCountAll({
     where: Object.keys(assignWhere).length ? assignWhere : {},
-    include: [
-      { model: Teacher, as: "teacher" },
-      { model: Subject, as: "subject" },
+    include: [{
+        model: Teacher,
+        as: "teacher"
+      },
+      {
+        model: Subject,
+        as: "subject"
+      },
       {
         model: Class,
         as: "class",
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
     ],
-    order: [[{ model: Class, as: "class" }, "name", "ASC"]],
+    order: [
+      [{
+        model: Class,
+        as: "class"
+      }, "name", "ASC"]
+    ],
     limit,
     offset: (page - 1) * limit,
   });
@@ -2007,27 +2744,36 @@ router.get("/assignments/teacher-subject", async (req, res) => {
   allClasses.forEach((c) => {
     const did = c.departmentId;
     if (!deptClassMap[did]) deptClassMap[did] = [];
-    deptClassMap[did].push({ id: c.id, name: c.name });
+    deptClassMap[did].push({
+      id: c.id,
+      name: c.name
+    });
   });
 
   // class→subjects map for cascade JS
   const classSubjectMap = {};
   const allSubjects = await Subject.findAll({
-    include: [{ model: Class, as: "class" }],
+    include: [{
+      model: Class,
+      as: "class"
+    }],
   });
   allSubjects.forEach((s) => {
     if (!classSubjectMap[s.classId]) classSubjectMap[s.classId] = [];
-    classSubjectMap[s.classId].push({ id: s.id, name: s.name });
+    classSubjectMap[s.classId].push({
+      id: s.id,
+      name: s.name
+    });
   });
 
   let ase = [],
     ass = [];
   try {
     ase = req.flash("error") || [];
-  } catch (e2) { }
+  } catch (e2) {}
   try {
     ass = req.flash("success") || [];
-  } catch (e2) { }
+  } catch (e2) {}
 
   // ── Group assignments by teacher for the view layout ───────────────────────
   const teacherMap = {};
@@ -2061,7 +2807,11 @@ router.get("/assignments/teacher-subject", async (req, res) => {
     classSubjectMap: classSubjectMap || {},
     selectedDeptId: selectedDeptId || "",
     selectedClassId: selectedClassId || "",
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: ase,
     success: ass,
@@ -2070,15 +2820,42 @@ router.get("/assignments/teacher-subject", async (req, res) => {
 
 router.post("/assignments/teacher-class", async (req, res) => {
   try {
-    const { teacherId, classIds, classTeacherId, streamId } = req.body;
-    const parsedStreamId = streamId ? parseInt(streamId) : null;
-    const ids = Array.isArray(classIds) ? classIds : [classIds].filter(Boolean);
+    const {
+      teacherId,
+      classIds,
+      classTeacherId,
+      streamId
+    } = req.body;
+    const parsedTeacherId = parseInt(teacherId, 10);
+    const parsedStreamId = streamId ? parseInt(streamId, 10) : null;
+    const ids = (Array.isArray(classIds) ? classIds : [classIds].filter(Boolean))
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    if (!Number.isInteger(parsedTeacherId) || parsedTeacherId < 1) {
+      throw new Error("Select a valid teacher.");
+    }
+    if (!ids.length) {
+      throw new Error("Select at least one valid class.");
+    }
+
+    const teacher = await Teacher.findById(parsedTeacherId);
+    if (!teacher) throw new Error("Selected teacher was not found.");
+    if (parsedStreamId) {
+      const stream = await Stream.findById(parsedStreamId);
+      if (!stream || String(stream.classId) !== String(ids[0])) {
+        throw new Error("Selected stream does not belong to the selected class.");
+      }
+    }
 
     for (const classId of ids) {
-      const parsedClassId = parseInt(classId);
-      const cls = await Class.findById(parsedClassId, {
-        include: [{ model: Department, as: "department" }],
+      const cls = await Class.findById(classId, {
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       });
+      if (!cls) throw new Error("One of the selected classes was not found.");
       const deptCode = cls && cls.department ? cls.department.code : null;
 
       if (
@@ -2090,29 +2867,35 @@ router.post("/assignments/teacher-class", async (req, res) => {
         return res.redirect("/admin/assignments/teacher-class");
       }
 
-      const [row] = await TeacherClass.findOrCreate({
+      const row = await TeacherClass.findOne({
         where: {
-          teacherId,
-          classId: parsedClassId,
+          teacherId: parsedTeacherId,
+          classId,
           streamId: parsedStreamId || null,
         },
-        defaults: {
-          teacherId,
-          classId: parsedClassId,
-          streamId: parsedStreamId || null,
-        },
+      }) || await TeacherClass.create({
+        teacherId: parsedTeacherId,
+        classId,
+        streamId: parsedStreamId || null,
+        isClassTeacher: false,
       });
-      const isClassTeacher = classTeacherId === classId;
-      await row.update({ streamId: parsedStreamId || null });
+      const isClassTeacher = classTeacherId === String(classId);
+      await row.update({
+        streamId: parsedStreamId || null
+      });
       if (isClassTeacher) {
         // Only one class teacher per class/stream combination
-        await TeacherClass.update(
-          { isClassTeacher: false },
-          {
-            where: { classId: parsedClassId, streamId: parsedStreamId || null },
+        await TeacherClass.update({
+          isClassTeacher: false
+        }, {
+          where: {
+            classId,
+            streamId: parsedStreamId || null
           },
-        );
-        await row.update({ isClassTeacher: true });
+        }, );
+        await row.update({
+          isClassTeacher: true
+        });
       }
     }
     req.flash("success", "Teacher assigned to class(es)");
@@ -2129,11 +2912,17 @@ router.post(
       const row = await TeacherClass.findById(req.params.id);
       if (row) {
         // Clear existing class teacher for that class/stream combination
-        await TeacherClass.update(
-          { isClassTeacher: false },
-          { where: { classId: row.classId, streamId: row.streamId || null } },
-        );
-        await row.update({ isClassTeacher: true });
+        await TeacherClass.update({
+          isClassTeacher: false
+        }, {
+          where: {
+            classId: row.classId,
+            streamId: row.streamId || null
+          }
+        }, );
+        await row.update({
+          isClassTeacher: true
+        });
         req.flash("success", "Class teacher set");
       }
     } catch (err) {
@@ -2147,10 +2936,13 @@ router.post(
   "/assignments/teacher-class/:id/unset-class-teacher",
   async (req, res) => {
     try {
-      await TeacherClass.update(
-        { isClassTeacher: false },
-        { where: { id: req.params.id } },
-      );
+      await TeacherClass.update({
+        isClassTeacher: false
+      }, {
+        where: {
+          id: req.params.id
+        }
+      }, );
       req.flash("success", "Class teacher role removed");
     } catch (err) {
       req.flash("error", "Error: " + err.message);
@@ -2161,7 +2953,11 @@ router.post(
 
 router.post("/assignments/teacher-class/:id/remove", async (req, res) => {
   try {
-    await TeacherClass.destroy({ where: { id: req.params.id } });
+    await TeacherClass.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Assignment removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -2184,7 +2980,11 @@ router.get("/assignments/class-subject", async (req, res) => {
       count = 0;
 
     // Fetch departments
-    const deptRows = await Department.findAll({ order: [["name", "ASC"]] });
+    const deptRows = await Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    });
     departments = deptRows.map((d) => ({
       id: d.id,
       name: d.name,
@@ -2192,20 +2992,25 @@ router.get("/assignments/class-subject", async (req, res) => {
     }));
 
     const classRows = await Class.findAll({
-      include: [{ model: Department, as: "department" }],
-      order: [["name", "ASC"]],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ],
     });
     allClasses = classRows.map((c) => ({
       id: c.id,
       name: c.name,
       departmentId: c.departmentId,
-      department: c.department
-        ? {
+      department: c.department ?
+        {
           id: c.department.id,
           name: c.department.name,
           code: c.department.code,
-        }
-        : null,
+        } :
+        null,
     }));
 
     // Build dept→classes map for cascade JS — string keys
@@ -2213,29 +3018,45 @@ router.get("/assignments/class-subject", async (req, res) => {
     allClasses.forEach((c) => {
       const key = String(c.departmentId);
       if (!deptClassMap[key]) deptClassMap[key] = [];
-      deptClassMap[key].push({ id: c.id, name: c.name });
+      deptClassMap[key].push({
+        id: c.id,
+        name: c.name
+      });
     });
 
     // Subjects filtered by selected class (for the form)
     try {
       if (selectedClassId) {
         subjects = await Subject.findAll({
-          where: { classId: selectedClassId },
-          include: [{ model: Class, as: "class" }],
+          where: {
+            classId: selectedClassId
+          },
+          include: [{
+            model: Class,
+            as: "class"
+          }],
         });
       } else if (selectedDeptId) {
         const deptClasses = allClasses
           .filter((c) => c.departmentId == selectedDeptId)
           .map((c) => c.id);
-        subjects = deptClasses.length
-          ? await Subject.findAll({
-            where: { classId: deptClasses },
-            include: [{ model: Class, as: "class" }],
-          })
-          : [];
+        subjects = deptClasses.length ?
+          await Subject.findAll({
+            where: {
+              classId: deptClasses
+            },
+            include: [{
+              model: Class,
+              as: "class"
+            }],
+          }) :
+          [];
       } else {
         subjects = await Subject.findAll({
-          include: [{ model: Class, as: "class" }],
+          include: [{
+            model: Class,
+            as: "class"
+          }],
         });
       }
     } catch (e) {
@@ -2248,7 +3069,10 @@ router.get("/assignments/class-subject", async (req, res) => {
     allSubjectsForMap.forEach((s) => {
       const key = String(s.classId);
       if (!classSubjectMap[key]) classSubjectMap[key] = [];
-      classSubjectMap[key].push({ id: s.id, name: s.name });
+      classSubjectMap[key].push({
+        id: s.id,
+        name: s.name
+      });
     });
 
     // Assignments filtered by dept/class
@@ -2265,15 +3089,25 @@ router.get("/assignments/class-subject", async (req, res) => {
     try {
       const result = await ClassSubject.findAndCountAll({
         where: Object.keys(assignWhere).length ? assignWhere : {},
-        include: [
-          {
+        include: [{
             model: Class,
             as: "class",
-            include: [{ model: Department, as: "department" }],
+            include: [{
+              model: Department,
+              as: "department"
+            }],
           },
-          { model: Subject, as: "subject" },
+          {
+            model: Subject,
+            as: "subject"
+          },
         ],
-        order: [[{ model: Class, as: "class" }, "name", "ASC"]],
+        order: [
+          [{
+            model: Class,
+            as: "class"
+          }, "name", "ASC"]
+        ],
         limit,
         offset: (page - 1) * limit,
       });
@@ -2284,20 +3118,20 @@ router.get("/assignments/class-subject", async (req, res) => {
       console.error("class-subject assignments error:", e.message);
     }
 
-    const filteredClasses = selectedDeptId
-      ? allClasses.filter(
+    const filteredClasses = selectedDeptId ?
+      allClasses.filter(
         (c) => String(c.departmentId) === String(selectedDeptId),
-      )
-      : allClasses;
+      ) :
+      allClasses;
 
     let fe = [],
       fs2 = [];
     try {
       fe = req.flash("error") || [];
-    } catch (e) { }
+    } catch (e) {}
     try {
       fs2 = req.flash("success") || [];
-    } catch (e) { }
+    } catch (e) {}
 
     res.render("admin/assign-class-subject", {
       title: "Assign Subjects to Classes",
@@ -2310,7 +3144,11 @@ router.get("/assignments/class-subject", async (req, res) => {
       classSubjectMap: classSubjectMap || {},
       selectedDeptId: selectedDeptId || "",
       selectedClassId: selectedClassId || "",
-      pagination: { page, pages: Math.ceil(count / limit), total: count },
+      pagination: {
+        page,
+        pages: Math.ceil(count / limit),
+        total: count
+      },
       admin: req.session && req.session.admin ? req.session.admin : {},
       error: fe,
       success: fs2,
@@ -2328,7 +3166,11 @@ router.get("/assignments/class-subject", async (req, res) => {
       classSubjectMap: {},
       selectedDeptId: "",
       selectedClassId: "",
-      pagination: { page: 1, pages: 0, total: 0 },
+      pagination: {
+        page: 1,
+        pages: 0,
+        total: 0
+      },
       admin: req.session && req.session.admin ? req.session.admin : {},
       error: ["Error loading page: " + err.message],
       success: [],
@@ -2338,10 +3180,18 @@ router.get("/assignments/class-subject", async (req, res) => {
 
 router.post("/assignments/class-subject", async (req, res) => {
   try {
-    const { classId, subjectIds } = req.body;
+    const {
+      classId,
+      subjectIds
+    } = req.body;
     const ids = Array.isArray(subjectIds) ? subjectIds : [subjectIds];
     for (const subjectId of ids) {
-      await ClassSubject.findOrCreate({ where: { classId, subjectId } });
+      await ClassSubject.findOrCreate({
+        where: {
+          classId,
+          subjectId
+        }
+      });
     }
     req.flash("success", "Subject(s) assigned to class");
   } catch (err) {
@@ -2352,7 +3202,11 @@ router.post("/assignments/class-subject", async (req, res) => {
 
 router.post("/assignments/class-subject/:id/remove", async (req, res) => {
   try {
-    await ClassSubject.destroy({ where: { id: req.params.id } });
+    await ClassSubject.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Assignment removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -2369,34 +3223,65 @@ router.get("/assignments/teacher-subject", async (req, res) => {
 
   const [teachers, departments, allClasses] = await Promise.all([
     Teacher.findAll({
-      where: { isActive: true },
-      include: [{ model: Department, as: "department" }],
-      order: [["fullName", "ASC"]],
+      where: {
+        isActive: true
+      },
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     }),
-    Department.findAll({ order: [["name", "ASC"]] }),
+    Department.findAll({
+      order: [
+        ["name", "ASC"]
+      ]
+    }),
     Class.findAll({
-      include: [{ model: Department, as: "department" }],
-      order: [["name", "ASC"]],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ],
     }),
   ]);
 
   // Classes filtered by dept for the form select
-  const classes = selectedDeptId
-    ? allClasses.filter((c) => c.departmentId == selectedDeptId)
-    : allClasses;
+  const classes = selectedDeptId ?
+    allClasses.filter((c) => c.departmentId == selectedDeptId) :
+    allClasses;
 
   // Subjects filtered by class for the form select
-  const subjects = selectedClassId
-    ? await Subject.findAll({
-      where: { classId: selectedClassId },
-      include: [{ model: Class, as: "class" }],
-    })
-    : selectedDeptId
-      ? await Subject.findAll({
-        where: { classId: classes.map((c) => c.id) },
-        include: [{ model: Class, as: "class" }],
-      })
-      : await Subject.findAll({ include: [{ model: Class, as: "class" }] });
+  const subjects = selectedClassId ?
+    await Subject.findAll({
+      where: {
+        classId: selectedClassId
+      },
+      include: [{
+        model: Class,
+        as: "class"
+      }],
+    }) :
+    selectedDeptId ?
+    await Subject.findAll({
+      where: {
+        classId: classes.map((c) => c.id)
+      },
+      include: [{
+        model: Class,
+        as: "class"
+      }],
+    }) :
+    await Subject.findAll({
+      include: [{
+        model: Class,
+        as: "class"
+      }]
+    });
 
   // Assignments filtered by dept/class
   const assignWhere = {};
@@ -2404,18 +3289,34 @@ router.get("/assignments/teacher-subject", async (req, res) => {
   else if (selectedDeptId && classes.length)
     assignWhere.classId = classes.map((c) => c.id);
 
-  const { count, rows: assignments } = await TeacherSubject.findAndCountAll({
+  const {
+    count,
+    rows: assignments
+  } = await TeacherSubject.findAndCountAll({
     where: Object.keys(assignWhere).length ? assignWhere : {},
-    include: [
-      { model: Teacher, as: "teacher" },
-      { model: Subject, as: "subject" },
+    include: [{
+        model: Teacher,
+        as: "teacher"
+      },
+      {
+        model: Subject,
+        as: "subject"
+      },
       {
         model: Class,
         as: "class",
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
     ],
-    order: [[{ model: Class, as: "class" }, "name", "ASC"]],
+    order: [
+      [{
+        model: Class,
+        as: "class"
+      }, "name", "ASC"]
+    ],
     limit,
     offset: (page - 1) * limit,
   });
@@ -2425,27 +3326,36 @@ router.get("/assignments/teacher-subject", async (req, res) => {
   allClasses.forEach((c) => {
     const did = c.departmentId;
     if (!deptClassMap[did]) deptClassMap[did] = [];
-    deptClassMap[did].push({ id: c.id, name: c.name });
+    deptClassMap[did].push({
+      id: c.id,
+      name: c.name
+    });
   });
 
   // class→subjects map for cascade JS
   const classSubjectMap = {};
   const allSubjects = await Subject.findAll({
-    include: [{ model: Class, as: "class" }],
+    include: [{
+      model: Class,
+      as: "class"
+    }],
   });
   allSubjects.forEach((s) => {
     if (!classSubjectMap[s.classId]) classSubjectMap[s.classId] = [];
-    classSubjectMap[s.classId].push({ id: s.id, name: s.name });
+    classSubjectMap[s.classId].push({
+      id: s.id,
+      name: s.name
+    });
   });
 
   let ase = [],
     ass = [];
   try {
     ase = req.flash("error") || [];
-  } catch (e2) { }
+  } catch (e2) {}
   try {
     ass = req.flash("success") || [];
-  } catch (e2) { }
+  } catch (e2) {}
   res.render("admin/assign-teacher-subject", {
     title: "Assign Teachers to Subjects",
     teachers: teachers || [],
@@ -2458,7 +3368,11 @@ router.get("/assignments/teacher-subject", async (req, res) => {
     classSubjectMap: classSubjectMap || {},
     selectedDeptId: selectedDeptId || "",
     selectedClassId: selectedClassId || "",
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session && req.session.admin ? req.session.admin : {},
     error: ase,
     success: ass,
@@ -2467,11 +3381,19 @@ router.get("/assignments/teacher-subject", async (req, res) => {
 
 router.post("/assignments/teacher-subject", async (req, res) => {
   try {
-    const { teacherId, classId, subjectIds } = req.body;
+    const {
+      teacherId,
+      classId,
+      subjectIds
+    } = req.body;
     const ids = Array.isArray(subjectIds) ? subjectIds : [subjectIds];
     for (const subjectId of ids) {
       await TeacherSubject.findOrCreate({
-        where: { teacherId, subjectId, classId },
+        where: {
+          teacherId,
+          subjectId,
+          classId
+        },
       });
     }
     req.flash("success", "Teacher assigned to subject(s)");
@@ -2483,7 +3405,11 @@ router.post("/assignments/teacher-subject", async (req, res) => {
 
 router.post("/assignments/teacher-subject/:id/remove", async (req, res) => {
   try {
-    await TeacherSubject.destroy({ where: { id: req.params.id } });
+    await TeacherSubject.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Assignment removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -2495,15 +3421,24 @@ router.post("/assignments/teacher-subject/:id/remove", async (req, res) => {
 router.get("/holidays", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
-  const { count, rows: holidays } = await PublicHoliday.findAndCountAll({
-    order: [["date", "ASC"]],
+  const {
+    count,
+    rows: holidays
+  } = await PublicHoliday.findAndCountAll({
+    order: [
+      ["date", "ASC"]
+    ],
     limit,
     offset: (page - 1) * limit,
   });
   res.render("admin/holidays", {
     title: "Public Holidays",
     holidays,
-    pagination: { page, pages: Math.ceil(count / limit), total: count },
+    pagination: {
+      page,
+      pages: Math.ceil(count / limit),
+      total: count
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -2522,7 +3457,11 @@ router.post("/holidays", async (req, res) => {
 
 router.post("/holidays/:id/delete", async (req, res) => {
   try {
-    await PublicHoliday.destroy({ where: { id: req.params.id } });
+    await PublicHoliday.destroy({
+      where: {
+        id: req.params.id
+      }
+    });
     req.flash("success", "Holiday removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
@@ -2533,21 +3472,38 @@ router.post("/holidays/:id/delete", async (req, res) => {
 // ── Attendance Report ──────────────────────────────────────────────────────────
 router.get("/reports/attendance", async (req, res) => {
   try {
-    const { classId, streamId, fromDate, toDate } = req.query;
+    const {
+      classId,
+      streamId,
+      fromDate,
+      toDate
+    } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = 15;
 
     // 1. Fetch all classes for the main dropdown
     const classes = await Class.findAll({
-      include: [{ model: Department, as: "department" }],
-      order: [["name", "ASC"]],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+      order: [
+        ["name", "ASC"]
+      ],
     });
 
     // 2. Build map for cascading stream dropdown
     const classStreamMap = {};
     for (const cls of classes) {
-      const streams = await Stream.findAll({ where: { classId: cls.id } });
-      classStreamMap[cls.id] = streams.map((s) => ({ id: s.id, name: s.name }));
+      const streams = await Stream.findAll({
+        where: {
+          classId: cls.id
+        }
+      });
+      classStreamMap[cls.id] = streams.map((s) => ({
+        id: s.id,
+        name: s.name
+      }));
     }
 
     let report = null;
@@ -2559,7 +3515,10 @@ router.get("/reports/attendance", async (req, res) => {
     // 3. Process report if a class was selected
     if (classId) {
       const cls = await Class.findById(classId, {
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       });
       className = cls ? cls.name : "Unknown Class";
 
@@ -2578,16 +3537,28 @@ router.get("/reports/attendance", async (req, res) => {
 
       // 4. Construct Date Filter constraints from the open term range
       let dateFilter = {};
-      dateFilter.date = { $between: [reportFromDate, reportToDate] };
+      dateFilter.date = {
+        $between: [reportFromDate, reportToDate]
+      };
 
       // 5. Fetch students with pagination and stream filter
-      const studentWhere = activeStudentWhere({ classId });
+      const studentWhere = activeStudentWhere({
+        classId
+      });
       if (streamId) studentWhere.streamId = streamId;
 
-      const { count, rows: students } = await Student.findAndCountAll({
+      const {
+        count,
+        rows: students
+      } = await Student.findAndCountAll({
         where: studentWhere,
-        include: [{ model: Stream, as: "stream" }],
-        order: [["fullName", "ASC"]],
+        include: [{
+          model: Stream,
+          as: "stream"
+        }],
+        order: [
+          ["fullName", "ASC"]
+        ],
         limit,
         offset: (page - 1) * limit,
       });
@@ -2598,7 +3569,9 @@ router.get("/reports/attendance", async (req, res) => {
       if (students.length > 0) {
         const attendance = await Attendance.findAll({
           where: {
-            studentId: { $in: students.map((s) => s.id) },
+            studentId: {
+              $in: students.map((s) => s.id)
+            },
             ...dateFilter, // Inject from/to dates
           },
         });
@@ -2614,7 +3587,9 @@ router.get("/reports/attendance", async (req, res) => {
             schoolDays: schoolDays,
           };
         });
-        report = { summary: summary };
+        report = {
+          summary: summary
+        };
       }
     }
 
@@ -2631,8 +3606,11 @@ router.get("/reports/attendance", async (req, res) => {
       className,
       report,
       summary,
-      pagination:
-        total > 0 ? { page, pages: Math.ceil(total / limit), total } : null,
+      pagination: total > 0 ? {
+        page,
+        pages: Math.ceil(total / limit),
+        total
+      } : null,
       admin: req.session.admin,
       error: flash(req, "error"),
       success: flash(req, "success"),
@@ -2647,7 +3625,12 @@ router.get("/reports/attendance", async (req, res) => {
 // ── Print Attendance (full class, no pagination) ───────────────────────────────
 router.get("/reports/attendance/print", async (req, res) => {
   try {
-    const { classId, streamId, fromDate, toDate } = req.query;
+    const {
+      classId,
+      streamId,
+      fromDate,
+      toDate
+    } = req.query;
 
     // A class is required to generate a print report
     if (!classId) {
@@ -2657,7 +3640,10 @@ router.get("/reports/attendance/print", async (req, res) => {
 
     // 1. Fetch class info for the print header
     const cls = await Class.findById(classId, {
-      include: [{ model: Department, as: "department" }],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
     if (!cls) {
       req.flash("error", "Class not found.");
@@ -2673,17 +3659,26 @@ router.get("/reports/attendance/print", async (req, res) => {
 
     // 2. Construct Date Filter constraints from the open term range
     let dateFilter = {};
-    dateFilter.date = { $between: [reportFromDate, reportToDate] };
+    dateFilter.date = {
+      $between: [reportFromDate, reportToDate]
+    };
 
     // 3. Build student query (Filter by class and optional stream)
-    const studentWhere = activeStudentWhere({ classId });
+    const studentWhere = activeStudentWhere({
+      classId
+    });
     if (streamId) studentWhere.streamId = streamId;
 
     // 4. Fetch ALL matching students (Notice: no limit or offset for printing)
     const students = await Student.findAll({
       where: studentWhere,
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
 
     let summary = [];
@@ -2692,7 +3687,9 @@ router.get("/reports/attendance/print", async (req, res) => {
     if (students.length > 0) {
       const attendance = await Attendance.findAll({
         where: {
-          studentId: { $in: students.map((s) => s.id) },
+          studentId: {
+            $in: students.map((s) => s.id)
+          },
           ...dateFilter, // Inject from/to dates
         },
       });
@@ -2732,7 +3729,10 @@ router.get("/reports/attendance/print", async (req, res) => {
 // ── Examination Report ────────────────────────────────────────────────────────
 router.get("/reports/examination", async (req, res) => {
   const classes = await Class.findAll({
-    include: [{ model: Department, as: "department" }],
+    include: [{
+      model: Department,
+      as: "department"
+    }],
   });
   const currentYear = await getCurrentYear();
   const page = parseInt(req.query.page) || 1;
@@ -2741,27 +3741,44 @@ router.get("/reports/examination", async (req, res) => {
     total = 0;
 
   if (req.query.classId) {
-    const where = { classId: req.query.classId };
+    const where = {
+      classId: req.query.classId
+    };
     if (req.query.term) where.term = req.query.term;
     if (req.query.year) where.academicYear = req.query.year;
-    const { count, rows: marks } = await Mark.findAndCountAll({
+    const {
+      count,
+      rows: marks
+    } = await Mark.findAndCountAll({
       where,
-      include: [
-        {
+      include: [{
           model: Student,
           as: "student",
-          include: [
-            {
+          include: [{
               model: Class,
               as: "class",
-              include: [{ model: Department, as: "department" }],
+              include: [{
+                model: Department,
+                as: "department"
+              }],
             },
-            { model: Stream, as: "stream" },
+            {
+              model: Stream,
+              as: "stream"
+            },
           ],
         },
-        { model: Subject, as: "subject" },
+        {
+          model: Subject,
+          as: "subject"
+        },
       ],
-      order: [[{ model: Student, as: "student" }, "fullName", "ASC"]],
+      order: [
+        [{
+          model: Student,
+          as: "student"
+        }, "fullName", "ASC"]
+      ],
       limit,
       offset: (page - 1) * limit,
     });
@@ -2779,7 +3796,11 @@ router.get("/reports/examination", async (req, res) => {
     selectedClass: req.query.classId,
     selectedTerm: req.query.term || "",
     selectedYear: req.query.year || "",
-    pagination: { page, pages: Math.ceil(total / limit), total },
+    pagination: {
+      page,
+      pages: Math.ceil(total / limit),
+      total
+    },
     admin: req.session.admin,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -2789,37 +3810,62 @@ router.get("/reports/examination", async (req, res) => {
 // ── Helper: build class student reports ───────────────────────────────────────
 async function buildClassReports(classId, term, year) {
   const cls = await Class.findById(classId, {
-    include: [{ model: Department, as: "department" }],
+    include: [{
+      model: Department,
+      as: "department"
+    }],
   });
   const students = await Student.findAll({
-    where: activeStudentWhere({ classId }),
-    include: [
-      {
+    where: activeStudentWhere({
+      classId
+    }),
+    include: [{
         model: Class,
         as: "class",
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
-      { model: Stream, as: "stream" },
+      {
+        model: Stream,
+        as: "stream"
+      },
     ],
-    order: [["fullName", "ASC"]],
+    order: [
+      ["fullName", "ASC"]
+    ],
   });
   const deptCode = cls && cls.department ? cls.department.code : "";
   const isPrimary = deptCode === "Primary" || deptCode === "EYC";
   const studentReports = await Promise.all(
     students.map(async (student) => {
       const marks = await Mark.findAll({
-        where: { studentId: student.id, term, academicYear: year },
-        include: [{ model: Subject, as: "subject" }],
+        where: {
+          studentId: student.id,
+          term,
+          academicYear: year
+        },
+        include: [{
+          model: Subject,
+          as: "subject"
+        }],
       });
       const attendance = await Attendance.findAll({
-        where: { studentId: student.id },
+        where: {
+          studentId: student.id
+        },
       });
       const presentDays = attendance.filter(
         (a) => a.status === "present",
       ).length;
       const totalDays = attendance.length;
       const reportComments = await ReportComment.findAll({
-        where: { studentId: student.id, term, academicYear: year },
+        where: {
+          studentId: student.id,
+          term,
+          academicYear: year
+        },
       });
       const reportComment =
         reportComments.find((c) => c.classId === classId) ||
@@ -2836,13 +3882,22 @@ async function buildClassReports(classId, term, year) {
       };
     }),
   );
-  return { cls: cls ? cls.toJSON() : {}, deptCode, isPrimary, studentReports };
+  return {
+    cls: cls ? cls.toJSON() : {},
+    deptCode,
+    isPrimary,
+    studentReports
+  };
 }
 
 // ── Print All Progressive Reports (CA) for a Class ────────────────────────────
 router.get("/reports/print-all-report-cards", async (req, res) => {
   try {
-    const { classId, term, year } = req.query;
+    const {
+      classId,
+      term,
+      year
+    } = req.query;
     if (!classId) {
       return res
         .status(400)
@@ -2852,7 +3907,10 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
     }
     const t = term || "Term 1",
       y = year || "2024/2025";
-    const { cls, studentReports } = await buildClassReports(classId, t, y);
+    const {
+      cls,
+      studentReports
+    } = await buildClassReports(classId, t, y);
     res.render("admin/print-all-progressive", {
       title: "Progressive Report Cards — " + (cls.name || ""),
       cls,
@@ -2880,7 +3938,11 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
 // ── Print All Final Reports (FE) for a Class ──────────────────────────────────
 router.get("/reports/print-all-final-reports", async (req, res) => {
   try {
-    const { classId, term, year } = req.query;
+    const {
+      classId,
+      term,
+      year
+    } = req.query;
     if (!classId) {
       return res
         .status(400)
@@ -2890,8 +3952,13 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
     }
     const t = term || "Term 1",
       y = year || "2024/2025";
-    const { cls, deptCode, isPrimary, studentReports } =
-      await buildClassReports(classId, t, y);
+    const {
+      cls,
+      deptCode,
+      isPrimary,
+      studentReports
+    } =
+    await buildClassReports(classId, t, y);
     // Collect all unique subjects across all student marks
     const subjectMap = {};
     studentReports.forEach((sr) =>
@@ -2928,34 +3995,56 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
 router.get("/reports/exam-analysis", async (req, res) => {
   const currentYear = await getCurrentYear();
   const classes = await Class.findAll({
-    include: [{ model: Department, as: "department" }],
+    include: [{
+      model: Department,
+      as: "department"
+    }],
   });
   const term =
     req.query.term ||
-    (currentYear && currentYear.terms && currentYear.terms[0]
-      ? currentYear.terms[0].name
-      : "Term 1");
+    (currentYear && currentYear.terms && currentYear.terms[0] ?
+      currentYear.terms[0].name :
+      "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
   const academicYears = await AcademicYear.findAll({
-    include: [{ model: Term, as: "terms" }],
-    order: [["startDate", "DESC"]],
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
+    order: [
+      ["startDate", "DESC"]
+    ],
   });
 
   let analysisData = null;
   if (req.query.classId) {
     const cls = await Class.findById(req.query.classId, {
-      include: [{ model: Department, as: "department" }],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
     const deptCode = cls && cls.department ? cls.department.code : "";
     const marks = await Mark.findAll({
-      where: { classId: req.query.classId, term, academicYear: year },
-      include: [
-        { model: Subject, as: "subject" },
-        { model: Student, as: "student" },
+      where: {
+        classId: req.query.classId,
+        term,
+        academicYear: year
+      },
+      include: [{
+          model: Subject,
+          as: "subject"
+        },
+        {
+          model: Student,
+          as: "student"
+        },
       ],
     });
     const totalStudents = await Student.count({
-      where: activeStudentWhere({ classId: req.query.classId }),
+      where: activeStudentWhere({
+        classId: req.query.classId
+      }),
     });
     analysisData = {
       cls: cls ? cls.toJSON() : null,
@@ -2988,24 +4077,41 @@ router.get("/reports/academic-report/:classId", async (req, res) => {
     const currentYear = await getCurrentYear();
     const term =
       req.query.term ||
-      (currentYear && currentYear.terms && currentYear.terms[0]
-        ? currentYear.terms[0].name
-        : "Term 1");
+      (currentYear && currentYear.terms && currentYear.terms[0] ?
+        currentYear.terms[0].name :
+        "Term 1");
     const year =
       req.query.year || (currentYear ? currentYear.name : "2024/2025");
     const cls = await Class.findById(req.params.classId, {
-      include: [{ model: Department, as: "department" }],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
     const deptCode = cls && cls.department ? cls.department.code : "";
     const isPrimary = deptCode === "Primary" || deptCode === "EYC";
     const students = await Student.findAll({
-      where: activeStudentWhere({ classId: req.params.classId }),
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      where: activeStudentWhere({
+        classId: req.params.classId
+      }),
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
     const marks = await Mark.findAll({
-      where: { classId: req.params.classId, term, academicYear: year },
-      include: [{ model: Subject, as: "subject" }],
+      where: {
+        classId: req.params.classId,
+        term,
+        academicYear: year
+      },
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
     });
     const marksByStudent = {};
     marks.forEach((m) => {
@@ -3068,11 +4174,11 @@ router.post("/teachers/:id/reset-password", async (req, res) => {
     });
     const resetUrl = `${process.env.APP_URL || "https://rams.dodomacams.org"}/auth/teacher/reset-password/${raw}?email=${encodeURIComponent(teacher.email)}`;
     if (process.env.SM_US && process.env.SM_PA) {
-    await sendPasswordResetEmail(teacher, raw);
-    req.flash(
-      "success",
-      `Password reset link sent to ${teacher.email} (expires in 30 minutes)`,
-    );
+      await sendPasswordResetEmail(teacher, raw);
+      req.flash(
+        "success",
+        `Password reset link sent to ${teacher.email} (expires in 30 minutes)`,
+      );
     } else {
       req.flash(
         "success",
@@ -3087,13 +4193,12 @@ router.post("/teachers/:id/reset-password", async (req, res) => {
 
 // ── CSV Template Download ────────────────────────────────────────────────────
 router.get("/students/import-template", (req, res) => {
-  const csv =
-    [
-      "fullName,gender,class,stream",
-      "Jane Doe,Female,Grade 1,A",
-      "John Smith,Male,Grade 2,B",
-      "Mary Johnson,Female,Grade 1,",
-    ].join(String.fromCharCode(10)) + String.fromCharCode(10);
+  const csv = [
+    "fullName,gender,class,stream",
+    "Jane Doe,Female,Grade 1,A",
+    "John Smith,Male,Grade 2,B",
+    "Mary Johnson,Female,Grade 1,",
+  ].join(String.fromCharCode(10)) + String.fromCharCode(10);
   res.setHeader("Content-Type", "text/csv");
   res.setHeader(
     "Content-Disposition",
@@ -3121,22 +4226,21 @@ router.get("/backup", async (req, res) => {
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
     }
-  } catch (e) { }
+  } catch (e) {}
 
   let fe = [],
     fs2 = [];
   try {
     fe = req.flash("error") || [];
-  } catch (e) { }
+  } catch (e) {}
   try {
     fs2 = req.flash("success") || [];
-  } catch (e) { }
+  } catch (e) {}
 
   res.render("admin/backup", {
     title: "Database Backup",
     backupFiles,
-    backupEmail:
-      process.env.BACKUP_EMAIL || process.env.SM_US || "Not configured",
+    backupEmail: process.env.BACKUP_EMAIL || process.env.SM_US || "Not configured",
     admin: req.session.admin,
     error: fe,
     success: fs2,

@@ -45,7 +45,7 @@ block content
             span Report Comments
         .nav-section
           span.nav-label Planning
-          a.nav-item(href='/teacher/lesson-plans', class=title==='Lesson Plans' || title==='Create Lesson Plan' || title==='LESSON PLAN'?'active':'')
+          a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/lesson-plans' : '/teacher/lesson-plans'), class=title==='Lesson Plans' || title==='Create Lesson Plan' || title==='LESSON PLAN'?'active':'')
             i.fas.fa-file-signature
             span Lesson Plans
         .nav-section

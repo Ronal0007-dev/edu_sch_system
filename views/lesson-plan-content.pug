@@ -9,10 +9,10 @@
         i.fas.fa-arrow-left
         | Back to lesson plans
       if canEdit
-        a.btn.btn-primary(href=`/teacher/lesson-plans/${plan.id}/edit`)
+        a.btn.btn-primary(href=`${portalBase || '/teacher'}/lesson-plans/${plan.id}/edit`)
           i.fas.fa-edit
           | Edit
-        form(method='POST' action=`/teacher/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
+        form(method='POST' action=`${portalBase || '/teacher'}/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
           button.btn.btn-danger(type='submit')
             i.fas.fa-trash
             | Delete

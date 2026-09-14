@@ -1,0 +1,38 @@
+extends ../partials/teacher-layout
+
+block body
+  - const shortDate = (value) => { const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 ? parts[2] + '-' + parts[1] + '-' + parts[0] : '-'; }
+  .card
+    .card-header
+      h2 LESSON PLANS — #{selectedTeacher.fullName}
+      a.btn.btn-outline(href='/academician/lesson-plans')
+        i.fas.fa-arrow-left
+        | Back to teachers
+    .card-body
+      if classGroups && classGroups.length
+        each group in classGroups
+          h3(style='margin-top: 1.5rem') #{group.name}
+          table.data-table
+            thead
+              tr
+                th Topic
+                th Subject
+                th Dates
+                th Status
+                th Action
+            tbody
+              each plan in group.plans
+                tr
+                  td #{plan.topic}
+                  td #{plan.subject ? plan.subject.name : '-'}
+                  td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
+                  td
+                    span.status-badge(class=`${plan.status}`) #{plan.status}
+                  td
+                    a.btn.btn-sm.btn-outline(href=`/academician/lesson-plans/${plan.id}`)
+                      i.fas.fa-eye
+                      | Review
+      else
+        .empty-state
+          i.fas.fa-file-signature
+          p This teacher has no lesson plans in your department.

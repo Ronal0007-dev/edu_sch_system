@@ -5,12 +5,22 @@ block body
   .card
     .card-header
       h2 LESSON PLAN
-      if !isReviewer
-        a.btn.btn-primary(href='/teacher/lesson-plans/new')
+      if !isReviewer || (teacher && teacher.role === 'academician')
+        a.btn.btn-primary(href=`${portalBase}/lesson-plans/new`)
           i.fas.fa-plus
           |  New lesson plan
     .card-body
-      if plans && plans.length
+      if isReviewer && departmentGroups && departmentGroups.length
+        each group in departmentGroups
+          h3(style='margin-top: 1.5rem') #{group.name}
+          .lesson-plan-teacher-list
+            each teacherGroup in group.teachers
+              .lesson-plan-teacher-row
+                a(href=`${portalBase}/lesson-plans/teacher/${teacherGroup.id}`)
+                  i.fas.fa-user
+                  strong #{teacherGroup.name}
+                span.count-badge #{teacherGroup.plans.length} lesson plan#{teacherGroup.plans.length === 1 ? '' : 's'}
+      else if plans && plans.length
         table.data-table
           thead
             tr
@@ -39,11 +49,11 @@ block body
                   a.btn.btn-sm.btn-outline(href=`/${isReviewer && admin ? 'admin' : isReviewer ? 'academician' : 'teacher'}/lesson-plans/${plan.id}`)
                     i.fas.fa-eye
                     |  View
-                  if !isReviewer && plan.status !== 'approved'
-                    a.btn.btn-sm.btn-primary(href=`/teacher/lesson-plans/${plan.id}/edit` style='margin-left:.35rem')
+                  if ((!isReviewer || (teacher && teacher.role === 'academician' && String(teacher.id) === String(plan.teacherId))) && plan.status !== 'approved')
+                    a.btn.btn-sm.btn-primary(href=`${portalBase}/lesson-plans/${plan.id}/edit` style='margin-left:.35rem')
                       i.fas.fa-edit
                       | Edit
-                    form(style='display:inline-block; margin-left:.35rem' method='POST' action=`/teacher/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
+                    form(style='display:inline-block; margin-left:.35rem' method='POST' action=`${portalBase}/lesson-plans/${plan.id}/delete` onsubmit="return confirm('Delete this lesson plan?')")
                       button.btn.btn-sm.btn-danger(type='submit')
                         i.fas.fa-trash
                         | Delete

@@ -1,7 +1,9 @@
 extends ../partials/admin-layout
 
 block body
-  - const shortDate = (value) => { const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 && parts[0].length === 4 ? parts[2] + '-' + parts[1] + '-' + parts[0] : String(value || '-'); }
+  - const dateValue = (value) => { if (value instanceof Date && !isNaN(value.getTime())) return value; const parts = String(value || '').slice(0, 10).split('-'); return parts.length === 3 && parts[0].length === 4 ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])) : null; }
+  - const shortDate = (value) => { const date = dateValue(value); return date ? String(date.getDate()).padStart(2, '0') + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + date.getFullYear() : '-'; }
+  - const shortDay = (value) => { const date = dateValue(value); return date ? date.toLocaleDateString('en-US', { weekday: 'short' }) : '-'; }
   .two-col-layout
     .card.form-card
       .card-header
@@ -40,7 +42,7 @@ block body
                     | #{h.name}
                   td #{shortDate(h.date)}
                   td
-                    span.day-badge #{new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long'})}
+                    span.day-badge #{shortDay(h.date)}
                   td
                     form(method='POST', action=`/admin/holidays/${h.id}/delete`, style='display:inline')
                       button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Remove holiday?")')

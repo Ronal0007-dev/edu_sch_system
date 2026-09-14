@@ -9,28 +9,13 @@ block body
       if departmentGroups && departmentGroups.length
         each group in departmentGroups
           h3(style='margin-top: 1.5rem') #{group.name}
-          table.data-table
-            thead
-              tr
-                th Topic
-                th Teacher
-                th Class / Subject
-                th Dates
-                th Status
-                th Action
-            tbody
-              each plan in group.plans
-                tr
-                  td #{plan.topic}
-                  td #{plan.teacher ? plan.teacher.fullName : '-'}
-                  td #{plan.class ? plan.class.name : '-'} / #{plan.subject ? plan.subject.name : '-'}
-                  td #{shortDate(plan.startDate)} to #{shortDate(plan.endDate)}
-                  td
-                    span.status-badge(class=`${plan.status}`) #{plan.status}
-                  td
-                    a.btn.btn-sm.btn-outline(href=`/admin/lesson-plans/${plan.id}`)
-                      i.fas.fa-eye
-                      |  Review
+          .lesson-plan-teacher-list
+            each teacherGroup in group.teachers
+              .lesson-plan-teacher-row
+                a(href=`/admin/lesson-plans/teacher/${teacherGroup.id}`)
+                  i.fas.fa-user
+                  strong #{teacherGroup.name}
+                span.count-badge #{teacherGroup.plans.length} lesson plan#{teacherGroup.plans.length === 1 ? '' : 's'}
       else
         .empty-state
           i.fas.fa-file-signature
