@@ -1,5 +1,17 @@
 // Auto-dismiss alerts after 5 seconds
 document.addEventListener('DOMContentLoaded', function () {
+  const themeToggle = document.querySelector('.theme-toggle');
+  const savedTheme = localStorage.getItem('cams-theme') || 'light';
+  document.documentElement.dataset.theme = savedTheme;
+  if (themeToggle) {
+    themeToggle.querySelector('i').className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    themeToggle.addEventListener('click', function () {
+      const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = nextTheme;
+      localStorage.setItem('cams-theme', nextTheme);
+      themeToggle.querySelector('i').className = nextTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    });
+  }
   const alerts = document.querySelectorAll('.alert');
   alerts.forEach(alert => {
     setTimeout(() => {

@@ -106,6 +106,8 @@ block content
           a.admin-badge(href='/auth/admin/change-password', style='text-decoration:none')
             i.fas.fa-user-shield
             span #{admin ? admin.username : 'Admin'}
+          button.theme-toggle(type='button' aria-label='Switch theme' title='Switch theme')
+            i.fas.fa-moon
 
       .content-area
         if error && error.length

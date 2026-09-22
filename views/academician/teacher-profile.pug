@@ -32,17 +32,13 @@ block body
         i.fas.fa-book-open
       .card-body
         if teacherSubjects && teacherSubjects.length
-          table.data-table
-            thead
-              tr
-                th Subject
-                th Class
-            tbody
-              each assignment in teacherSubjects
-                tr
-                  td
-                    span.badge.badge-subject #{assignment.subject ? assignment.subject.name : '-'}
-                  td #{assignment.class ? assignment.class.name : '-'}
+          .assigned-subject-list
+            each assignment in teacherSubjects
+              .assigned-subject-chip
+                i.fas.fa-book
+                span #{assignment.subject ? assignment.subject.name : '-'}
+                if assignment.class
+                  small #{assignment.class.name}
         else
           .empty-state
             i.fas.fa-book
@@ -70,28 +66,48 @@ block body
                 span Filter
               
         if timetables && timetables.length
-          table.data-table
-            thead
-              tr
-                th Day
-                th Time
-                th Subject
-                th Class
-                th Location
-            tbody
-              each entry in timetables
-                tr
-                  td
-                    strong #{entry.day}
-                  td #{entry.startTime} - #{entry.endTime}
-                  td
-                    span.badge.badge-subject #{entry.subject ? entry.subject.name : '-'}
-                  td #{entry.subject && entry.subject.class ? entry.subject.class.name : '-'}
-                  td #{entry.location || '-'}
+          .timetable-grid
+            .timetable-grid-header
+              .timetable-time-head Time
+              each day in timetableDays
+                .timetable-day-head #{day}
+            each slot in timetableSlots
+              if slot.break
+                .timetable-break
+                  strong #{slot.label}
+                  span #{slot.note}
+              else
+                .timetable-grid-row
+                  .timetable-time #{slot.label}
+                  each day in timetableDays
+                    - const entry = timetables.find(function(item) { return item.day === day && item.startTime.slice(0, 5) === slot.start; })
+                    .timetable-cell
+                      if entry
+                        .timetable-entry(style=`background-color: ${entry.color || '#dbeafe'};`)
+                          strong #{entry.subject ? entry.subject.name : 'Lesson'}
+                          small #{entry.subject && entry.subject.class ? entry.subject.class.name : ''}
+                          if entry.location
+                            small #{entry.location}
         else
           .empty-state
             i.fas.fa-calendar-times
             p No timetable entries found for this term.
+
+    .card
+      .card-header
+        h2 Department Substitute Requests
+        i.fas.fa-user-clock
+      .card-body
+        if substituteRequests && substituteRequests.length
+          each request in substituteRequests
+            .substitute-request
+              div
+                strong #{request.requester ? request.requester.fullName : '-'} → #{request.substitute ? request.substitute.fullName : '-'}
+                span #{request.status} · #{new Date(request.updatedAt || request.createdAt).toLocaleDateString('en-GB')} · #{request.timetable ? request.timetable.day : '-'} · #{request.timetable ? request.timetable.startTime : ''} - #{request.timetable ? request.timetable.endTime : ''}
+                if request.timetable && request.timetable.subject
+                  small #{request.timetable.subject.name}
+        else
+          p No substitute requests found.
             
   div(style="margin-top: 20px;")
     a.btn.btn-outline(href='/academician/teachers')

@@ -321,10 +321,28 @@ const Timetable = sequelize.define(
     startTime: { type: DataTypes.TIME, allowNull: false },
     endTime: { type: DataTypes.TIME, allowNull: false },
     location: { type: DataTypes.STRING(150), allowNull: true },
+    color: { type: DataTypes.STRING(7), allowNull: false, defaultValue: "#dbeafe" },
     term: { type: DataTypes.STRING(20), allowNull: false },
     academicYear: { type: DataTypes.STRING(9), allowNull: false },
   },
   { tableName: "timetables", timestamps: true },
+);
+
+const SubstituteRequest = sequelize.define(
+  "SubstituteRequest",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    timetableId: { type: DataTypes.INTEGER, allowNull: false },
+    requesterTeacherId: { type: DataTypes.INTEGER, allowNull: false },
+    substituteTeacherId: { type: DataTypes.INTEGER, allowNull: false },
+    status: {
+      type: DataTypes.ENUM("pending", "accepted", "declined"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    note: { type: DataTypes.TEXT, allowNull: true },
+  },
+  { tableName: "substitute_requests", timestamps: true },
 );
 
 // ─── Lesson Plans ─────────────────────────────────────────────────────────────
@@ -478,6 +496,10 @@ Timetable.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
 // Link timetable -> subject
 Timetable.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 Subject.hasMany(Timetable, { foreignKey: "subjectId", as: "timetables" });
+Timetable.hasMany(SubstituteRequest, { foreignKey: "timetableId", as: "substituteRequests" });
+SubstituteRequest.belongsTo(Timetable, { foreignKey: "timetableId", as: "timetable" });
+SubstituteRequest.belongsTo(Teacher, { foreignKey: "requesterTeacherId", as: "requester" });
+SubstituteRequest.belongsTo(Teacher, { foreignKey: "substituteTeacherId", as: "substitute" });
 
 Teacher.hasMany(LessonPlan, { foreignKey: "teacherId", as: "lessonPlans" });
 LessonPlan.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
@@ -506,6 +528,7 @@ module.exports = {
   Attendance,
   Mark,
   Timetable,
+  SubstituteRequest,
   LessonPlan,
   LessonPlanFeedback,
 };

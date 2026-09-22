@@ -69,6 +69,8 @@ block content
           .teacher-badge
             i.fas.fa-user-tie
             span #{teacher ? teacher.fullName || teacher : 'Teacher'}
+          button.theme-toggle(type='button' aria-label='Switch theme' title='Switch theme')
+            i.fas.fa-moon
 
       .content-area
         if error && error.length

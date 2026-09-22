@@ -1,54 +1,40 @@
 extends ../partials/teacher-layout
 
 block body
-  .dashboard-grid
-    //- ── Add New Timetable Entry Form ──────────────────────────────────────────
-    .card
+  if substituteRequests && substituteRequests.length
+    .card.substitute-requests-card
       .card-header
-        h2 Add Timetable Entry
-        i.fas.fa-plus-circle
+        h2 Substitute requests
+        i.fas.fa-user-clock
       .card-body
-        form(action='/teacher/timetable/save' method='POST')
-          //- Hidden fields for the current term and year
-          input(type='hidden' name='term' value=term)
-          input(type='hidden' name='academicYear' value=year)
-          
-          .form-group
-            label Subject & Class
-            if subjects && subjects.length
-              select(name='subjectId' required)
-                option(value='') -- Select Assigned Subject --
-                each s in subjects
-                  option(value=s.id) #{s.name} - #{s.class ? s.class.name : 'Unknown Class'}
-            else
-              input(type='text' name='subjectId' placeholder='No assigned subjects' disabled)
-          
-          .form-row
-            .form-group
-              label Day
-              select(name='day' required)
-                option(value='') -- Select Day --
-                option(value='Monday') Monday
-                option(value='Tuesday') Tuesday
-                option(value='Wednesday') Wednesday
-                option(value='Thursday') Thursday
-                option(value='Friday') Friday
-              label Location (Optional)
-              input(type='text' name='location' placeholder='e.g., Room 101 or Lab 2')
-              
-          .form-row
-            .form-group
-              label Start Time
-              input(type='time' name='startTime' required)
-            .form-group
-              label End Time
-              input(type='time' name='endTime' required)
-              
-          button.btn.btn-primary(type='submit' style='margin-top: 15px;')
-            i.fas.fa-save
-            span Save Entry
-
-    //- ── View Existing Timetable Entries ───────────────────────────────────────
+        each request in substituteRequests
+          .substitute-request
+            div
+              strong #{request.requester ? request.requester.fullName : 'Teacher'} needs cover
+              span Accepted on #{new Date(request.updatedAt || request.createdAt).toLocaleDateString('en-GB')} · #{request.timetable ? request.timetable.day : '-'} · #{request.timetable ? request.timetable.startTime : ''} - #{request.timetable ? request.timetable.endTime : ''}
+              if request.timetable && request.timetable.subject
+                small #{request.timetable.subject.name} #{request.timetable.subject.class ? '— ' + request.timetable.subject.class.name : ''}
+            .substitute-request-actions
+              form(method='POST' action=`/teacher/timetable/substitute-requests/${request.id}/respond`)
+                input(type='hidden' name='status' value='accepted')
+                button.btn.btn-sm.btn-success(type='submit') Accept
+              form(method='POST' action=`/teacher/timetable/substitute-requests/${request.id}/respond`)
+                input(type='hidden' name='status' value='declined')
+                button.btn.btn-sm.btn-outline(type='submit') Decline
+  if acceptedSubstituteRequests && acceptedSubstituteRequests.length
+    .card.substitute-requests-card
+      .card-header
+        h2 Accepted substitute history
+        i.fas.fa-clipboard-check
+      .card-body
+        each request in acceptedSubstituteRequests
+          .substitute-request
+            div
+              strong #{request.requester ? request.requester.fullName : 'Teacher'} → #{request.substitute ? request.substitute.fullName : 'Teacher'}
+              span #{request.timetable ? request.timetable.day : '-'} · #{request.timetable ? request.timetable.startTime : ''} - #{request.timetable ? request.timetable.endTime : ''}
+              if request.timetable && request.timetable.subject
+                 small #{request.timetable.subject.name} #{request.timetable.subject.class ? '— ' + request.timetable.subject.class.name : ''}
+  .dashboard-grid
     .card
       .card-header
         h2 My Timetable (#{term} - #{year})
@@ -69,32 +55,60 @@ block body
             .form-group
               button.btn.btn-outline(type='submit') Filter
               
-        if entries && entries.length
-          table.data-table
-            thead
-              tr
-                th Day
-                th Time
-                th Subject
-                th Class
-                th Location
-                th Actions
-            tbody
-              each entry in entries
-                tr
-                  td
-                    strong #{entry.day}
-                  td #{entry.startTime} - #{entry.endTime}
-                  td
-                    span.badge.badge-subject #{entry.subject ? entry.subject.name : '-'}
-                  td #{entry.subject && entry.subject.class ? entry.subject.class.name : '-'}
-                  td #{entry.location || '-'}
-                  td
-                    form(action=`/teacher/timetable/${entry.id}/delete` method='POST' style='display:inline;' onsubmit='return confirm("Are you sure you want to delete this entry?");')
-                      button.btn.btn-sm.btn-danger(type='submit')
-                        i.fas.fa-trash
-                        span Delete
-        else
-          .empty-state
-            i.fas.fa-calendar-times
-            p No timetable entries found for this term.
+        .timetable-grid
+            .timetable-grid-header
+              .timetable-time-head Time
+              each day in timetableDays
+                .timetable-day-head #{day}
+            each slot in timetableSlots
+              if slot.break
+                .timetable-break
+                  strong #{slot.label}
+                  span #{slot.note}
+              else
+                .timetable-grid-row
+                  .timetable-time #{slot.label}
+                  each day in timetableDays
+                    - const entry = entries.find(function(item) { return item.day === day && item.startTime.slice(0, 5) === slot.start; })
+                    .timetable-cell
+                      if entry
+                        .timetable-entry(style=`background-color: ${entry.color || '#dbeafe'};`)
+                          strong #{entry.subject ? entry.subject.name : 'Lesson'}
+                          small #{entry.subject && entry.subject.class ? entry.subject.class.name : ''}
+                          if entry.location
+                            small #{entry.location}
+                          form(method='POST' action=`/teacher/timetable/${entry.id}/substitute` class='substitute-form')
+                            input(type='hidden' name='term' value=term)
+                            input(type='hidden' name='academicYear' value=year)
+                            select(name='substituteTeacherId' required)
+                              option(value='') Ask available substitute
+                              each candidate in (availableSubstitutes[entry.id] || [])
+                                option(value=candidate.id) #{candidate.fullName}
+                            input(type='text' name='note' placeholder='Optional note')
+                            button.btn.btn-sm.btn-warning(type='submit')
+                              i.fas.fa-user-clock
+                              | Request
+                          form(action=`/teacher/timetable/${entry.id}/delete` method='POST' onsubmit='return confirm("Are you sure you want to delete this entry?");')
+                            button.btn.btn-sm.btn-danger(type='submit')
+                              i.fas.fa-trash
+                              | Delete
+                      else
+                        details.timetable-free
+                          summary Add lesson
+                          if subjects && subjects.length
+                            form(method='POST' action='/teacher/timetable/save' class='quick-lesson-form')
+                              input(type='hidden' name='term' value=term)
+                              input(type='hidden' name='academicYear' value=year)
+                              input(type='hidden' name='day' value=day)
+                              input(type='hidden' name='startTime' value=slot.start)
+                              input(type='hidden' name='endTime' value=slot.end)
+                              select(name='subjectId' required)
+                                option(value='') Subject
+                                each subject in subjects
+                                  option(value=subject.id) #{subject.name}#{subject.class ? ' — ' + subject.class.name : ''}
+                              input(type='text' name='location' placeholder='Room (optional)')
+                              label.lesson-color-label(for=`lesson-color-${day}-${slot.start}`) Color
+                              input.lesson-color(type='color' id=`lesson-color-${day}-${slot.start}` name='color' value='#dbeafe' title='Choose lesson color')
+                              button.btn.btn-sm.btn-primary(type='submit') Save
+                          else
+                            small No assigned subjects

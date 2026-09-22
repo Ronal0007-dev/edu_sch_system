@@ -4,6 +4,7 @@ const {
   Teacher,
   Department,
   Timetable,
+  SubstituteRequest,
   Subject,
   Class,
   TeacherSubject
@@ -78,12 +79,46 @@ router.get('/teachers/view/:id', async (req, res) => {
       ],
       order: [['id', 'ASC']]
     });
+    if (req.session.teacher && req.session.teacher.role !== 'admin' &&
+      String(teacher.departmentId) !== String(req.session.teacher.departmentId)) {
+      req.flash('error', 'You may only view teachers in your department.');
+      return res.redirect('/academician/teachers');
+    }
+    const timetableDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const timetableSlots = [
+      { label: '08:05 - 08:50', start: '08:05' },
+      { label: '08:55 - 09:40', start: '08:55' },
+      { label: '09:45 - 10:30', start: '09:45' },
+      { label: 'BREAK', break: true, note: '10:30 - 11:00' },
+      { label: '11:00 - 11:45', start: '11:00' },
+      { label: '11:45 - 12:30', start: '11:45' },
+      { label: 'BREAK', break: true, note: '12:30 - 13:15' },
+      { label: '13:15 - 14:00', start: '13:15' },
+      { label: '14:05 - 14:50', start: '14:05' },
+    ];
+    const substituteRequests = await SubstituteRequest.findAll({
+      include: [
+        { model: Teacher, as: 'requester' },
+        { model: Teacher, as: 'substitute' },
+        { model: Timetable, as: 'timetable', include: [{ model: Subject, as: 'subject', include: [{ model: Class, as: 'class' }] }] },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+    const departmentRequests = req.session.teacher && req.session.teacher.role === 'admin'
+      ? substituteRequests
+      : substituteRequests.filter((request) =>
+        request.requester && String(request.requester.departmentId) === String(req.session.teacher.departmentId) &&
+        request.substitute && String(request.substitute.departmentId) === String(req.session.teacher.departmentId)
+      );
 
     res.render('academician/teacher-profile', {
       title: `Profile: ${teacher.fullName}`,
       teacher: teacher.toJSON(),
       teacherSubjects: teacherSubjects.map(ts => ts.toJSON()),
       timetables: timetables.map(t => t.toJSON()),
+      timetableDays,
+      timetableSlots,
+      substituteRequests: departmentRequests,
       term,
       year,
       user: req.session.teacher || req.session.admin,

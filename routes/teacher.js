@@ -32,6 +32,7 @@ const {
   PublicHoliday,
   ReportComment,
   Timetable,
+  SubstituteRequest,
 } = require("../models");
 
 router.use(requireTeacher);
@@ -1079,7 +1080,7 @@ router.get("/report-cards", async (req, res) => {
       {
         model: Class,
         as: "class",
-        include: ["students"],
+        include: [{ model: Student, as: "students" }],
       },
       {
         model: Stream,
@@ -1680,8 +1681,45 @@ Write only the report card comment text, nothing else.`;
   }
 });
 
-// ── Timetable (teacher editable) ─────────────────────────────────────────────
-// ── Timetable (teacher editable) ─────────────────────────────────────────────
+// ── Timetable and substitute requests ─────────────────────────────────────────
+const timetableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const timetableSlots = [
+  { label: "08:05 - 08:50", start: "08:05", end: "08:50" },
+  { label: "08:55 - 09:40", start: "08:55", end: "09:40" },
+  { label: "09:45 - 10:30", start: "09:45", end: "10:30" },
+  { label: "BREAK", break: true, note: "10:30 - 11:00" },
+  { label: "11:00 - 11:45", start: "11:00", end: "11:45" },
+  { label: "11:45 - 12:30", start: "11:45", end: "12:30" },
+  { label: "BREAK", break: true, note: "12:30 - 13:15" },
+  { label: "13:15 - 14:00", start: "13:15", end: "14:00" },
+  { label: "14:05 - 14:50", start: "14:05", end: "14:50" },
+];
+
+function timeToMinutes(value) {
+  const parts = String(value || "00:00").split(":");
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+function overlaps(first, second) {
+  return timeToMinutes(first.startTime) < timeToMinutes(second.endTime) &&
+    timeToMinutes(first.endTime) > timeToMinutes(second.startTime);
+}
+
+async function getAvailableSubstituteTeachers(lesson, teacherId, departmentId, term, year) {
+  const teachers = await Teacher.findAll({
+    where: { departmentId, isActive: true, id: { $ne: teacherId } },
+    order: [["fullName", "ASC"]],
+  });
+  const timetables = await Timetable.findAll({
+    where: { term, academicYear: year, day: lesson.day },
+  });
+  return teachers.filter((candidate) =>
+    !timetables.some((entry) =>
+      String(entry.teacherId) === String(candidate.id) && overlaps(lesson, entry),
+    ),
+  );
+}
+
 router.get('/timetable', async (req, res) => {
   try {
     const currentYear = await getCurrentYear();
@@ -1710,28 +1748,162 @@ router.get('/timetable', async (req, res) => {
       }], 
       order: [['day', 'ASC'], ['startTime', 'ASC']] 
     });
+    const availableSubstitutes = {};
+    for (const entry of entries) {
+      availableSubstitutes[entry.id] = await getAvailableSubstituteTeachers(
+        entry,
+        req.session.teacher.id,
+        req.session.teacher.departmentId,
+        term,
+        year,
+      );
+    }
+    const substituteRequests = await SubstituteRequest.findAll({
+      where: { substituteTeacherId: req.session.teacher.id, status: "pending" },
+      include: [
+        {
+          model: Timetable,
+          as: "timetable",
+          include: [{ model: Subject, as: "subject", include: [{ model: Class, as: "class" }] }],
+        },
+        { model: Teacher, as: "requester" },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+    const acceptedSubstituteRequests = await SubstituteRequest.findAll({
+      where: {
+        status: "accepted",
+        $or: [
+          { requesterTeacherId: req.session.teacher.id },
+          { substituteTeacherId: req.session.teacher.id },
+        ],
+      },
+      include: [
+        { model: Teacher, as: "requester" },
+        { model: Teacher, as: "substitute" },
+        {
+          model: Timetable,
+          as: "timetable",
+          include: [{ model: Subject, as: "subject", include: [{ model: Class, as: "class" }] }],
+        },
+      ],
+      order: [["updatedAt", "DESC"]],
+    });
     
     res.render('teacher/timetable', { 
       title: 'My Timetable', 
       entries, term, year, openTerms, subjects,
+      timetableDays, timetableSlots, availableSubstitutes, substituteRequests,
+      acceptedSubstituteRequests,
       teacher: req.session.teacher, 
       error: req.flash('error'), 
       success: req.flash('success') 
     });
+
   } catch (err) {
     req.flash('error', err.message);
     res.redirect('/teacher/dashboard');
   }
 });
 
+router.post('/timetable/substitute-requests/:id/respond', async (req, res) => {
+  try {
+    const request = await SubstituteRequest.findById(req.params.id);
+    if (!request || String(request.substituteTeacherId) !== String(req.session.teacher.id)) {
+      throw new Error("Substitute request not found.");
+    }
+    if (!["accepted", "declined"].includes(req.body.status)) {
+      throw new Error("Invalid substitute response.");
+    }
+    if (req.body.status === "accepted") {
+      const lesson = await Timetable.findById(request.timetableId);
+      const conflicts = await Timetable.findAll({
+        where: {
+          teacherId: req.session.teacher.id,
+          day: lesson.day,
+          term: lesson.term,
+          academicYear: lesson.academicYear,
+        },
+      });
+      if (conflicts.some((conflict) => overlaps(lesson, conflict))) {
+        throw new Error("You are no longer free during this lesson.");
+      }
+    }
+    await request.update({ status: req.body.status });
+    req.flash("success", req.body.status === "accepted" ? "Substitute request accepted." : "Substitute request declined.");
+  } catch (err) {
+    req.flash("error", err.message);
+  }
+  res.redirect("/teacher/timetable");
+});
+
+router.post('/timetable/:id/substitute', async (req, res) => {
+  const redirectUrl = `/teacher/timetable?term=${encodeURIComponent(req.body.term || '')}&year=${encodeURIComponent(req.body.academicYear || '')}`;
+  try {
+    const lesson = await Timetable.findById(req.params.id);
+    if (!lesson || String(lesson.teacherId) !== String(req.session.teacher.id)) {
+      throw new Error("Lesson not found or not owned by you.");
+    }
+    const substituteTeacherId = parseInt(req.body.substituteTeacherId, 10);
+    const candidates = await getAvailableSubstituteTeachers(
+      lesson,
+      req.session.teacher.id,
+      req.session.teacher.departmentId,
+      lesson.term,
+      lesson.academicYear,
+    );
+    if (!candidates.some((candidate) => String(candidate.id) === String(substituteTeacherId))) {
+      throw new Error("That teacher is not free during this lesson.");
+    }
+    const existing = await SubstituteRequest.findOne({
+      where: { timetableId: lesson.id, substituteTeacherId, status: "pending" },
+    });
+    if (existing) throw new Error("A substitute request is already pending for this teacher.");
+    await SubstituteRequest.create({
+      timetableId: lesson.id,
+      requesterTeacherId: req.session.teacher.id,
+      substituteTeacherId,
+      note: String(req.body.note || "").trim() || null,
+    });
+    req.flash("success", "Substitute request sent to the selected teacher.");
+  } catch (err) {
+    req.flash("error", err.message);
+  }
+  res.redirect(redirectUrl);
+});
+
 router.post('/timetable/save', async (req, res) => {
   try {
-    const { subjectId, day, startTime, endTime, location, term, academicYear } = req.body;
+    const { subjectId, day, startTime, endTime, location, color, term, academicYear } = req.body;
     if (!subjectId || !day || !startTime || !endTime) throw new Error('Subject, day, start time and end time are required');
+    const slot = timetableSlots.find((item) =>
+      !item.break && item.start === String(startTime).slice(0, 5) &&
+      item.end === String(endTime).slice(0, 5)
+    );
+    if (!timetableDays.includes(String(day)) || !slot) {
+      throw new Error('Select a valid lesson slot from the timetable.');
+    }
+    const lessonColor = /^#[0-9a-fA-F]{6}$/.test(String(color || ""))
+      ? String(color)
+      : "#dbeafe";
     
     // verify teacher teaches this subject
     const ts = await TeacherSubject.findOne({ where: { teacherId: req.session.teacher.id, subjectId } });
     if (!ts) throw new Error('You are not assigned to this subject');
+    const existingEntries = await Timetable.findAll({
+      where: {
+        teacherId: req.session.teacher.id,
+        day: String(day),
+        term: term || '',
+        academicYear: academicYear || '',
+      },
+    });
+    if (existingEntries.some((entry) => overlaps(
+      { startTime: String(startTime), endTime: String(endTime) },
+      entry,
+    ))) {
+      throw new Error('You already have a lesson in that timetable slot.');
+    }
     
     await Timetable.create({ 
       teacherId: req.session.teacher.id, 
@@ -1740,6 +1912,7 @@ router.post('/timetable/save', async (req, res) => {
       startTime: String(startTime), 
       endTime: String(endTime), 
       location: location ? String(location).trim() : null, 
+      color: lessonColor,
       term: term || '', 
       academicYear: academicYear || '' 
     });
@@ -1759,7 +1932,7 @@ router.post('/timetable/:id/delete', async (req, res) => {
     await row.destroy();
     req.flash('success', 'Timetable entry removed');
   } catch (err) { req.flash('error', err.message); }
-  res.redirect('back');
+  res.redirect(`/teacher/timetable?term=${encodeURIComponent(req.body.term || '')}&year=${encodeURIComponent(req.body.academicYear || '')}`);
 });
 
 module.exports = router;

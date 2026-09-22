@@ -1,0 +1,12 @@
+extends layout
+
+block content
+  .error-page
+    .error-card
+      .error-code.error-code-danger 500
+      i.fas.fa-triangle-exclamation.error-icon
+      h1 Something went wrong
+      p= message || 'The system could not complete your request.'
+      a.btn.btn-primary(href='/')
+        i.fas.fa-home
+        | Return home

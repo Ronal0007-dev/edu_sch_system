@@ -1,6 +1,8 @@
 extends ../partials/admin-layout
 
 block body
+  - const gridDays = timetableDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+  - const gridSlots = timetableSlots || [{label:'08:05 - 08:50', start:'08:05'}, {label:'08:55 - 09:40', start:'08:55'}, {label:'09:45 - 10:30', start:'09:45'}, {label:'BREAK', break:true, note:'10:30 - 11:00'}, {label:'11:00 - 11:45', start:'11:00'}, {label:'11:45 - 12:30', start:'11:45'}, {label:'BREAK', break:true, note:'12:30 - 13:15'}, {label:'13:15 - 14:00', start:'13:15'}, {label:'14:05 - 14:50', start:'14:05'}]
   .card
     .card-header
       h2 Teacher Profile
@@ -48,51 +50,63 @@ block body
             .assigned-class-heading
               div
                 h3 #{group.name}
-                //- span #{group.department}
+                span #{group.department}
               span.assigned-subject-count #{group.assignments.length} subject#{group.assignments.length === 1 ? '' : 's'}
-            table.data-table
-              thead
-                tr
-                  th Subject
-                  th Department
-              tbody
-                each assignment in group.assignments
-                  tr
-                    td
-                      span.badge.badge-subject #{assignment.subject ? assignment.subject.name : '-'}
-                    td #{group.department}
+            .assigned-subject-list
+              each assignment in group.assignments
+                .assigned-subject-chip
+                  i.fas.fa-book
+                  span #{assignment.subject ? assignment.subject.name : '-'}
       else
         .empty-state
           i.fas.fa-book
           p No subjects assigned to this teacher.
-  br
+
   .card
     .card-header
       h2 Timetable
       i.fas.fa-calendar-alt
     .card-body
       if timetables && timetables.length
-        table.data-table
-          thead
-            tr
-              th Subject
-              th Day
-              th Start
-              th End
-              th Location
-              th Term
-              th Year
-          tbody
-            each t in timetables
-              tr
-                td #{t.subject ? (t.subject.name + (t.subject.class ? ' - ' + t.subject.class.name : '')) : 'Unknown'}
-                td #{t.day}
-                td #{t.startTime}
-                td #{t.endTime}
-                td #{t.location || '-'}
-                td #{t.term}
-                td #{t.academicYear}
+        .timetable-grid
+          .timetable-grid-header
+            .timetable-time-head Time
+            each day in gridDays
+              .timetable-day-head #{day}
+          each slot in gridSlots
+            if slot.break
+              .timetable-break
+                strong #{slot.label}
+                span #{slot.note}
+            else
+              .timetable-grid-row
+                .timetable-time #{slot.label}
+                each day in gridDays
+                  - const entry = timetables.find(function(item) { return item.day === day && item.startTime.slice(0, 5) === slot.start; })
+                  .timetable-cell
+                    if entry
+                      .timetable-entry(style=`background-color: ${entry.color || '#dbeafe'};`)
+                        strong #{entry.subject ? entry.subject.name : 'Lesson'}
+                        small #{entry.subject && entry.subject.class ? entry.subject.class.name : ''}
+                        if entry.location
+                          small #{entry.location}
       else
         p No timetable entries found for this teacher.
+  br
+  .card
+    .card-header
+      h2 Substitute Requests
+      i.fas.fa-user-clock
+    .card-body
+      if substituteRequests && substituteRequests.length
+        each request in substituteRequests
+          .substitute-request
+            div
+              strong #{request.requester ? request.requester.fullName : '-'} → #{request.substitute ? request.substitute.fullName : '-'}
+              span #{request.status} · #{new Date(request.updatedAt || request.createdAt).toLocaleDateString('en-GB')} · #{request.timetable ? request.timetable.day : '-'} · #{request.timetable ? request.timetable.startTime : ''} - #{request.timetable ? request.timetable.endTime : ''}
+              if request.timetable && request.timetable.subject
+                small #{request.timetable.subject.name}
+      else
+        p No substitute requests found.
   br
   a.btn.btn-outline(href='/admin/teachers') Back to teachers

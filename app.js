@@ -63,25 +63,20 @@ app.use('/academician/lesson-plans', require('./routes/lessonPlans'));
 app.use('/admin/lesson-plans', require('./routes/lessonPlans'));
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
-  res.status(404).send(`
-    <div style="text-align:center;padding:4rem;font-family:sans-serif">
-      <h1 style="font-size:3rem;color:#1a56db">404</h1>
-      <p>Page not found</p>
-      <a href="/" style="color:#1a56db">← Go Home</a>
-    </div>
-  `);
+  res.status(404).render('404', {
+    title: 'Page Not Found',
+    user: req.session.teacher || req.session.admin,
+  });
 });
 
 // ── Error Handler ──────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).send(`
-    <div style="text-align:center;padding:4rem;font-family:sans-serif">
-      <h1 style="color:#ef4444">Server Error</h1>
-      <p>${err.message}</p>
-      <a href="/">← Go Home</a>
-    </div>
-  `);
+  res.status(500).render('error', {
+    title: 'Server Error',
+    message: err.message,
+    user: req.session.teacher || req.session.admin,
+  });
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────────
