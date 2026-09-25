@@ -17,6 +17,7 @@ block body
               option(value='') Select class
               each cls in classes
                 option(value=cls.id) #{cls.name} (#{cls.department ? cls.department.code : ''})
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Save Stream

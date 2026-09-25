@@ -15,6 +15,12 @@ block body
         h3 #{totalStudents}
         p Total Students
     .stat-card
+     .stat-icon.graduated
+       i.fas.fa-user-graduate
+     .stat-info
+       h3 #{totalGraduated}
+       p Graduated
+    .stat-card
       .stat-icon.teachers
         i.fas.fa-chalkboard-teacher
       .stat-info
@@ -26,12 +32,12 @@ block body
       .stat-info
         h3 #{totalClasses}
         p Total Classes
-    .stat-card
-      .stat-icon.depts
-        i.fas.fa-building
-      .stat-info
-        h3 #{totalDepts}
-        p Departments
+    //- .stat-card
+    //-   .stat-icon.depts
+    //-     i.fas.fa-building
+    //-   .stat-info
+    //-     h3 #{totalDepts}
+    //-     p Departments
 
   // Full-width Chart Row Container
   .card.mb-4
@@ -196,7 +202,7 @@ block body
         ctx.fillRect(xPos, yPos, barWidth, barHeight);
 
         // Render quantitative data labels above bars
-        ctx.fillStyle = '#1e293b';
+        ctx.fillStyle = '#9daec9';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';

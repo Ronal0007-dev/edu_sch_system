@@ -22,9 +22,12 @@ block body
               label.btn.btn-outline(for='csvFile') Browse File
               input(type='file', name='csvFile', id='csvFile', accept='.csv', required, style='display:none')
               p.file-selected#fileSelected No file chosen
+          br
           .form-hint
             i.fas.fa-info-circle
             span Max file size: 5 MB. Up to 500+ students per import.
+          
+          br
           button.btn.btn-primary.btn-full(type='submit', id='importBtn')
             i.fas.fa-upload
             span Import Students

@@ -1,0 +1,35 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Graduated Student Details
+      .header-actions
+        a.btn.btn-outline(href='/admin/students/graduated')
+          i.fas.fa-arrow-left
+          span Back
+    .card-body
+      .student-details-section
+        h3 #{student.fullName}
+        p
+          strong Gender:
+          |  #{student.gender}
+        p
+          strong Graduated Class:
+          |  #{student.class ? student.class.name : '-'}
+        p
+          strong Department:
+          |  #{student.class && student.class.department ? student.class.department.name : '-'}
+        p
+          strong Stream:
+          |  #{student.stream ? student.stream.name : '-'}
+      .form-actions
+        a.btn.btn-outline(href=`/admin/students/${student.id}/edit`)
+          i.fas.fa-edit
+          span Edit
+        a.btn.btn-primary(href=`/admin/discipline/student/${student.id}`)
+          i.fas.fa-scale-balanced
+          span Discipline
+        a.btn.btn-outline(href=`/admin/students/graduated/print?studentId=${student.id}`, target='_blank')
+          i.fas.fa-print
+          span Print

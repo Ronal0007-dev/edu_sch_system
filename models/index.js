@@ -148,7 +148,10 @@ const Student = sequelize.define(
     classId: { type: DataTypes.INTEGER, allowNull: false },
     streamId: { type: DataTypes.INTEGER },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
-    status: { type: DataTypes.ENUM("Active", "Moved"), defaultValue: "Active" },
+    status: {
+      type: DataTypes.ENUM("Active", "Moved", "Graduated"),
+      defaultValue: "Active",
+    },
   },
   {
     tableName: "students",

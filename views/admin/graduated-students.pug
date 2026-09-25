@@ -1,0 +1,73 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Graduated Students
+      .header-actions
+        span.count-badge #{pagination.total}
+    .card-body
+      form.filter-form(method='GET', action='/admin/students/graduated')
+        .form-row
+          .form-group
+            label Search
+            input(type='text', name='search', placeholder='Student name...', value=searchQuery)
+          .form-group
+            label Department
+            select(name='deptId')
+              option(value='') All Departments
+              each dept in (departments || [])
+                option(value=dept.id, selected=String(selectedDeptId)===String(dept.id)) #{dept.name} (#{dept.code})
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-search
+            span Search
+          a.btn.btn-outline(href=`/admin/students/graduated/print${selectedDeptId ? '?deptId=' + selectedDeptId : ''}`, target='_blank')
+            i.fas.fa-print
+            span Print All
+          if searchQuery || selectedDeptId
+            a.btn.btn-outline(href='/admin/students/graduated') Clear
+
+      if students && students.length
+        br
+        table.data-table
+          thead
+            tr
+              th #
+              th Name
+              th Gender
+              th Graduated Class
+              th Department
+              th Records
+          tbody
+            each student, i in students
+              tr
+                td #{((pagination.page - 1) * 15) + i + 1}
+                td #{student.fullName}
+                td #{student.gender}
+                td #{student.class ? student.class.name : '-'}
+                td #{student.class && student.class.department ? student.class.department.name : '-'}
+                td
+                  a.btn.btn-sm.btn-outline(href=`/admin/students/graduated/view/${student.id}` title='View student')
+                    i.fas.fa-eye
+                  a.btn.btn-sm.btn-outline(href=`/admin/students/${student.id}/edit` title='Edit student')
+                    i.fas.fa-edit
+                  //- a.btn.btn-sm.btn-outline(href=`/admin/students/graduated/print?studentId=${student.id}` title='Print student')
+                  //-   i.fas.fa-print
+                  if student.class
+                    a.btn.btn-sm.btn-outline(href=`/admin/reports/attendance?classId=${student.class.id}` title='Attendance records')
+                      i.fas.fa-calendar-check
+                    a.btn.btn-sm.btn-outline(href=`/admin/reports/examination?classId=${student.class.id}` title='Report records')
+                      i.fas.fa-file-alt
+                  a.btn.btn-sm.btn-outline(href=`/admin/discipline/student/${student.id}` title='View discipline')
+                    i.fas.fa-folder-open
+                  form(method='POST', action=`/admin/students/${student.id}/delete`, style='display:inline')
+                    button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this graduated student?")' title='Delete student')
+                      i.fas.fa-trash
+      else
+        .empty-state
+          i.fas.fa-user-graduate
+          p No graduated students found.
+
+      if pagination.pages > 1
+        - const query = {search: searchQuery, deptId: selectedDeptId}
+        include ../partials/pagination

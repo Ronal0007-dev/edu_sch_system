@@ -71,8 +71,14 @@ function termValues(req, active) {
   };
 }
 
-async function loadStudents(req) {
-  const where = {
+async function loadStudents(req, includeGraduated = false) {
+  const where = includeGraduated ?
+    {
+      status: {
+        $in: ["Active", "Graduated"]
+      }
+    } :
+{
     isActive: true,
     status: "Active"
   };
@@ -238,7 +244,11 @@ router.get("/student/:id", async (req, res) => {
   const active = await currentTerm();
   const values = termValues(req, active && active.term ? active.term : null);
   if (!values.academicYear && active && active.year) values.academicYear = active.year.name;
-  const student = (await loadStudents(req)).find((item) => String(item.id) === String(req.params.id));
+  const student = isAdmin(req)
+    ? await Student.findById(req.params.id, {
+      include: [{ model: Class, as: "class", include: [{ model: Department, as: "department" }] }],
+    })
+    : (await loadStudents(req)).find((item) => String(item.id) === String(req.params.id));
   if (!student) return res.status(404).render("404", {
     title: "Student Not Found",
     user: actor(req)

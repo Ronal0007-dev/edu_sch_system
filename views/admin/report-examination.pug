@@ -14,6 +14,12 @@ block body
               option(value='') Select class
               each cls in classes
                 option(value=cls.id, selected=selectedClass==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+            .form-group
+              label Student status
+              select(name='status')
+                option(value='Active', selected=selectedStatus==='Active') Active
+                option(value='Moved', selected=selectedStatus==='Moved') Moved
+                option(value='Graduated', selected=selectedStatus==='Graduated') Graduated
           .form-group
             label Term
             select(name='term')
@@ -37,10 +43,10 @@ block body
     .report-toolbar.no-print
       span &nbsp;
       .toolbar-actions
-        a.btn.btn-primary(href=`/admin/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+        a.btn.btn-primary(href=`/admin/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
           i.fas.fa-chart-line
           span Print All Progressive
-        a.btn.btn-outline(href=`/admin/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+        a.btn.btn-outline(href=`/admin/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
           i.fas.fa-file-alt
           span Print All Final
 

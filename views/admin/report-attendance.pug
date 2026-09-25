@@ -14,6 +14,12 @@ block body
               option(value='') Select class
               each cls in classes
                 option(value=cls.id, selected=selectedClass==cls.id.toString()) #{cls.name} (#{cls.department ? cls.department.code : ''})
+            .form-group
+              label Student status
+              select(name='status')
+                option(value='Active', selected=selectedStatus==='Active') Active
+                option(value='Moved', selected=selectedStatus==='Moved') Moved
+                option(value='Graduated', selected=selectedStatus==='Graduated') Graduated
           
           // ADD THE STREAM SELECTION HERE
           .form-group#streamGroup(style='display: none;')
@@ -41,7 +47,7 @@ block body
         small.report-period-note #{reportPeriod.term} · School days: #{reportPeriod.schoolDays}
       .toolbar-actions
         // PRINT BUTTON WITH STREAM AND DATE PARAMETERS
-        a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}${selectedStream ? '&streamId=' + selectedStream : ''}${fromDate ? '&fromDate=' + fromDate : ''}${toDate ? '&toDate=' + toDate : ''}`, target='_blank')
+        a.btn.btn-primary(href=`/admin/reports/attendance/print?classId=${selectedClass}&status=${selectedStatus}${selectedStream ? '&streamId=' + selectedStream : ''}${fromDate ? '&fromDate=' + fromDate : ''}${toDate ? '&toDate=' + toDate : ''}`, target='_blank')
           i.fas.fa-print
           span Print Attendance
 

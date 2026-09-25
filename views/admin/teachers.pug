@@ -23,9 +23,11 @@ block body
               option(value='') Select department
               each dept in departments
                 option(value=dept.id) #{dept.name} (#{dept.code})
+          br
           .form-hint
             i.fas.fa-key
             span Default password: PhoneNumber + DepartmentCode (e.g. 0712345678EYC)
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Add Teacher

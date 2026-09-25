@@ -20,10 +20,12 @@ block body
           .form-group
             label End Date
             input(type='date', name='endDate', required)
-          .form-group
-            label
-              input(type='checkbox', name='isCurrent', value='1')
-              |  Set as Current Year
+          br
+          .form-group.current-year-toggle
+            label(for='isCurrentYear')
+              input#isCurrentYear(type='checkbox', name='isCurrent', value='1')
+              span Set as Current Year
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Save Academic Year
@@ -52,6 +54,7 @@ block body
           .form-group
             label Close Date
             input(type='date', name='endDate', required)
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-plus
             span Add Term

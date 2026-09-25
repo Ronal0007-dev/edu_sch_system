@@ -15,7 +15,7 @@
   --sidebar: #0f172a;
   --sidebar-text: #94a3b8;
   --sidebar-active: #1a56db;
-  --text: #1e293b;
+  --text: #000000;
   --text-muted: #64748b;
   --border: #e2e8f0;
   --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 1px 2px rgba(0, 0, 0, .06);
@@ -103,8 +103,8 @@ body {
   --bg: #0f172a;
   --card: #1e293b;
   --surface: #1e293b;
-  --text: #e2e8f0;
-  --text-muted: #cbd5e1;
+  --text: #7990a6;
+  --text-muted: #7990a6;
   --border: #475569;
   --primary-light: #1e3a8a;
 }
@@ -304,6 +304,33 @@ a:hover {
   overflow-y: auto;
   z-index: 100;
   flex-shrink: 0;
+  transition: width .25s ease;
+}
+
+.sidebar.is-collapsed {
+  width: 76px;
+}
+
+.sidebar.is-collapsed .brand-text,
+.sidebar.is-collapsed .nav-label,
+.sidebar.is-collapsed .nav-item span {
+  display: none;
+}
+
+.sidebar.is-collapsed .sidebar-brand {
+  justify-content: center;
+  padding-left: .5rem;
+  padding-right: .5rem;
+}
+
+.sidebar.is-collapsed .nav-item {
+  justify-content: center;
+  padding-left: .5rem;
+  padding-right: .5rem;
+}
+
+body.sidebar-collapsed .main-content {
+  margin-left: 76px;
 }
 
 .sidebar-teacher {
@@ -416,10 +443,18 @@ a:hover {
   z-index: 50;
 }
 
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: 0;
+}
+
 .page-title {
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--text);
+  line-height: 1.2;
 }
 
 .admin-badge,
@@ -616,6 +651,25 @@ a:hover {
   gap: .35rem;
 }
 
+.current-year-toggle {
+  display: block;
+}
+
+.current-year-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  cursor: pointer;
+  text-transform: none;
+}
+
+.current-year-toggle input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 .form-group label {
   font-size: .82rem;
   font-weight: 600;
@@ -698,7 +752,7 @@ a:hover {
   font-size: .9rem;
 }
 
-.assigned-class-heading>div span {
+.assigned-class-heading > div span {
   color: var(--text-muted);
   font-size: .75rem;
 }
@@ -2017,7 +2071,27 @@ a:hover {
 }
 
 .nav-toggle {
-  display: none;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 23, 42, .08));
+}
+
+.nav-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text);
+  border-radius: 99px;
 }
 
 /* ─── Responsive ───────────────────────────────────────────────────────────── */
@@ -2046,38 +2120,26 @@ a:hover {
 }
 
 @media (max-width: 700px) {
-  .nav-toggle {
-    display: inline-flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    width: 42px;
-    height: 42px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--card);
-    cursor: pointer;
-    padding: 0;
-    box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 23, 42, .08));
-  }
-
-  .nav-toggle span {
-    display: block;
-    width: 18px;
-    height: 2px;
-    background: var(--text);
-    border-radius: 99px;
+  .top-bar {
+    padding: .75rem 1rem;
   }
 
   .top-bar-left {
-    display: flex;
-    align-items: center;
-    gap: .75rem;
+    flex: 1;
+    min-width: 0;
+    gap: .5rem;
+  }
+
+  .nav-toggle {
+    flex: 0 0 42px;
   }
 
   .page-title {
-    font-size: 1rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .9rem;
   }
 
   .sidebar {
@@ -2087,6 +2149,14 @@ a:hover {
     box-shadow: 0 10px 25px rgba(15, 23, 42, .2);
     width: min(82vw, 280px);
     z-index: 120;
+  }
+
+  .sidebar.is-collapsed {
+    width: min(82vw, 280px);
+  }
+
+  body.sidebar-collapsed .main-content {
+    margin-left: 0;
   }
 
   .sidebar.is-open {
@@ -5109,6 +5179,29 @@ a:hover {
   color: var(--text);
 }
 
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] label,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] .form-hint,
+:root[data-theme="dark"] .text-muted,
+:root[data-theme="dark"] .muted,
+:root[data-theme="dark"] .nav-label,
+:root[data-theme="dark"] .brand-sub,
+:root[data-theme="dark"] .data-table td,
+:root[data-theme="dark"] .card-body {
+  color: #7990a6;
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4,
+:root[data-theme="dark"] strong,
+:root[data-theme="dark"] .page-title,
+:root[data-theme="dark"] .card-header h2 {
+  color: #7990a6;
+}
+
 :root[data-theme="dark"] .form-group input,
 :root[data-theme="dark"] .form-group select,
 :root[data-theme="dark"] .form-group textarea,
@@ -5192,7 +5285,7 @@ a:hover {
 :root[data-theme="dark"] .substitute-request span,
 :root[data-theme="dark"] .substitute-request small,
 :root[data-theme="dark"] .stat-info p,
-:root[data-theme="dark"] .assigned-class-heading>div span,
+:root[data-theme="dark"] .assigned-class-heading > div span,
 :root[data-theme="dark"] .assigned-subject-chip small,
 :root[data-theme="dark"] .discipline-group-heading span,
 :root[data-theme="dark"] .discipline-student-details,
@@ -5296,7 +5389,7 @@ a:hover {
 
 :root[data-theme="dark"] .data-table th {
   background: #26364c;
-  color: #f8fafc;
+  color: #7990a6;
 }
 
 :root[data-theme="dark"] .data-table tr:hover td {
@@ -5319,7 +5412,7 @@ a:hover {
 :root[data-theme="dark"] .lesson-plan-meta-table td,
 :root[data-theme="dark"] .lesson-plan-fields-table td {
   background: var(--card);
-  color: #f8fafc;
+  color: #7990a6;
   border-color: var(--border);
 }
 
@@ -5344,7 +5437,7 @@ a:hover {
 :root[data-theme="dark"] .form-group textarea {
   border-color: #64748b;
   background: #0f172a;
-  color: #f8fafc;
+  color: #7990a6;
 }
 
 :root[data-theme="dark"] .form-group input::placeholder,

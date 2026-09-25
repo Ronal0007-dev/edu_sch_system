@@ -37,6 +37,7 @@ block body
               | Stream (Optional)
             select(name='streamId', id='formStreamSel')
               option(value='') — no stream —
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Add Student
@@ -70,6 +71,7 @@ block body
               select(name='status')
                 option(value='Active', selected=selectedStatus==='Active') Active
                 option(value='Moved', selected=selectedStatus==='Moved') Moved
+                option(value='Graduated', selected=selectedStatus==='Graduated') Graduated
             button.btn.btn-primary(type='submit')
               i.fas.fa-search
               span Filter
@@ -110,6 +112,8 @@ block body
                   td
                     if student.status === 'Moved'
                       span.badge.badge-warning Moved
+                    else if student.status === 'Graduated'
+                      span.badge.badge-info Graduated
                     else
                       span.badge.badge-success Active
                   td

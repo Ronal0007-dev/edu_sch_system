@@ -17,6 +17,7 @@ block body
               option(value='') Select department
               each dept in departments
                 option(value=dept.id) #{dept.name} (#{dept.code})
+          br
           button.btn.btn-primary(type='submit')
             i.fas.fa-save
             span Save Class

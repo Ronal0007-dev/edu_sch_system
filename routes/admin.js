@@ -150,6 +150,55 @@ function activeStudentWhere(extra = {}) {
   };
 }
 
+function isGraduatingClass(cls) {
+  return Boolean(
+    cls &&
+    String(cls.name || "").trim().toLowerCase() === "year 13" &&
+    cls.department &&
+    String(cls.department.code || "").toLowerCase() === "secondary",
+  );
+}
+
+function studentWhereForClass(cls, extra = {}) {
+  return {
+    ...(isGraduatingClass(cls) ?
+      {
+        status: {
+          $in: ["Active", "Graduated"]
+        }
+      } :
+      activeStudentWhere()),
+    ...extra,
+  };
+}
+
+async function graduatedStudentWhere(extra = {}) {
+  const classes = await Class.findAll({
+    include: [{ model: Department, as: "department" }],
+  });
+  const graduatingClassIds = classes
+    .filter(isGraduatingClass)
+    .map((cls) => cls.id);
+  const legacyGraduates = graduatingClassIds.length
+    ? [{ isActive: false, classId: { $in: graduatingClassIds } }]
+    : [];
+
+  return {
+    $or: [{ status: "Graduated" }, ...legacyGraduates],
+    ...extra,
+  };
+}
+
+async function studentStatusWhere(status, classId) {
+  if (status === "Graduated") {
+    return graduatedStudentWhere(classId ? { classId } : {});
+  }
+  if (status === "Moved") {
+    return { isActive: true, status: "Moved", ...(classId ? { classId } : {}) };
+  }
+  return activeStudentWhere(classId ? { classId } : {});
+}
+
 async function validateUniqueSubjectForClass(classId, name, subjectId = null) {
   const trimmedName = String(name || "").trim();
   if (!trimmedName) throw new Error("Subject name is required");
@@ -253,6 +302,35 @@ async function promoteStudentsForYearTransition(previousCurrentYearId) {
   const promoted = [];
 
   for (const cls of classes) {
+    const currentClass = await Class.findById(cls.id, {
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+    });
+    if (isGraduatingClass(currentClass)) {
+      const students = await Student.findAll({
+        where: activeStudentWhere({
+          classId: cls.id
+        }),
+      });
+      if (!students.length) continue;
+      await Student.update({
+        isActive: false,
+        status: "Graduated"
+      }, {
+        where: activeStudentWhere({
+          classId: cls.id
+        })
+      }, );
+      promoted.push({
+        classId: cls.id,
+        targetClassId: null,
+        count: students.length,
+        graduated: true,
+      });
+      continue;
+    }
     const targetClassId = await resolvePromotionTargetClass(cls.id, null);
     if (!targetClassId) continue;
 
@@ -297,6 +375,7 @@ router.get("/dashboard", async (req, res) => {
   const defaults = {
     title: "Admin Dashboard",
     totalStudents: 0,
+    totalGraduated: 0,
     totalTeachers: 0,
     totalClasses: 0,
     totalDepts: 0,
@@ -314,6 +393,7 @@ router.get("/dashboard", async (req, res) => {
 
     const [
       totalStudents,
+      totalGraduated,
       totalTeachers,
       totalClasses,
       totalDepts,
@@ -323,6 +403,7 @@ router.get("/dashboard", async (req, res) => {
       Student.count({
         where: activeStudentWhere()
       }),
+      graduatedStudentWhere().then((where) => Student.count({ where })),
       Teacher.count({
         where: {
           isActive: true
@@ -373,6 +454,7 @@ router.get("/dashboard", async (req, res) => {
     res.render("admin/dashboard", {
       ...defaults,
       totalStudents,
+      totalGraduated,
       totalTeachers,
       totalClasses,
       totalDepts,
@@ -1878,12 +1960,7 @@ router.get("/students", async (req, res) => {
   });
 
   // Filter students by dept → class
-  const studentWhere =
-    selectedStatus === "Moved" ? {
-      isActive: true,
-      status: "Moved"
-    } :
-    activeStudentWhere();
+  const studentWhere = await studentStatusWhere(selectedStatus);
   if (selectedClassId) {
     studentWhere.classId = parseInt(selectedClassId);
   } else if (selectedDeptId) {
@@ -2229,6 +2306,27 @@ router.post("/students/:id/promote", async (req, res) => {
     const student = await Student.findById(req.params.id);
     if (!student) throw new Error("Student not found");
 
+    const currentClass = await Class.findById(student.classId, {
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+    });
+    if (isGraduatingClass(currentClass)) {
+      await Student.update({
+        isActive: false,
+        status: "Graduated"
+      }, {
+        where: {
+          id: req.params.id,
+          isActive: true,
+          status: "Active",
+        },
+      }, );
+      req.flash("success", "Student marked as graduated");
+      return res.redirect("/admin/students");
+    }
+
     const targetClassId = await resolvePromotionTargetClass(
       student.classId,
       req.body.classId || null,
@@ -2325,9 +2423,125 @@ router.get("/students/moved", async (req, res) => {
       error: req.flash("error") || [],
       success: req.flash("success") || [],
     });
+
   } catch (err) {
     req.flash("error", err.message);
     res.redirect("/admin/students");
+  }
+});
+
+    router.get("/students/graduated", async (req, res) => {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 15;
+        const search = String(req.query.search || "").trim();
+    const selectedDeptId = String(req.query.deptId || "");
+    const departments = await Department.findAll({ order: [["name", "ASC"]] });
+    const where = await graduatedStudentWhere();
+    if (search) where.fullName = { $like: `%${search}%` };
+    if (selectedDeptId) {
+      const departmentClasses = await Class.findAll({
+        where: { departmentId: selectedDeptId },
+      });
+      where.classId = { $in: departmentClasses.map((item) => item.id) };
+    }
+
+        const result = await Student.findAndCountAll({
+          where,
+      include: [
+        {
+              model: Class,
+              as: "class",
+          include: [{ model: Department, as: "department" }],
+            },
+        { model: Stream, as: "stream" },
+          ],
+      order: [["fullName", "ASC"]],
+          limit,
+          offset: (page - 1) * limit,
+        });
+
+        res.render("admin/graduated-students", {
+          title: "Graduated Students",
+          students: result.rows.map((student) => student.toJSON()),
+          searchQuery: search,
+      selectedDeptId,
+      departments: departments.map((item) => item.toJSON()),
+          pagination: {
+            page,
+            pages: Math.ceil(result.count / limit),
+            total: result.count,
+          },
+          admin: req.session && req.session.admin ? req.session.admin : {},
+          error: req.flash("error") || [],
+          success: req.flash("success") || [],
+        });
+
+      } catch (err) {
+        req.flash("error", err.message);
+        res.redirect("/admin/dashboard");
+  }
+});
+
+router.get("/students/graduated/view/:id", async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id, {
+      include: [
+        {
+          model: Class,
+          as: "class",
+          include: [{ model: Department, as: "department" }],
+        },
+        { model: Stream, as: "stream" },
+      ],
+    });
+    if (!student) return res.status(404).render("404", { title: "Student Not Found", user: req.session.admin });
+    const graduateWhere = await graduatedStudentWhere({ id: req.params.id });
+    if (!(await Student.count({ where: graduateWhere }))) {
+      return res.status(404).render("404", { title: "Student Not Found", user: req.session.admin });
+    }
+    res.render("admin/graduated-student-view", {
+      title: "Graduated Student",
+      student: student.toJSON(),
+      admin: req.session.admin,
+      error: req.flash("error") || [],
+      success: req.flash("success") || [],
+    });
+  } catch (err) {
+    req.flash("error", err.message);
+    res.redirect("/admin/students/graduated");
+  }
+});
+
+router.get("/students/graduated/print", async (req, res) => {
+  try {
+    const selectedDeptId = String(req.query.deptId || "");
+    const where = await graduatedStudentWhere();
+    if (req.query.studentId) where.id = req.query.studentId;
+    if (selectedDeptId) {
+      const departmentClasses = await Class.findAll({ where: { departmentId: selectedDeptId } });
+      where.classId = { $in: departmentClasses.map((item) => item.id) };
+    }
+    const students = await Student.findAll({
+      where,
+      include: [
+        {
+          model: Class,
+          as: "class",
+          include: [{ model: Department, as: "department" }],
+        },
+        { model: Stream, as: "stream" },
+      ],
+      order: [["fullName", "ASC"]],
+    });
+    res.render("admin/graduated-students-print", {
+      title: "Graduated Students",
+      students: students.map((item) => item.toJSON()),
+      department: selectedDeptId ? await Department.findById(selectedDeptId) : null,
+    });
+  } catch (err) {
+    req.flash("error", err.message);
+    res.redirect("/admin/students/graduated");
   }
 });
 
@@ -2522,6 +2736,35 @@ router.post("/students/:id/edit", async (req, res) => {
 
 router.post("/classes/:id/promote", async (req, res) => {
   try {
+    const currentClass = await Class.findById(req.params.id, {
+      include: [{
+        model: Department,
+        as: "department"
+      }],
+    });
+    if (isGraduatingClass(currentClass)) {
+      const students = await Student.findAll({
+        where: activeStudentWhere({
+          classId: req.params.id
+        }),
+      });
+      if (!students.length)
+        throw new Error("No active students found in this class");
+      await Student.update({
+        isActive: false,
+        status: "Graduated"
+      }, {
+        where: activeStudentWhere({
+          classId: req.params.id
+        })
+      }, );
+      req.flash(
+        "success",
+        `Marked ${students.length} student(s) as graduated`,
+      );
+      return res.redirect("/admin/students");
+    }
+
     const targetClassId = await resolvePromotionTargetClass(
       req.params.id,
       req.body.classId || null,
@@ -3544,7 +3787,8 @@ router.get("/reports/attendance", async (req, res) => {
       classId,
       streamId,
       fromDate,
-      toDate
+      toDate,
+      status = "Active"
     } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = 15;
@@ -3610,9 +3854,7 @@ router.get("/reports/attendance", async (req, res) => {
       };
 
       // 5. Fetch students with pagination and stream filter
-      const studentWhere = activeStudentWhere({
-        classId
-      });
+      const studentWhere = await studentStatusWhere(status, classId);
       if (streamId) studentWhere.streamId = streamId;
 
       const {
@@ -3668,6 +3910,7 @@ router.get("/reports/attendance", async (req, res) => {
       classStreamMap,
       selectedClass: classId,
       selectedStream: streamId,
+      selectedStatus: status,
       fromDate,
       toDate,
       reportPeriod,
@@ -3697,7 +3940,8 @@ router.get("/reports/attendance/print", async (req, res) => {
       classId,
       streamId,
       fromDate,
-      toDate
+      toDate,
+      status = "Active"
     } = req.query;
 
     // A class is required to generate a print report
@@ -3732,9 +3976,7 @@ router.get("/reports/attendance/print", async (req, res) => {
     };
 
     // 3. Build student query (Filter by class and optional stream)
-    const studentWhere = activeStudentWhere({
-      classId
-    });
+    const studentWhere = await studentStatusWhere(status, classId);
     if (streamId) studentWhere.streamId = streamId;
 
     // 4. Fetch ALL matching students (Notice: no limit or offset for printing)
@@ -3822,6 +4064,7 @@ router.get("/reports/examination", async (req, res) => {
       include: [{
           model: Student,
           as: "student",
+        where: await studentStatusWhere(req.query.status || "Active", req.query.classId),
           include: [{
               model: Class,
               as: "class",
@@ -3844,7 +4087,7 @@ router.get("/reports/examination", async (req, res) => {
       order: [
         [{
           model: Student,
-          as: "student"
+          as: "student",
         }, "fullName", "ASC"]
       ],
       limit,
@@ -3864,6 +4107,7 @@ router.get("/reports/examination", async (req, res) => {
     selectedClass: req.query.classId,
     selectedTerm: req.query.term || "",
     selectedYear: req.query.year || "",
+    selectedStatus: req.query.status || "Active",
     pagination: {
       page,
       pages: Math.ceil(total / limit),
@@ -3876,7 +4120,7 @@ router.get("/reports/examination", async (req, res) => {
 });
 
 // ── Helper: build class student reports ───────────────────────────────────────
-async function buildClassReports(classId, term, year) {
+async function buildClassReports(classId, term, year, status = "Active") {
   const cls = await Class.findById(classId, {
     include: [{
       model: Department,
@@ -3884,9 +4128,7 @@ async function buildClassReports(classId, term, year) {
     }],
   });
   const students = await Student.findAll({
-    where: activeStudentWhere({
-      classId
-    }),
+    where: await studentStatusWhere(status, classId),
     include: [{
         model: Class,
         as: "class",
@@ -3964,7 +4206,8 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
     const {
       classId,
       term,
-      year
+      year,
+      status
     } = req.query;
     if (!classId) {
       return res
@@ -3974,17 +4217,19 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
         );
     }
     const t = term || "Term 1",
-      y = year || "2024/2025";
+      y = year || "2024/2025",
+      s = status || "Active";
     const {
       cls,
       studentReports
-    } = await buildClassReports(classId, t, y);
+    } = await buildClassReports(classId, t, y, s);
     res.render("admin/print-all-progressive", {
       title: "Progressive Report Cards — " + (cls.name || ""),
       cls,
       studentReports,
       term: t,
       year: y,
+      status: s,
       getRemark,
       isArtDesignSubject,
       ART_MAX,
@@ -4009,7 +4254,8 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
     const {
       classId,
       term,
-      year
+      year,
+      status
     } = req.query;
     if (!classId) {
       return res
@@ -4019,14 +4265,15 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
         );
     }
     const t = term || "Term 1",
-      y = year || "2024/2025";
+      y = year || "2024/2025",
+      s = status || "Active";
     const {
       cls,
       deptCode,
       isPrimary,
       studentReports
     } =
-    await buildClassReports(classId, t, y);
+    await buildClassReports(classId, t, y, s);
     // Collect all unique subjects across all student marks
     const subjectMap = {};
     studentReports.forEach((sr) =>
@@ -4110,7 +4357,7 @@ router.get("/reports/exam-analysis", async (req, res) => {
       ],
     });
     const totalStudents = await Student.count({
-      where: activeStudentWhere({
+      where: studentWhereForClass(cls, {
         classId: req.query.classId
       }),
     });

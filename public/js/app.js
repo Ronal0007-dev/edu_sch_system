@@ -38,8 +38,15 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     navToggle.addEventListener('click', () => {
-      const isOpen = sidebar.classList.contains('is-open');
-      if (isOpen) closeSidebar(); else openSidebar();
+      if (window.innerWidth <= 700) {
+        const isOpen = sidebar.classList.contains('is-open');
+        if (isOpen) closeSidebar();
+        else openSidebar();
+        return;
+      }
+      const isCollapsed = sidebar.classList.toggle('is-collapsed');
+      document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+      navToggle.setAttribute('aria-expanded', String(!isCollapsed));
     });
 
     document.querySelectorAll('.nav-item').forEach(item => {
