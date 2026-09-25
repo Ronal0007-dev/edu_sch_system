@@ -4,10 +4,22 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 // 1. ADDED Department to the imports here
-const { Admin, Teacher, Department } = require('../models');
-const { requireAdmin, requireTeacher } = require("../middleware/auth");
-const { sendPasswordResetEmail } = require("../utils/mailer");
-const { checkLimit, resetLimit } = require("../utils/rateLimiter");
+const {
+  Admin,
+  Teacher,
+  Department
+} = require('../models');
+const {
+  requireAdmin,
+  requireTeacher
+} = require("../middleware/auth");
+const {
+  sendPasswordResetEmail
+} = require("../utils/mailer");
+const {
+  checkLimit,
+  resetLimit
+} = require("../utils/rateLimiter");
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -28,7 +40,10 @@ function generateResetToken(email) {
     .createHmac("sha256", email.toLowerCase())
     .update(raw)
     .digest("hex");
-  return { raw, bound };
+  return {
+    raw,
+    bound
+  };
 }
 
 function verifyResetToken(raw, email, storedBound) {
@@ -51,15 +66,24 @@ async function handleFailedLogin(account, isTeacher) {
   const attempts = (account.loginAttempts || 0) + 1;
   if (attempts >= MAX_LOGIN_ATTEMPTS) {
     const lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000);
-    await account.update({ loginAttempts: attempts, lockedUntil });
+    await account.update({
+      loginAttempts: attempts,
+      lockedUntil
+    });
     return `Account locked for ${LOCK_MINUTES} minutes after ${MAX_LOGIN_ATTEMPTS} failed attempts.`;
   }
-  await account.update({ loginAttempts: attempts, lockedUntil: null });
+  await account.update({
+    loginAttempts: attempts,
+    lockedUntil: null
+  });
   return `Invalid credentials. ${MAX_LOGIN_ATTEMPTS - attempts} attempt(s) remaining before lockout.`;
 }
 
 async function handleSuccessLogin(account) {
-  await account.update({ loginAttempts: 0, lockedUntil: null });
+  await account.update({
+    loginAttempts: 0,
+    lockedUntil: null
+  });
 }
 
 function isLocked(account) {
@@ -94,17 +118,24 @@ router.get("/admin/login", (req, res) => {
   const timeout = req.query.reason === "timeout";
   res.render("auth/admin-login", {
     title: "Admin Login",
-    error: timeout
-      ? ["Session expired due to inactivity. Please log in again."]
-      : req.flash("error"),
+    error: timeout ?
+      ["Session expired due to inactivity. Please log in again."] :
+      req.flash("error"),
     success: req.flash("success"),
   });
 });
 
 router.post("/admin/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const admin = await Admin.findOne({ where: { username } });
+    const {
+      username,
+      password
+    } = req.body;
+    const admin = await Admin.findOne({
+      where: {
+        username
+      }
+    });
     if (!admin) {
       req.flash("error", "Invalid username or password");
       return res.redirect("/auth/admin/login");
@@ -121,7 +152,10 @@ router.post("/admin/login", async (req, res) => {
       return res.redirect("/auth/admin/login");
     }
     await handleSuccessLogin(admin);
-    req.session.admin = { id: admin.id, username: admin.username };
+    req.session.admin = {
+      id: admin.id,
+      username: admin.username
+    };
     req.session.lastActive = Date.now();
     res.redirect("/admin/dashboard");
   } catch (err) {
@@ -142,7 +176,11 @@ router.get("/admin/change-password", requireAdmin, (req, res) => {
 
 router.post("/admin/change-password", requireAdmin, async (req, res) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const {
+      currentPassword,
+      newPassword,
+      confirmPassword
+    } = req.body;
     if (newPassword !== confirmPassword)
       throw new Error("Passwords do not match");
     if (newPassword.length < 6)
@@ -151,7 +189,9 @@ router.post("/admin/change-password", requireAdmin, async (req, res) => {
     const admin = await Admin.findById(req.session.admin.id);
     if (!(await admin.validatePassword(currentPassword)))
       throw new Error("Current password is incorrect");
-    await admin.update({ password: await bcrypt.hash(newPassword, 10) });
+    await admin.update({
+      password: await bcrypt.hash(newPassword, 10)
+    });
     req.flash("success", "Password changed successfully");
   } catch (err) {
     req.flash("error", err.message);
@@ -165,20 +205,29 @@ router.get("/teacher/login", (req, res) => {
   const timeout = req.query.reason === "timeout";
   res.render("auth/teacher-login", {
     title: "Teacher Login",
-    error: timeout
-      ? ["Session expired due to inactivity. Please log in again."]
-      : req.flash("error"),
+    error: timeout ?
+      ["Session expired due to inactivity. Please log in again."] :
+      req.flash("error"),
     success: req.flash("success"),
   });
 });
 
 router.post("/teacher/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+      password
+    } = req.body;
     // 3. Changed include string to explicitly include the model object
     const teacher = await Teacher.findOne({
-      where: { email, isActive: true },
-      include: [{ model: Department, as: "department" }],
+      where: {
+        email,
+        isActive: true
+      },
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
 
     if (!teacher) {
@@ -226,18 +275,22 @@ router.get("/teacher/first-change-password", (req, res) => {
 router.post("/teacher/first-change-password", async (req, res) => {
   if (!req.session.teacher) return res.redirect("/auth/teacher/login");
   try {
-    const { newPassword, confirmPassword } = req.body;
+    const {
+      newPassword,
+      confirmPassword
+    } = req.body;
     if (newPassword !== confirmPassword)
       throw new Error("Passwords do not match");
     if (newPassword.length < 6)
       throw new Error("Password must be at least 6 characters");
-    await Teacher.update(
-      {
-        password: await bcrypt.hash(newPassword, 10),
-        mustChangePassword: false,
-      },
-      { where: { id: req.session.teacher.id } },
-    );
+    await Teacher.update({
+      password: await bcrypt.hash(newPassword, 10),
+      mustChangePassword: false,
+    }, {
+      where: {
+        id: req.session.teacher.id
+      }
+    }, );
     req.flash("success", "Password set. Welcome!");
     res.redirect("/teacher/dashboard");
   } catch (err) {
@@ -258,7 +311,11 @@ router.get("/teacher/change-password", requireTeacher, (req, res) => {
 
 router.post("/teacher/change-password", requireTeacher, async (req, res) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const {
+      currentPassword,
+      newPassword,
+      confirmPassword
+    } = req.body;
     if (newPassword !== confirmPassword)
       throw new Error("Passwords do not match");
     if (newPassword.length < 6)
@@ -303,9 +360,17 @@ router.post("/teacher/forgot-password", async (req, res) => {
     "If that email is registered, a reset link has been sent.",
   );
   try {
-    const teacher = await Teacher.findOne({ where: { email, isActive: true } });
+    const teacher = await Teacher.findOne({
+      where: {
+        email,
+        isActive: true
+      }
+    });
     if (teacher) {
-      const { raw, bound } = generateResetToken(teacher.email);
+      const {
+        raw,
+        bound
+      } = generateResetToken(teacher.email);
       await teacher.update({
         resetToken: bound,
         resetTokenExpiry: new Date(Date.now() + 30 * 60 * 1000),
@@ -326,13 +391,21 @@ router.get("/teacher/reset-password/:token", async (req, res) => {
       req.flash("error", "Invalid reset link.");
       return res.redirect("/auth/teacher/forgot-password");
     }
-    const teacher = await Teacher.findOne({ where: { email, isActive: true } });
+    const teacher = await Teacher.findOne({
+      where: {
+        email,
+        isActive: true
+      }
+    });
     if (!teacher || !teacher.resetToken || !teacher.resetTokenExpiry) {
       req.flash("error", "Reset link is invalid or has already been used.");
       return res.redirect("/auth/teacher/forgot-password");
     }
     if (new Date() > teacher.resetTokenExpiry) {
-      await teacher.update({ resetToken: null, resetTokenExpiry: null });
+      await teacher.update({
+        resetToken: null,
+        resetTokenExpiry: null
+      });
       req.flash(
         "error",
         "Reset link expired (30 min). Please request a new one.",
@@ -361,7 +434,11 @@ router.get("/teacher/reset-password/:token", async (req, res) => {
 router.post("/teacher/reset-password/:token", async (req, res) => {
   const ip = getIP(req);
   try {
-    const { newPassword, confirmPassword, email } = req.body;
+    const {
+      newPassword,
+      confirmPassword,
+      email
+    } = req.body;
     const normalEmail = (email || "").trim().toLowerCase();
     if (!normalEmail) throw new Error("Email is required");
     if (newPassword !== confirmPassword)
@@ -369,12 +446,18 @@ router.post("/teacher/reset-password/:token", async (req, res) => {
     if (newPassword.length < 6)
       throw new Error("Password must be at least 6 characters");
     const teacher = await Teacher.findOne({
-      where: { email: normalEmail, isActive: true },
+      where: {
+        email: normalEmail,
+        isActive: true
+      },
     });
     if (!teacher || !teacher.resetToken || !teacher.resetTokenExpiry)
       throw new Error("Reset link is invalid or already used");
     if (new Date() > teacher.resetTokenExpiry) {
-      await teacher.update({ resetToken: null, resetTokenExpiry: null });
+      await teacher.update({
+        resetToken: null,
+        resetTokenExpiry: null
+      });
       throw new Error("Reset link expired. Please request a new one.");
     }
     if (!verifyResetToken(req.params.token, teacher.email, teacher.resetToken))

@@ -1,0 +1,102 @@
+extends ../partials/teacher-layout
+
+block body
+  .card
+    .card-header
+      h2 Discipline Record
+      i.fas.fa-scale-balanced
+    .card-body
+      form.filter-form(method='GET', action=basePath)
+        .form-row
+          .form-group
+            label Term
+            select(name='term')
+              each item in terms
+                option(value=item.name selected=term===item.name) #{item.name}
+          .form-group
+            label Academic year
+            input(type='text' name='year' value=year)
+          .form-group
+            button.btn.btn-outline(type='submit') Load
+          a.btn.btn-primary(href=`${basePath}/print?term=${encodeURIComponent(term)}&year=${encodeURIComponent(year)}` target='_blank') Print
+      form#disciplineEntryForm.discipline-entry-form(method='POST' action=`${basePath}/records`)
+        h3 Give merit or demerit
+        .form-row
+          .form-group
+            label(for='disciplineStudentSearch') Student
+            input#disciplineStudentSearch(type='search' list='disciplineStudents' placeholder='Type a student name' autocomplete='off' required)
+            datalist#disciplineStudents
+              each student in students
+                option(value=`${student.fullName} — ${student.class ? student.class.name : '-'}` data-student-id=student.id)
+            input#disciplineStudentId(type='hidden' name='studentId' required)
+          .form-group
+            label Reason
+            select(name='reasonId' required)
+              option(value='') Choose reason (points set by admin)
+              each reason in reasons
+                option(value=reason.id) #{reason.name} (#{reason.points > 0 ? '+' : ''}#{reason.points})
+          .form-group
+            label Date
+            input(type='date' name='dateGiven' value=new Date().toISOString().slice(0,10) required)
+        .form-group
+          label Note
+          textarea(name='note' rows='2' placeholder='Optional details')
+        input(type='hidden' name='term' value=term)
+        input(type='hidden' name='academicYear' value=year)
+        input(type='hidden' name='redirect' value=basePath)
+        br
+        button.btn.btn-primary(type='submit') Save record
+      script.
+        (function () {
+          var form = document.getElementById('disciplineEntryForm');
+          var search = document.getElementById('disciplineStudentSearch');
+          var studentId = document.getElementById('disciplineStudentId');
+          var options = document.querySelectorAll('#disciplineStudents option');
+          function syncStudent() {
+            studentId.value = '';
+            options.forEach(function (option) {
+              if (option.value === search.value) studentId.value = option.dataset.studentId;
+            });
+          }
+          search.addEventListener('input', syncStudent);
+          form.addEventListener('submit', function (event) {
+            syncStudent();
+            if (!studentId.value) {
+              event.preventDefault();
+              search.setCustomValidity('Select a student from the search results.');
+              search.reportValidity();
+            } else {
+              search.setCustomValidity('');
+            }
+          });
+        }());
+      if groups.length
+        each group in groups
+          .discipline-class-group
+            .discipline-group-heading
+              h3 #{group.className}
+              span #{group.department}
+            .discipline-student-grid
+              - const studentIds = []
+              each row in group.rows
+                if studentIds.indexOf(row.student.id) === -1
+                  - studentIds.push(row.student.id)
+                  - const studentRows = group.rows.filter(function(item) { return item.student.id === row.student.id })
+                  - const total = studentRows.reduce(function(sum, item) { return sum + item.points }, 0)
+                  .discipline-student-card
+                    .discipline-student-card-header
+                      strong #{row.student.fullName}
+                      span(class=total >= 0 ? 'discipline-merit' : 'discipline-demerit') #{total > 0 ? '+' : ''}#{total} pts
+                    .discipline-student-details
+                      span
+                        i.fas.fa-door-open
+                        | #{row.student.class ? row.student.class.name : '-'}
+                      span
+                        i.fas.fa-building
+                        | #{row.student.class && row.student.class.department ? row.student.class.department.name : group.department}
+                      span
+                        i.fas.fa-list
+                        | #{studentRows.length} record#{studentRows.length === 1 ? '' : 's'}
+                    a.btn.btn-sm.btn-outline(href=`${basePath}/student/${row.student.id}?term=${encodeURIComponent(term)}&year=${encodeURIComponent(year)}`) View details
+      else
+        .empty-state You have not given any records for this term.

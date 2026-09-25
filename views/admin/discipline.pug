@@ -1,0 +1,103 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Discipline Record (All Students)
+      i.fas.fa-scale-balanced
+    .card-body
+      form.filter-form(method='GET', action=basePath)
+        .form-row
+          .form-group
+            label Term
+            select(name='term')
+              each item in terms
+                option(value=item.name selected=term===item.name) #{item.name}
+          .form-group
+            label Academic year
+            input(type='text' name='year' value=year)
+          .form-group
+            button.btn.btn-outline(type='submit') Load
+          a.btn.btn-primary(href=`${basePath}/print?term=${encodeURIComponent(term)}&year=${encodeURIComponent(year)}` target='_blank')
+            i.fas.fa-print
+            | Print
+          form.inline-form(method='POST' action=`${basePath}/reset` onsubmit='return confirm("Reset all discipline records for this term? This cannot be undone.");')
+            input(type='hidden' name='term' value=term)
+            input(type='hidden' name='academicYear' value=year)
+            button.btn.btn-danger(type='submit') Reset term
+      .discipline-summary
+        strong Merits
+        span.discipline-merit + points
+        strong Demerits
+        span.discipline-demerit - points
+      if groups.length
+        each group in groups
+          .discipline-class-group
+            .discipline-group-heading
+              h3 #{group.className}
+              span #{group.department}
+            .discipline-student-grid
+              - const studentIds = []
+              each row in group.rows
+                if studentIds.indexOf(row.student.id) === -1
+                  - studentIds.push(row.student.id)
+                  - const studentRows = group.rows.filter(function(item) { return item.student.id === row.student.id })
+                  - const total = studentRows.reduce(function(sum, item) { return sum + item.points }, 0)
+                  .discipline-student-card
+                    .discipline-student-card-header
+                      strong #{row.student.fullName}
+                      span(class=total >= 0 ? 'discipline-merit' : 'discipline-demerit') #{total > 0 ? '+' : ''}#{total} pts
+                    .discipline-student-details
+                      span
+                        i.fas.fa-door-open
+                        | #{row.student.class ? row.student.class.name : '-'}
+                      span
+                        i.fas.fa-building
+                        | #{row.student.class && row.student.class.department ? row.student.class.department.name : group.department}
+                      span
+                        i.fas.fa-list
+                        | #{studentRows.length} record#{studentRows.length === 1 ? '' : 's'}
+                    a.btn.btn-sm.btn-outline(href=`${basePath}/student/${row.student.id}?term=${encodeURIComponent(term)}&year=${encodeURIComponent(year)}`) View details
+      else
+        .empty-state No discipline records found for this term.
+  br
+  .dashboard-grid
+    .card
+      .card-header
+        h2 Register discipline reason
+      .card-body
+        form(method='POST' action=`${basePath}/reasons`)
+          .form-group
+            label Reason
+            input(type='text' name='name' required placeholder='Helpful behaviour')
+          .form-group
+            label Points (negative for demerit)
+            input(type='number' name='points' required placeholder='5 or -5')
+          .form-group
+            label Description
+            textarea(name='description' rows='2')
+          br
+          button.btn.btn-primary(type='submit') Save reason
+    .card
+      .card-header
+        h2 Active reasons
+      .card-body
+        if reasonGroups && ((reasonGroups.merits && reasonGroups.merits.length) || (reasonGroups.demerits && reasonGroups.demerits.length))
+          if reasonGroups.merits && reasonGroups.merits.length
+            h3.discipline-reason-heading.discipline-merit Merits
+            .assigned-subject-list
+              each reason in reasonGroups.merits
+                .assigned-subject-chip.discipline-chip-merit
+                  span #{reason.name} (+#{reason.points})
+                  form.inline-form(method='POST' action=`${basePath}/reasons/${reason.id}/delete`)
+                    button.btn.btn-sm.btn-outline(type='submit' title='Archive') ×
+          if reasonGroups.demerits && reasonGroups.demerits.length
+            h3.discipline-reason-heading.discipline-demerit Demerits
+            .assigned-subject-list
+              each reason in reasonGroups.demerits
+                .assigned-subject-chip.discipline-chip-demerit
+                  span #{reason.name} (#{reason.points})
+                  form.inline-form(method='POST' action=`${basePath}/reasons/${reason.id}/delete`)
+                    button.btn.btn-sm.btn-outline(type='submit' title='Archive') ×
+        else
+          p No active reasons.

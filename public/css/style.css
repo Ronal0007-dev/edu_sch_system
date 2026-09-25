@@ -11,6 +11,7 @@
   --info: #3b82f6;
   --bg: #f1f5f9;
   --card: #ffffff;
+  --surface: #ffffff;
   --sidebar: #0f172a;
   --sidebar-text: #94a3b8;
   --sidebar-active: #1a56db;
@@ -101,9 +102,10 @@ body {
 :root[data-theme="dark"] {
   --bg: #0f172a;
   --card: #1e293b;
+  --surface: #1e293b;
   --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --border: #334155;
+  --text-muted: #cbd5e1;
+  --border: #475569;
   --primary-light: #1e3a8a;
 }
 
@@ -747,6 +749,135 @@ a:hover {
   color: var(--text-muted);
   font-size: .7rem;
   font-weight: 500;
+}
+
+.discipline-entry-form {
+  margin: 1rem 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.discipline-entry-form datalist {
+  color: var(--text);
+}
+
+.discipline-summary {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.discipline-class-group {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.discipline-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: .55rem .55rem 0 0;
+  background: var(--primary-light);
+}
+
+.discipline-group-heading h3 {
+  margin: 0;
+  font-size: .95rem;
+}
+
+.discipline-group-heading span {
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+
+.discipline-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: .75rem;
+  padding: .8rem;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 .55rem .55rem;
+  background: var(--card);
+}
+
+.discipline-student-card {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.discipline-student-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .6rem;
+}
+
+.discipline-student-card-header strong {
+  overflow-wrap: anywhere;
+}
+
+.discipline-student-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .75rem;
+  color: var(--text-muted);
+  font-size: .75rem;
+}
+
+.discipline-student-details span {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+}
+
+.discipline-student-details i {
+  color: var(--primary);
+}
+
+.discipline-student-card .btn {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.discipline-merit {
+  color: #3cb043 !important;
+  font-weight: 800;
+}
+
+.discipline-demerit {
+  color: #ff1818 !important;
+  font-weight: 800;
+}
+
+.discipline-chip-merit {
+  border-color: #3cb043;
+}
+
+.discipline-chip-demerit {
+  border-color: #ff1818;
+}
+
+.discipline-reason-heading {
+  margin: .75rem 0 .45rem;
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
 }
 
 .teacher-search-form {
@@ -5052,6 +5183,194 @@ a:hover {
 :root[data-theme="dark"] .admin-badge {
   background: #1e3a8a;
   color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .form-group label,
+:root[data-theme="dark"] .data-table th,
+:root[data-theme="dark"] .timetable-time,
+:root[data-theme="dark"] .timetable-free,
+:root[data-theme="dark"] .substitute-request span,
+:root[data-theme="dark"] .substitute-request small,
+:root[data-theme="dark"] .stat-info p,
+:root[data-theme="dark"] .assigned-class-heading > div span,
+:root[data-theme="dark"] .assigned-subject-chip small,
+:root[data-theme="dark"] .discipline-group-heading span,
+:root[data-theme="dark"] .discipline-student-details,
+:root[data-theme="dark"] .discipline-student-details span,
+:root[data-theme="dark"] .file-drop-zone p,
+:root[data-theme="dark"] .guide-intro,
+:root[data-theme="dark"] .tip-list,
+:root[data-theme="dark"] .example-csv h4,
+:root[data-theme="dark"] .tips h4 {
+  color: #fff;
+}
+
+:root[data-theme="dark"] .sidebar .brand-sub,
+:root[data-theme="dark"] .sidebar .nav-label {
+  color: #cbd5e1;
+}
+
+/* Keep semantic accents vivid while replacing light-only component surfaces. */
+:root[data-theme="dark"] .alert-error {
+  background: #451a1a;
+  border-color: #b91c1c;
+  color: #fecaca;
+}
+
+:root[data-theme="dark"] .alert-success {
+  background: #123524;
+  border-color: #15803d;
+  color: #bbf7d0;
+}
+
+:root[data-theme="dark"] .alert-warning {
+  background: #422006;
+  border-color: #b45309;
+  color: #fde68a;
+}
+
+:root[data-theme="dark"] .alert-info {
+  background: #172554;
+  border-color: #2563eb;
+  color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .badge-class,
+:root[data-theme="dark"] .badge-primary {
+  background: #172554;
+  color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .badge-stream {
+  background: #2e1065;
+  color: #ddd6fe;
+}
+
+:root[data-theme="dark"] .badge-subject,
+:root[data-theme="dark"] .badge-secondary {
+  background: #064e3b;
+  color: #bbf7d0;
+}
+
+:root[data-theme="dark"] .badge-eyc {
+  background: #431407;
+  color: #fed7aa;
+}
+
+:root[data-theme="dark"] .status-badge.present,
+:root[data-theme="dark"] .status-badge.approved {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+:root[data-theme="dark"] .status-badge.absent,
+:root[data-theme="dark"] .status-badge.returned {
+  background: #450a0a;
+  color: #fecaca;
+}
+
+:root[data-theme="dark"] .status-badge.sick,
+:root[data-theme="dark"] .status-badge.pending {
+  background: #451a03;
+  color: #fde68a;
+}
+
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .stat-card,
+:root[data-theme="dark"] .filter-bar,
+:root[data-theme="dark"] .discipline-student-card,
+:root[data-theme="dark"] .assigned-subject-list,
+:root[data-theme="dark"] .timetable-grid,
+:root[data-theme="dark"] .file-drop-zone,
+:root[data-theme="dark"] .empty-state {
+  background: var(--card);
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .data-table th,
+:root[data-theme="dark"] .data-table td,
+:root[data-theme="dark"] .marks-table th,
+:root[data-theme="dark"] .marks-table td {
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .data-table th {
+  background: #26364c;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .data-table tr:hover td {
+  background: #334155;
+}
+
+:root[data-theme="dark"] .assigned-class-heading,
+:root[data-theme="dark"] .discipline-group-heading,
+:root[data-theme="dark"] .lesson-plan-content-heading {
+  background: #172554;
+  border-color: #475569;
+}
+
+:root[data-theme="dark"] .lesson-plan-meta-table th,
+:root[data-theme="dark"] .lesson-plan-fields-table th {
+  background: #172554;
+  color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .lesson-plan-meta-table td,
+:root[data-theme="dark"] .lesson-plan-fields-table td {
+  background: var(--card);
+  color: #f8fafc;
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .lesson-plan-fields-table tr:nth-child(even) td {
+  background: #26364c;
+}
+
+:root[data-theme="dark"] .review-panel {
+  background: #172235;
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .review-action-card {
+  background: #26364c;
+  border-color: #64748b;
+}
+
+:root[data-theme="dark"] .review-action-card select,
+:root[data-theme="dark"] .review-action-card textarea,
+:root[data-theme="dark"] .form-group input,
+:root[data-theme="dark"] .form-group select,
+:root[data-theme="dark"] .form-group textarea {
+  border-color: #64748b;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .form-group input::placeholder,
+:root[data-theme="dark"] .form-group textarea::placeholder,
+:root[data-theme="dark"] .review-action-card textarea::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .timetable-entry {
+  border-left-color: #60a5fa;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .35);
+}
+
+:root[data-theme="dark"] .timetable-entry small,
+:root[data-theme="dark"] .timetable-entry strong {
+  color: #0f172a;
+}
+
+:root[data-theme="dark"] .timetable-free summary,
+:root[data-theme="dark"] .btn-outline {
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .btn-outline:hover {
+  background: #1e3a8a;
+  color: #fff;
 }
 
 /* ─── Narrow-screen content safety ─────────────────────────────────────────── */

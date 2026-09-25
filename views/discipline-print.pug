@@ -1,0 +1,28 @@
+doctype html
+html
+  head
+    meta(charset='utf-8')
+    title #{title}
+    link(rel='stylesheet' href='/css/style.css')
+  body
+    main.content-area
+      h1 Discipline Record
+      p #{term} · #{year}
+      table.data-table
+        thead
+          tr
+            th Student
+            th Class
+            th Date
+            th Reason
+            th Points
+            th Given by
+        tbody
+          each row in records
+            tr
+              td #{row.student ? row.student.fullName : '-'}
+              td #{row.student && row.student.class ? row.student.class.name : '-'}
+              td #{row.dateGiven}
+              td #{row.reason}
+              td(class=row.points > 0 ? 'discipline-merit' : 'discipline-demerit') #{row.points > 0 ? '+' : ''}#{row.points}
+              td #{row.awardedBy ? row.awardedBy.fullName : row.awardedByName}

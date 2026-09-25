@@ -40,6 +40,9 @@ block content
           a.nav-item(href='/teacher/exam-analysis', class=title==='Exam Analysis'?'active':'')
             i.fas.fa-microscope
             span Exam Analysis
+          a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/discipline' : '/teacher/discipline'), class=title==='Discipline Record' || title==='Student Discipline Record'?'active':'')
+            i.fas.fa-scale-balanced
+            span Discipline Record
           a.nav-item(href='/teacher/comments', class=title==='Report Comments'?'active':'')
             i.fas.fa-comment-alt
             span Report Comments

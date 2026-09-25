@@ -97,8 +97,7 @@ async function getOpenTermDateRange(fromDate, toDate) {
   const currentYear = await getCurrentYear();
   const today = moment().format("YYYY-MM-DD");
   const openTerms = currentYear && currentYear.terms ?
-    currentYear.terms.filter((term) => term.isOpen) :
-    [];
+    currentYear.terms.filter((term) => term.isOpen) : [];
   const activeTerm =
     openTerms.find(
       (term) =>
@@ -650,26 +649,24 @@ router.get("/teachers", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = 15;
   const search = String(req.query.search || "").trim();
-  const teacherWhere = search ?
-    {
-      $or: [{
-          fullName: {
-            $like: `%${search}%`
-          }
-        },
-        {
-          phone: {
-            $like: `%${search}%`
-          }
-        },
-        {
-          email: {
-            $like: `%${search}%`
-          }
-        },
-      ],
-    } :
-    {};
+  const teacherWhere = search ? {
+    $or: [{
+        fullName: {
+          $like: `%${search}%`
+        }
+      },
+      {
+        phone: {
+          $like: `%${search}%`
+        }
+      },
+      {
+        email: {
+          $like: `%${search}%`
+        }
+      },
+    ],
+  } : {};
   const [{
     count,
     rows: teachers
@@ -913,8 +910,7 @@ router.get("/teachers/view/:id", async (req, res) => {
           id: classId,
           name: classRecord ? classRecord.name : "Unassigned Class",
           department: classRecord && classRecord.department ?
-            classRecord.department.name :
-            "-",
+            classRecord.department.name : "-",
           assignments: [],
         };
         assignedSubjectGroups.push(group);
@@ -1883,8 +1879,7 @@ router.get("/students", async (req, res) => {
 
   // Filter students by dept → class
   const studentWhere =
-    selectedStatus === "Moved" ?
-    {
+    selectedStatus === "Moved" ? {
       isActive: true,
       status: "Moved"
     } :
@@ -2625,8 +2620,7 @@ router.get("/assignments/teacher-class", async (req, res) => {
     const filteredClasses = selectedDeptId ?
       allClasses.filter(
         (c) => String(c.departmentId) === String(selectedDeptId),
-      ) :
-      [];
+      ) : [];
 
     // Build the query where clause based on filter selection
     const assignWhere = {};
@@ -3081,13 +3075,11 @@ router.get("/assignments/class-subject", async (req, res) => {
       id: c.id,
       name: c.name,
       departmentId: c.departmentId,
-      department: c.department ?
-        {
-          id: c.department.id,
-          name: c.department.name,
-          code: c.department.code,
-        } :
-        null,
+      department: c.department ? {
+        id: c.department.id,
+        name: c.department.name,
+        code: c.department.code,
+      } : null,
     }));
 
     // Build dept→classes map for cascade JS — string keys
@@ -3126,8 +3118,7 @@ router.get("/assignments/class-subject", async (req, res) => {
               model: Class,
               as: "class"
             }],
-          }) :
-          [];
+          }) : [];
       } else {
         subjects = await Subject.findAll({
           include: [{

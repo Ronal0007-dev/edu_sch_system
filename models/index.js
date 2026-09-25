@@ -199,6 +199,37 @@ const ReportComment = sequelize.define(
   },
 );
 
+const DisciplineReason = sequelize.define(
+  "DisciplineReason",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING(150), allowNull: false, unique: true },
+    points: { type: DataTypes.INTEGER, allowNull: false },
+    description: { type: DataTypes.TEXT, allowNull: true },
+    isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+  },
+  { tableName: "discipline_reasons", timestamps: true },
+);
+
+const DisciplineRecord = sequelize.define(
+  "DisciplineRecord",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    studentId: { type: DataTypes.INTEGER, allowNull: false },
+    reasonId: { type: DataTypes.INTEGER, allowNull: true },
+    awardedByTeacherId: { type: DataTypes.INTEGER, allowNull: true },
+    awardedByName: { type: DataTypes.STRING(100), allowNull: false },
+    awardedByRole: { type: DataTypes.STRING(30), allowNull: false },
+    reason: { type: DataTypes.STRING(150), allowNull: false },
+    points: { type: DataTypes.INTEGER, allowNull: false },
+    note: { type: DataTypes.TEXT, allowNull: true },
+    dateGiven: { type: DataTypes.DATEONLY, allowNull: false },
+    term: { type: DataTypes.STRING(30), allowNull: false },
+    academicYear: { type: DataTypes.STRING(20), allowNull: false },
+  },
+  { tableName: "discipline_records", timestamps: true },
+);
+
 // ─── Teacher-Subject Assignment ───────────────────────────────────────────────
 const TeacherSubject = sequelize.define(
   "TeacherSubject",
@@ -456,6 +487,11 @@ ReportComment.belongsTo(Student, { foreignKey: "studentId", as: "student" });
 ReportComment.belongsTo(Class, { foreignKey: "classId", as: "class" });
 ReportComment.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
 Student.hasMany(ReportComment, { foreignKey: "studentId", as: "comments" });
+Student.hasMany(DisciplineRecord, { foreignKey: "studentId", as: "disciplineRecords" });
+DisciplineRecord.belongsTo(Student, { foreignKey: "studentId", as: "student" });
+DisciplineRecord.belongsTo(DisciplineReason, { foreignKey: "reasonId", as: "reasonDefinition" });
+DisciplineReason.hasMany(DisciplineRecord, { foreignKey: "reasonId", as: "records" });
+DisciplineRecord.belongsTo(Teacher, { foreignKey: "awardedByTeacherId", as: "awardedBy" });
 
 // Join table belongsTo (needed for include in list views)
 TeacherClass.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
@@ -521,6 +557,8 @@ module.exports = {
   Subject,
   Student,
   ReportComment,
+  DisciplineReason,
+  DisciplineRecord,
   TeacherClass,
   TeacherSubject,
   ClassSubject,

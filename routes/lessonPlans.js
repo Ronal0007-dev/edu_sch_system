@@ -60,8 +60,7 @@ function planDepartment(plan) {
   return plan.class && plan.class.department ?
     plan.class.department :
     plan.teacher && plan.teacher.department ?
-    plan.teacher.department :
-    {
+    plan.teacher.department : {
       id: "unassigned",
       name: "Unassigned Department"
     };
@@ -336,8 +335,7 @@ router.get("/", async (req, res) => {
       plans.filter((plan) => String(planDepartment(plan).id) === String(departmentId)) :
       plans;
     const departmentGroups = isReviewer(req) ?
-      buildDepartmentTeacherGroups(visiblePlans, 15) :
-      [];
+      buildDepartmentTeacherGroups(visiblePlans, 15) : [];
     res.render(`${portal(req)}/lesson-plans`, {
       title: "Lesson Plans",
       plans: visiblePlans,
@@ -674,8 +672,7 @@ router.get("/:id", async (req, res) => {
         order: [
           ["fullName", "ASC"]
         ],
-      }) :
-      [];
+      }) : [];
     res.render(`${portal(req)}/lesson-plan-view`, {
       title: "LESSON PLAN",
       plan: plan.toJSON(),

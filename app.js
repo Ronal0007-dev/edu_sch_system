@@ -61,6 +61,10 @@ app.use('/academician', academicianRoutes);
 app.use('/teacher/lesson-plans', require('./routes/lessonPlans'));
 app.use('/academician/lesson-plans', require('./routes/lessonPlans'));
 app.use('/admin/lesson-plans', require('./routes/lessonPlans'));
+app.use('/discipline', require('./routes/discipline'));
+app.use('/admin/discipline', require('./routes/discipline'));
+app.use('/teacher/discipline', require('./routes/discipline'));
+app.use('/academician/discipline', require('./routes/discipline'));
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).render('404', {
@@ -87,6 +91,15 @@ async function start() {
     await sequelize.authenticate();
     console.log('✅ Database connected');
     await sequelize.sync({ alter: true });
+    const [colorColumn] = await sequelize.query(
+      "SHOW COLUMNS FROM `timetables` LIKE 'color'",
+    );
+    if (!colorColumn.length) {
+      await sequelize.query(
+        "ALTER TABLE `timetables` ADD COLUMN `color` VARCHAR(7) NOT NULL DEFAULT '#dbeafe' AFTER `location`",
+      );
+      console.log('✅ Added timetable color column');
+    }
     console.log('✅ Models synced');
     await Student.update({ status: 'Active' }, { where: { status: null } });
     app.listen(PORT, () => {
