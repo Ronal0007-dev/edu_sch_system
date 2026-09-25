@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 const moment = require("moment");
 //const { Op } = require("sequelize");
-const { requireTeacher } = require("../middleware/auth");
+const {
+  requireTeacher
+} = require("../middleware/auth");
 const {
   calculateScore,
   getGrade,
@@ -39,9 +41,14 @@ router.use(requireTeacher);
 
 // ── Helper: current year ───────────────────────────────────────────────────────
 async function getCurrentYear() {
-  return AcademicYear.findOne({ 
-    where: { isCurrent: true }, 
-    include: [{ model: Term, as: 'terms' }] 
+  return AcademicYear.findOne({
+    where: {
+      isCurrent: true
+    },
+    include: [{
+      model: Term,
+      as: 'terms'
+    }]
   });
 }
 
@@ -80,8 +87,7 @@ async function getTeacherClassStreamMap(teacherId) {
     where: {
       teacherId,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
       },
@@ -118,12 +124,10 @@ async function getTeacherClassStream(teacherId, classId, streamId) {
       classId: parseInt(classId),
       streamId: parseInt(streamId),
     },
-    include: [
-      {
-        model: Stream,
-        as: "stream",
-      },
-    ],
+    include: [{
+      model: Stream,
+      as: "stream",
+    }, ],
   });
   return row && row.stream ? row.stream.toJSON() : null;
 }
@@ -151,23 +155,19 @@ router.get("/dashboard", async (req, res) => {
     const limit = 10;
 
     const teacher = await Teacher.findById(req.session.teacher.id, {
-      include: [
-        {
-          model: Department,
-          as: "department",
-        },
-      ],
+      include: [{
+        model: Department,
+        as: "department",
+      }, ],
     });
     const teacherClassRows = await TeacherClass.findAll({
       where: {
         teacherId: req.session.teacher.id,
       },
-      include: [
-        {
+      include: [{
           model: Class,
           as: "class",
-          include: [
-            {
+          include: [{
               model: Department,
               as: "department",
             },
@@ -212,8 +212,7 @@ router.get("/dashboard", async (req, res) => {
       where: {
         teacherId: req.session.teacher.id,
       },
-      include: [
-        {
+      include: [{
           model: Subject,
           as: "subject",
         },
@@ -235,16 +234,26 @@ router.get("/dashboard", async (req, res) => {
     const canTakeAttendance = !isWeekend && !holiday;
     const currentYear = await getCurrentYear();
 
-    const { count, rows: recentAttendance } = await Attendance.findAndCountAll({
+    const {
+      count,
+      rows: recentAttendance
+    } = await Attendance.findAndCountAll({
       where: {
         takenBy: req.session.teacher.id,
       },
       limit: limit,
       offset: (page - 1) * limit,
-      order: [["date", "DESC"]],
-      include: [
-        { model: Student, as: "student" },
-        { model: Class, as: "class" },
+      order: [
+        ["date", "DESC"]
+      ],
+      include: [{
+          model: Student,
+          as: "student"
+        },
+        {
+          model: Class,
+          as: "class"
+        },
       ],
     });
 
@@ -295,16 +304,13 @@ router.get("/attendance", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
-        include: [
-          {
-            model: Department,
-            as: "department",
-          },
-        ],
+        include: [{
+          model: Department,
+          as: "department",
+        }, ],
       },
       {
         model: Stream,
@@ -351,9 +357,9 @@ router.get("/attendance", async (req, res) => {
     blockReason = `Today is a public holiday: ${holiday.name}`;
   }
 
-  const selectedStreamId = req.query.streamId
-    ? parseInt(req.query.streamId)
-    : null;
+  const selectedStreamId = req.query.streamId ?
+    parseInt(req.query.streamId) :
+    null;
 
   if (req.query.classId) {
     const resolvedStreamId =
@@ -363,22 +369,22 @@ router.get("/attendance", async (req, res) => {
         req.query.classId,
       ));
     selectedClass = await Class.findById(req.query.classId);
-    selectedStream = resolvedStreamId
-      ? await getTeacherClassStream(
-          req.session.teacher.id,
-          req.query.classId,
-          resolvedStreamId,
-        )
-      : null;
+    selectedStream = resolvedStreamId ?
+      await getTeacherClassStream(
+        req.session.teacher.id,
+        req.query.classId,
+        resolvedStreamId,
+      ) :
+      null;
     const rawStudents = await Student.findAll({
       where: buildTeacherStudentWhere(req.query.classId, resolvedStreamId),
-      include: [
-        {
-          model: Stream,
-          as: "stream",
-        },
+      include: [{
+        model: Stream,
+        as: "stream",
+      }, ],
+      order: [
+        ["fullName", "ASC"]
       ],
-      order: [["fullName", "ASC"]],
     });
     const existingAttendance = await Attendance.findAll({
       where: {
@@ -388,8 +394,7 @@ router.get("/attendance", async (req, res) => {
     });
     students = rawStudents.map((s) => ({
       ...s.toJSON(),
-      existingStatus:
-        (existingAttendance.find((a) => a.studentId === s.id) || {}).status ||
+      existingStatus: (existingAttendance.find((a) => a.studentId === s.id) || {}).status ||
         null,
     }));
   }
@@ -422,10 +427,13 @@ router.post("/attendance/submit", async (req, res) => {
       },
     });
     if (holiday) throw new Error(`Cannot take attendance on ${holiday.name}`);
-    const { classId, streamId } = req.body;
-    const resolvedStreamId = streamId
-      ? parseInt(streamId)
-      : await getTeacherAssignedStreamId(req.session.teacher.id, classId);
+    const {
+      classId,
+      streamId
+    } = req.body;
+    const resolvedStreamId = streamId ?
+      parseInt(streamId) :
+      await getTeacherAssignedStreamId(req.session.teacher.id, classId);
     const students = await Student.findAll({
       where: buildTeacherStudentWhere(classId, resolvedStreamId),
     });
@@ -453,21 +461,25 @@ router.post("/attendance/submit", async (req, res) => {
 // ── Print Attendance ───────────────────────────────────────────────────────────
 router.get("/attendance/print", async (req, res) => {
   try {
-    const { classId, date, streamId } = req.query;
-    const resolvedStreamId = streamId
-      ? parseInt(streamId)
-      : await getTeacherAssignedStreamId(req.session.teacher.id, classId);
+    const {
+      classId,
+      date,
+      streamId
+    } = req.query;
+    const resolvedStreamId = streamId ?
+      parseInt(streamId) :
+      await getTeacherAssignedStreamId(req.session.teacher.id, classId);
     const cls = await Class.findById(classId, {
-      include: [
-        {
-          model: Department,
-          as: "department",
-        },
-      ],
+      include: [{
+        model: Department,
+        as: "department",
+      }, ],
     });
     const students = await Student.findAll({
       where: buildTeacherStudentWhere(classId, resolvedStreamId),
-      order: [["fullName", "ASC"]],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
     let records = [];
     if (date) {
@@ -476,12 +488,10 @@ router.get("/attendance/print", async (req, res) => {
           classId,
           date,
         },
-        include: [
-          {
-            model: Student,
-            as: "student",
-          },
-        ],
+        include: [{
+          model: Student,
+          as: "student",
+        }, ],
       });
     }
     const summary = students.map((s) => {
@@ -510,12 +520,10 @@ router.get("/attendance/history", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
-        model: Class,
-        as: "class",
-      },
-    ],
+    include: [{
+      model: Class,
+      as: "class",
+    }, ],
   });
   const classes = teacherClassRows.map((tc) => tc.class).filter(Boolean);
   const page = parseInt(req.query.page) || 1;
@@ -533,21 +541,21 @@ router.get("/attendance/history", async (req, res) => {
       attributes: ["id"],
     });
     const studentIds = studentRows.map((row) => row.id);
-    const { count, rows } = await Attendance.findAndCountAll({
+    const {
+      count,
+      rows
+    } = await Attendance.findAndCountAll({
       where: {
         classId: req.query.classId,
         date: req.query.date,
         studentId: studentIds,
       },
-      include: [
-        {
-          model: Student,
-          as: "student",
-        },
-      ],
+      include: [{
+        model: Student,
+        as: "student",
+      }, ],
       order: [
-        [
-          {
+        [{
             model: Student,
             as: "student",
           },
@@ -585,20 +593,17 @@ router.get("/marks", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
+    include: [{
         model: Subject,
         as: "subject",
       },
       {
         model: Class,
         as: "class",
-        include: [
-          {
-            model: Department,
-            as: "department",
-          },
-        ],
+        include: [{
+          model: Department,
+          as: "department",
+        }, ],
       },
     ],
   });
@@ -606,8 +611,7 @@ router.get("/marks", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
       },
@@ -668,9 +672,9 @@ router.get("/marks", async (req, res) => {
 
   // Only show open terms for selection
   const openTerms =
-    currentYear && currentYear.terms
-      ? currentYear.terms.filter((t) => t.isOpen)
-      : [];
+    currentYear && currentYear.terms ?
+    currentYear.terms.filter((t) => t.isOpen) :
+    [];
 
   const term = req.query.term || (openTerms[0] ? openTerms[0].name : "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
@@ -685,24 +689,22 @@ router.get("/marks", async (req, res) => {
   const selectedDeptId = req.query.deptId || "";
   const selectedClassId = req.query.classId || "";
   const selectedSubjectId = req.query.subjectId || "";
-  const selectedStreamId = req.query.streamId
-    ? parseInt(req.query.streamId)
-    : null;
+  const selectedStreamId = req.query.streamId ?
+    parseInt(req.query.streamId) :
+    null;
 
   if (selectedSubjectId && selectedClassId) {
     selectedSubject = await Subject.findById(selectedSubjectId);
     selectedClass = await Class.findById(selectedClassId, {
-      include: [
-        {
-          model: Department,
-          as: "department",
-        },
-      ],
+      include: [{
+        model: Department,
+        as: "department",
+      }, ],
     });
     deptCode =
-      selectedClass && selectedClass.department
-        ? selectedClass.department.code
-        : "";
+      selectedClass && selectedClass.department ?
+      selectedClass.department.code :
+      "";
     isArtDesign = isArtDesignSubject(
       selectedSubject ? selectedSubject.name : "",
       selectedClass ? selectedClass.name : "",
@@ -714,22 +716,22 @@ router.get("/marks", async (req, res) => {
         req.session.teacher.id,
         selectedClassId,
       ));
-    selectedStream = resolvedStreamId
-      ? await getTeacherClassStream(
-          req.session.teacher.id,
-          selectedClassId,
-          resolvedStreamId,
-        )
-      : null;
+    selectedStream = resolvedStreamId ?
+      await getTeacherClassStream(
+        req.session.teacher.id,
+        selectedClassId,
+        resolvedStreamId,
+      ) :
+      null;
     students = await Student.findAll({
       where: buildTeacherStudentWhere(selectedClassId, resolvedStreamId),
-      include: [
-        {
-          model: Stream,
-          as: "stream",
-        },
+      include: [{
+        model: Stream,
+        as: "stream",
+      }, ],
+      order: [
+        ["fullName", "ASC"]
       ],
-      order: [["fullName", "ASC"]],
     });
     const marks = await Mark.findAll({
       where: {
@@ -871,8 +873,7 @@ router.post("/marks/save", async (req, res) => {
         const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
         const unitTest = parseFloat(req.body[`ut_${studentId}`]) || 0;
         const method = req.body[`method_${studentId}`] || "weighted";
-        const totalScore = calculateScore(
-          {
+        const totalScore = calculateScore({
             homework,
             groupWork,
             quiz,
@@ -917,13 +918,18 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
       isActive: true,
       status: "Active",
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
-      { model: Stream, as: "stream" },
+      {
+        model: Stream,
+        as: "stream"
+      },
     ],
   });
   if (!student)
@@ -943,7 +949,10 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
       term,
       academicYear: year,
     },
-    include: [{ model: Subject, as: "subject" }],
+    include: [{
+      model: Subject,
+      as: "subject"
+    }],
   });
   const attendance = await Attendance.findAll({
     where: {
@@ -966,9 +975,9 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
     )[0] ||
     null;
   const deptCode =
-    student.class && student.class.department
-      ? student.class.department.code
-      : "";
+    student.class && student.class.department ?
+    student.class.department.code :
+    "";
   const isPrimary = deptCode === "Primary" || deptCode === "EYC";
   return {
     student: student.toJSON(),
@@ -991,8 +1000,13 @@ router.get("/progressive-report/:studentId", async (req, res) => {
     const year =
       req.query.year || (currentYear ? currentYear.name : "2024/2025");
     const academicYears = await AcademicYear.findAll({
-      include: [{ model: Term, as: "terms" }],
-      order: [["startDate", "DESC"]],
+      include: [{
+        model: Term,
+        as: "terms"
+      }],
+      order: [
+        ["startDate", "DESC"]
+      ],
     });
     const data = await loadStudentReportData(
       req.params.studentId,
@@ -1030,8 +1044,13 @@ router.get("/final-report/:studentId", async (req, res) => {
     const year =
       req.query.year || (currentYear ? currentYear.name : "2024/2025");
     const academicYears = await AcademicYear.findAll({
-      include: [{ model: Term, as: "terms" }],
-      order: [["startDate", "DESC"]],
+      include: [{
+        model: Term,
+        as: "terms"
+      }],
+      order: [
+        ["startDate", "DESC"]
+      ],
     });
     const data = await loadStudentReportData(
       req.params.studentId,
@@ -1076,11 +1095,13 @@ router.get("/report-cards", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
-        include: [{ model: Student, as: "students" }],
+        include: [{
+          model: Student,
+          as: "students"
+        }],
       },
       {
         model: Stream,
@@ -1111,8 +1132,13 @@ router.get("/report-cards", async (req, res) => {
     }
   });
   const academicYears = await AcademicYear.findAll({
-    include: [{ model: Term, as: "terms" }],
-    order: [["startDate", "DESC"]],
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
+    order: [
+      ["startDate", "DESC"]
+    ],
   });
   res.render("teacher/report-cards", {
     title: "Report Cards",
@@ -1133,11 +1159,13 @@ router.get("/exam-analysis", async (req, res) => {
     where: {
       teacherId: req.session.teacher.id,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
-        include: [{model: Department, as: "department"}],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
       {
         model: Stream,
@@ -1168,18 +1196,23 @@ router.get("/exam-analysis", async (req, res) => {
     }
   });
   const selectedClassId = req.query.classId || "";
-  const selectedStreamId = req.query.streamId
-    ? parseInt(req.query.streamId)
-    : null;
+  const selectedStreamId = req.query.streamId ?
+    parseInt(req.query.streamId) :
+    null;
   const term =
     req.query.term ||
-    (currentYear && currentYear.terms && currentYear.terms[0]
-      ? currentYear.terms[0].name
-      : "Term 1");
+    (currentYear && currentYear.terms && currentYear.terms[0] ?
+      currentYear.terms[0].name :
+      "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
   const academicYears = await AcademicYear.findAll({
-    include: [{ model: Term, as: "terms" }],
-    order: [["startDate", "DESC"]],
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
+    order: [
+      ["startDate", "DESC"]
+    ],
   });
 
   let analysisData = [];
@@ -1193,7 +1226,10 @@ router.get("/exam-analysis", async (req, res) => {
     const cls =
       classes.find((c) => c.id == selectedClassId) ||
       (await Class.findById(selectedClassId, {
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       }).then((c) => (c ? c.toJSON() : null)));
     const deptCode = cls && cls.department ? cls.department.code : "";
     const studentRows = await Student.findAll({
@@ -1208,9 +1244,14 @@ router.get("/exam-analysis", async (req, res) => {
         academicYear: year,
         studentId: studentIds,
       },
-      include: [
-        { model: Subject, as: "subject" },
-        { model: Student, as: "student" },
+      include: [{
+          model: Subject,
+          as: "subject"
+        },
+        {
+          model: Student,
+          as: "student"
+        },
       ],
     });
     const totalStudents = studentIds.length;
@@ -1248,13 +1289,16 @@ router.get("/academic-report/:classId", async (req, res) => {
     const currentYear = await getCurrentYear();
     const term =
       req.query.term ||
-      (currentYear && currentYear.terms && currentYear.terms[0]
-        ? currentYear.terms[0].name
-        : "Term 1");
+      (currentYear && currentYear.terms && currentYear.terms[0] ?
+        currentYear.terms[0].name :
+        "Term 1");
     const year =
       req.query.year || (currentYear ? currentYear.name : "2024/2025");
     const cls = await Class.findById(req.params.classId, {
-      include: [{ model: Department, as: "department" }],
+      include: [{
+        model: Department,
+        as: "department"
+      }],
     });
     const deptCode = cls && cls.department ? cls.department.code : "";
     const isPrimary = deptCode === "Primary" || deptCode === "EYC";
@@ -1264,8 +1308,13 @@ router.get("/academic-report/:classId", async (req, res) => {
     );
     const students = await Student.findAll({
       where: buildTeacherStudentWhere(req.params.classId, streamId),
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
     const marks = await Mark.findAll({
       where: {
@@ -1273,7 +1322,10 @@ router.get("/academic-report/:classId", async (req, res) => {
         term,
         academicYear: year,
       },
-      include: [{ model: Subject, as: "subject" }],
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
     });
     // Group marks by student
     const marksByStudent = {};
@@ -1323,11 +1375,13 @@ router.get("/comments", async (req, res) => {
       teacherId: req.session.teacher.id,
       isClassTeacher: true,
     },
-    include: [
-      {
+    include: [{
         model: Class,
         as: "class",
-        include: [{ model: Department, as: "department" }],
+        include: [{
+          model: Department,
+          as: "department"
+        }],
       },
       {
         model: Stream,
@@ -1354,28 +1408,33 @@ router.get("/comments", async (req, res) => {
 
   const term =
     req.query.term ||
-    (currentYear && currentYear.terms && currentYear.terms[0]
-      ? currentYear.terms[0].name
-      : "Term 1");
+    (currentYear && currentYear.terms && currentYear.terms[0] ?
+      currentYear.terms[0].name :
+      "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
   const academicYears = await AcademicYear.findAll({
-    include: [{ model: Term, as: "terms" }],
-    order: [["startDate", "DESC"]],
+    include: [{
+      model: Term,
+      as: "terms"
+    }],
+    order: [
+      ["startDate", "DESC"]
+    ],
   });
 
   let students = [],
     selectedClass = null,
     existingComments = {},
     classMarks = {};
-  const selectedStreamId = req.query.streamId
-    ? parseInt(req.query.streamId)
-    : null;
+  const selectedStreamId = req.query.streamId ?
+    parseInt(req.query.streamId) :
+    null;
 
   if (req.query.classId) {
     selectedClass = ctClasses.find(
       (c) =>
-        c.id == req.query.classId &&
-        (!selectedStreamId || c.streamId === selectedStreamId),
+      c.id == req.query.classId &&
+      (!selectedStreamId || c.streamId === selectedStreamId),
     );
     if (!selectedClass) {
       const fallback = ctClasses.find((c) => c.id == req.query.classId);
@@ -1398,8 +1457,13 @@ router.get("/comments", async (req, res) => {
 
     students = await Student.findAll({
       where: studentWhere,
-      include: [{ model: Stream, as: "stream" }],
-      order: [["fullName", "ASC"]],
+      include: [{
+        model: Stream,
+        as: "stream"
+      }],
+      order: [
+        ["fullName", "ASC"]
+      ],
     });
 
     // Load existing comments
@@ -1421,7 +1485,10 @@ router.get("/comments", async (req, res) => {
         term,
         academicYear: year,
       },
-      include: [{ model: Subject, as: "subject" }],
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
     });
     marks.forEach((m) => {
       if (!classMarks[m.studentId]) classMarks[m.studentId] = [];
@@ -1477,7 +1544,12 @@ router.get("/comments", async (req, res) => {
 
 router.post("/comments/save", async (req, res) => {
   try {
-    const { classId, streamId, term, academicYear } = req.body;
+    const {
+      classId,
+      streamId,
+      term,
+      academicYear
+    } = req.body;
     const parsedStreamId = streamId ? parseInt(streamId) : null;
 
     // Verify this teacher is class teacher for this class/stream
@@ -1523,7 +1595,13 @@ router.post("/comments/save", async (req, res) => {
 // ── AI Generate Comment for one student ───────────────────────────────────────
 router.post("/comments/generate", async (req, res) => {
   try {
-    const { studentId, classId, streamId, term, academicYear } = req.body;
+    const {
+      studentId,
+      classId,
+      streamId,
+      term,
+      academicYear
+    } = req.body;
 
     // Coerce to integers for reliable DB matching
     const studentIdInt = parseInt(studentId);
@@ -1532,8 +1610,7 @@ router.post("/comments/generate", async (req, res) => {
 
     if (!studentIdInt || !classIdInt || !term || !academicYear) {
       return res.status(400).json({
-        error:
-          "Missing required fields: studentId, classId, term, academicYear",
+        error: "Missing required fields: studentId, classId, term, academicYear",
       });
     }
 
@@ -1555,11 +1632,11 @@ router.post("/comments/generate", async (req, res) => {
     const student = await Student.findOne({
       where: {
         id: studentIdInt,
-        ...(streamIdInt
-          ? {
-              streamId: streamIdInt,
-            }
-          : {}),
+        ...(streamIdInt ?
+          {
+            streamId: streamIdInt,
+          } :
+          {}),
       },
     });
     if (!student) {
@@ -1575,7 +1652,10 @@ router.post("/comments/generate", async (req, res) => {
         term,
         academicYear,
       },
-      include: [{ model: Subject, as: "subject" }],
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
     });
     const attendance = await Attendance.findAll({
       where: {
@@ -1590,19 +1670,19 @@ router.post("/comments/generate", async (req, res) => {
     const attPct = total > 0 ? Math.round((present / total) * 100) : 0;
 
     const marksInfo =
-      marks.length > 0
-        ? marks
-            .map((m) => {
-              const subj = m.subject ? m.subject.name : "Unknown";
-              return `${subj}: ${m.totalScore ? m.totalScore.toFixed(1) : "N/A"} (${m.grade || "N/A"})`;
-            })
-            .join(", ")
-        : "No marks recorded yet";
+      marks.length > 0 ?
+      marks
+      .map((m) => {
+        const subj = m.subject ? m.subject.name : "Unknown";
+        return `${subj}: ${m.totalScore ? m.totalScore.toFixed(1) : "N/A"} (${m.grade || "N/A"})`;
+      })
+      .join(", ") :
+      "No marks recorded yet";
 
     const avgScore =
-      marks.length > 0
-        ? marks.reduce((s, m) => s + (m.totalScore || 0), 0) / marks.length
-        : null;
+      marks.length > 0 ?
+      marks.reduce((s, m) => s + (m.totalScore || 0), 0) / marks.length :
+      null;
 
     // Build first name from full name
     const firstName = student.fullName.split(" ")[0];
@@ -1634,12 +1714,10 @@ Write only the report card comment text, nothing else.`;
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 250,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+        messages: [{
+          role: "user",
+          content: prompt,
+        }, ],
       }),
     });
 
@@ -1659,9 +1737,9 @@ Write only the report card comment text, nothing else.`;
 
     const data = await response.json();
     const comment =
-      data.content && data.content[0] && data.content[0].text
-        ? data.content[0].text.trim()
-        : null;
+      data.content && data.content[0] && data.content[0].text ?
+      data.content[0].text.trim() :
+      null;
 
     if (!comment) {
       console.error("Unexpected API response:", JSON.stringify(data));
@@ -1683,16 +1761,51 @@ Write only the report card comment text, nothing else.`;
 
 // ── Timetable and substitute requests ─────────────────────────────────────────
 const timetableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const timetableSlots = [
-  { label: "08:05 - 08:50", start: "08:05", end: "08:50" },
-  { label: "08:55 - 09:40", start: "08:55", end: "09:40" },
-  { label: "09:45 - 10:30", start: "09:45", end: "10:30" },
-  { label: "BREAK", break: true, note: "10:30 - 11:00" },
-  { label: "11:00 - 11:45", start: "11:00", end: "11:45" },
-  { label: "11:45 - 12:30", start: "11:45", end: "12:30" },
-  { label: "BREAK", break: true, note: "12:30 - 13:15" },
-  { label: "13:15 - 14:00", start: "13:15", end: "14:00" },
-  { label: "14:05 - 14:50", start: "14:05", end: "14:50" },
+const timetableSlots = [{
+    label: "08:05 - 08:50",
+    start: "08:05",
+    end: "08:50"
+  },
+  {
+    label: "08:55 - 09:40",
+    start: "08:55",
+    end: "09:40"
+  },
+  {
+    label: "09:45 - 10:30",
+    start: "09:45",
+    end: "10:30"
+  },
+  {
+    label: "BREAK",
+    break: true,
+    note: "10:30 - 11:00"
+  },
+  {
+    label: "11:00 - 11:45",
+    start: "11:00",
+    end: "11:45"
+  },
+  {
+    label: "11:45 - 12:30",
+    start: "11:45",
+    end: "12:30"
+  },
+  {
+    label: "BREAK",
+    break: true,
+    note: "12:30 - 13:15"
+  },
+  {
+    label: "13:15 - 14:00",
+    start: "13:15",
+    end: "14:00"
+  },
+  {
+    label: "14:05 - 14:50",
+    start: "14:05",
+    end: "14:50"
+  },
 ];
 
 function timeToMinutes(value) {
@@ -1707,11 +1820,23 @@ function overlaps(first, second) {
 
 async function getAvailableSubstituteTeachers(lesson, teacherId, departmentId, term, year) {
   const teachers = await Teacher.findAll({
-    where: { departmentId, isActive: true, id: { $ne: teacherId } },
-    order: [["fullName", "ASC"]],
+    where: {
+      departmentId,
+      isActive: true,
+      id: {
+        $ne: teacherId
+      }
+    },
+    order: [
+      ["fullName", "ASC"]
+    ],
   });
   const timetables = await Timetable.findAll({
-    where: { term, academicYear: year, day: lesson.day },
+    where: {
+      term,
+      academicYear: year,
+      day: lesson.day
+    },
   });
   return teachers.filter((candidate) =>
     !timetables.some((entry) =>
@@ -1726,27 +1851,42 @@ router.get('/timetable', async (req, res) => {
     const openTerms = currentYear && currentYear.terms ? currentYear.terms.filter(t => t.isOpen) : [];
     const term = req.query.term || (openTerms[0] ? openTerms[0].name : (currentYear && currentYear.terms && currentYear.terms[0] ? currentYear.terms[0].name : 'Term 1'));
     const year = req.query.year || (currentYear ? currentYear.name : '2026/2027');
-    
+
     // load teacher's assigned subjects for select
-    const teacherSubjectRows = await TeacherSubject.findAll({ 
-      where: { teacherId: req.session.teacher.id }, 
-      include: [{ 
-        model: Subject, 
-        as: 'subject', 
-        include: [{ model: Class, as: 'class' }] 
-      }] 
+    const teacherSubjectRows = await TeacherSubject.findAll({
+      where: {
+        teacherId: req.session.teacher.id
+      },
+      include: [{
+        model: Subject,
+        as: 'subject',
+        include: [{
+          model: Class,
+          as: 'class'
+        }]
+      }]
     });
-    
+
     const subjects = teacherSubjectRows.map(r => r.subject).filter(Boolean);
-    
-    const entries = await Timetable.findAll({ 
-      where: { teacherId: req.session.teacher.id, term, academicYear: year }, 
-      include: [{ 
-        model: Subject, 
-        as: 'subject', 
-        include: [{ model: Class, as: 'class' }] 
-      }], 
-      order: [['day', 'ASC'], ['startTime', 'ASC']] 
+
+    const entries = await Timetable.findAll({
+      where: {
+        teacherId: req.session.teacher.id,
+        term,
+        academicYear: year
+      },
+      include: [{
+        model: Subject,
+        as: 'subject',
+        include: [{
+          model: Class,
+          as: 'class'
+        }]
+      }],
+      order: [
+        ['day', 'ASC'],
+        ['startTime', 'ASC']
+      ]
     });
     const availableSubstitutes = {};
     for (const entry of entries) {
@@ -1759,45 +1899,83 @@ router.get('/timetable', async (req, res) => {
       );
     }
     const substituteRequests = await SubstituteRequest.findAll({
-      where: { substituteTeacherId: req.session.teacher.id, status: "pending" },
-      include: [
-        {
+      where: {
+        substituteTeacherId: req.session.teacher.id,
+        status: "pending"
+      },
+      include: [{
           model: Timetable,
           as: "timetable",
-          include: [{ model: Subject, as: "subject", include: [{ model: Class, as: "class" }] }],
+          include: [{
+            model: Subject,
+            as: "subject",
+            include: [{
+              model: Class,
+              as: "class"
+            }]
+          }],
         },
-        { model: Teacher, as: "requester" },
+        {
+          model: Teacher,
+          as: "requester"
+        },
       ],
-      order: [["createdAt", "DESC"]],
+      order: [
+        ["createdAt", "DESC"]
+      ],
     });
     const acceptedSubstituteRequests = await SubstituteRequest.findAll({
       where: {
         status: "accepted",
-        $or: [
-          { requesterTeacherId: req.session.teacher.id },
-          { substituteTeacherId: req.session.teacher.id },
+        $or: [{
+            requesterTeacherId: req.session.teacher.id
+          },
+          {
+            substituteTeacherId: req.session.teacher.id
+          },
         ],
       },
-      include: [
-        { model: Teacher, as: "requester" },
-        { model: Teacher, as: "substitute" },
+      include: [{
+          model: Teacher,
+          as: "requester"
+        },
+        {
+          model: Teacher,
+          as: "substitute"
+        },
         {
           model: Timetable,
           as: "timetable",
-          include: [{ model: Subject, as: "subject", include: [{ model: Class, as: "class" }] }],
+          include: [{
+            model: Subject,
+            as: "subject",
+            include: [{
+              model: Class,
+              as: "class"
+            }]
+          }],
         },
       ],
-      order: [["updatedAt", "DESC"]],
+      order: [
+        ["updatedAt", "DESC"]
+      ],
     });
-    
-    res.render('teacher/timetable', { 
-      title: 'My Timetable', 
-      entries, term, year, openTerms, subjects,
-      timetableDays, timetableSlots, availableSubstitutes, substituteRequests,
+
+    res.render('teacher/timetable', {
+      title: 'My Timetable',
+      entries,
+      term,
+      year,
+      openTerms,
+      subjects,
+      timetableDays,
+      timetableSlots,
+      availableSubstitutes,
+      substituteRequests,
       acceptedSubstituteRequests,
-      teacher: req.session.teacher, 
-      error: req.flash('error'), 
-      success: req.flash('success') 
+      teacher: req.session.teacher,
+      error: req.flash('error'),
+      success: req.flash('success')
     });
 
   } catch (err) {
@@ -1829,7 +2007,9 @@ router.post('/timetable/substitute-requests/:id/respond', async (req, res) => {
         throw new Error("You are no longer free during this lesson.");
       }
     }
-    await request.update({ status: req.body.status });
+    await request.update({
+      status: req.body.status
+    });
     req.flash("success", req.body.status === "accepted" ? "Substitute request accepted." : "Substitute request declined.");
   } catch (err) {
     req.flash("error", err.message);
@@ -1856,7 +2036,11 @@ router.post('/timetable/:id/substitute', async (req, res) => {
       throw new Error("That teacher is not free during this lesson.");
     }
     const existing = await SubstituteRequest.findOne({
-      where: { timetableId: lesson.id, substituteTeacherId, status: "pending" },
+      where: {
+        timetableId: lesson.id,
+        substituteTeacherId,
+        status: "pending"
+      },
     });
     if (existing) throw new Error("A substitute request is already pending for this teacher.");
     await SubstituteRequest.create({
@@ -1874,7 +2058,16 @@ router.post('/timetable/:id/substitute', async (req, res) => {
 
 router.post('/timetable/save', async (req, res) => {
   try {
-    const { subjectId, day, startTime, endTime, location, color, term, academicYear } = req.body;
+    const {
+      subjectId,
+      day,
+      startTime,
+      endTime,
+      location,
+      color,
+      term,
+      academicYear
+    } = req.body;
     if (!subjectId || !day || !startTime || !endTime) throw new Error('Subject, day, start time and end time are required');
     const slot = timetableSlots.find((item) =>
       !item.break && item.start === String(startTime).slice(0, 5) &&
@@ -1883,12 +2076,17 @@ router.post('/timetable/save', async (req, res) => {
     if (!timetableDays.includes(String(day)) || !slot) {
       throw new Error('Select a valid lesson slot from the timetable.');
     }
-    const lessonColor = /^#[0-9a-fA-F]{6}$/.test(String(color || ""))
-      ? String(color)
-      : "#dbeafe";
-    
+    const lessonColor = /^#[0-9a-fA-F]{6}$/.test(String(color || "")) ?
+      String(color) :
+      "#dbeafe";
+
     // verify teacher teaches this subject
-    const ts = await TeacherSubject.findOne({ where: { teacherId: req.session.teacher.id, subjectId } });
+    const ts = await TeacherSubject.findOne({
+      where: {
+        teacherId: req.session.teacher.id,
+        subjectId
+      }
+    });
     if (!ts) throw new Error('You are not assigned to this subject');
     const existingEntries = await Timetable.findAll({
       where: {
@@ -1898,27 +2096,31 @@ router.post('/timetable/save', async (req, res) => {
         academicYear: academicYear || '',
       },
     });
-    if (existingEntries.some((entry) => overlaps(
-      { startTime: String(startTime), endTime: String(endTime) },
-      entry,
-    ))) {
+    if (existingEntries.some((entry) => overlaps({
+          startTime: String(startTime),
+          endTime: String(endTime)
+        },
+        entry,
+      ))) {
       throw new Error('You already have a lesson in that timetable slot.');
     }
-    
-    await Timetable.create({ 
-      teacherId: req.session.teacher.id, 
-      subjectId: parseInt(subjectId), 
-      day: String(day), 
-      startTime: String(startTime), 
-      endTime: String(endTime), 
-      location: location ? String(location).trim() : null, 
+
+    await Timetable.create({
+      teacherId: req.session.teacher.id,
+      subjectId: parseInt(subjectId),
+      day: String(day),
+      startTime: String(startTime),
+      endTime: String(endTime),
+      location: location ? String(location).trim() : null,
       color: lessonColor,
-      term: term || '', 
-      academicYear: academicYear || '' 
+      term: term || '',
+      academicYear: academicYear || ''
     });
-    
+
     req.flash('success', 'Timetable entry saved');
-  } catch (err) { req.flash('error', err.message); }
+  } catch (err) {
+    req.flash('error', err.message);
+  }
   res.redirect(`/teacher/timetable?term=${encodeURIComponent(req.body.term || '')}&year=${encodeURIComponent(req.body.academicYear || '')}`);
 });
 
@@ -1928,10 +2130,12 @@ router.post('/timetable/:id/delete', async (req, res) => {
     const row = await Timetable.findById(req.params.id);
     if (!row) throw new Error('Timetable entry not found');
     if (String(row.teacherId) !== String(req.session.teacher.id)) throw new Error('Not allowed');
-    
+
     await row.destroy();
     req.flash('success', 'Timetable entry removed');
-  } catch (err) { req.flash('error', err.message); }
+  } catch (err) {
+    req.flash('error', err.message);
+  }
   res.redirect(`/teacher/timetable?term=${encodeURIComponent(req.body.term || '')}&year=${encodeURIComponent(req.body.academicYear || '')}`);
 });
 

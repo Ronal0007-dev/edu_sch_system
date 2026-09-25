@@ -698,7 +698,7 @@ a:hover {
   font-size: .9rem;
 }
 
-.assigned-class-heading > div span {
+.assigned-class-heading>div span {
   color: var(--text-muted);
   font-size: .75rem;
 }
@@ -5192,7 +5192,7 @@ a:hover {
 :root[data-theme="dark"] .substitute-request span,
 :root[data-theme="dark"] .substitute-request small,
 :root[data-theme="dark"] .stat-info p,
-:root[data-theme="dark"] .assigned-class-heading > div span,
+:root[data-theme="dark"] .assigned-class-heading>div span,
 :root[data-theme="dark"] .assigned-subject-chip small,
 :root[data-theme="dark"] .discipline-group-heading span,
 :root[data-theme="dark"] .discipline-student-details,
