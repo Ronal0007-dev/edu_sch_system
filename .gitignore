@@ -1,9 +1,9 @@
 node_modules
 .env
 seed.js
-README.md
 docker-compose.yml
 Dockerfile
 .gitignore
 edu_sch_system_latest.zip
 seeders/*
+README.md
