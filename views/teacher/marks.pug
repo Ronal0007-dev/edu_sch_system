@@ -20,10 +20,7 @@ block body
             option(value='') — select department first —
             if selectedClass
               option(value=selectedClass.id, selected=true) #{selectedClass.name}
-        .form-group
-          label
-            span.step-badge 3
-            | Stream
+        .form-group(style='display:none')
           select(name='streamId', id='streamSelect')
             option(value='') All Streams
         .form-group

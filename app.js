@@ -65,6 +65,9 @@ app.use('/discipline', require('./routes/discipline'));
 app.use('/admin/discipline', require('./routes/discipline'));
 app.use('/teacher/discipline', require('./routes/discipline'));
 app.use('/academician/discipline', require('./routes/discipline'));
+app.use('/admin/electives', require('./routes/electives'));
+app.use('/teacher/electives', require('./routes/electives'));
+app.use('/academician/electives', require('./routes/electives'));
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).render('404', {

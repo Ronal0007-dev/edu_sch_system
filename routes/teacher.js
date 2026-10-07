@@ -19,6 +19,10 @@ const {
   ART_MAX,
 } = require("../utils/grading");
 const {
+  filterMarksForStudent,
+  filterStudentsForSubject
+} = require("../utils/electives");
+const {
   AcademicYear,
   Term,
   Department,
@@ -710,21 +714,11 @@ router.get("/marks", async (req, res) => {
       selectedClass ? selectedClass.name : "",
       deptCode,
     );
-    const resolvedStreamId =
-      selectedStreamId ||
-      (await getTeacherAssignedStreamId(
-        req.session.teacher.id,
-        selectedClassId,
-      ));
-    selectedStream = resolvedStreamId ?
-      await getTeacherClassStream(
-        req.session.teacher.id,
-        selectedClassId,
-        resolvedStreamId,
-      ) :
-      null;
+    // Marks entry always loads the whole class, regardless of stream or class-teacher assignment.
+    const resolvedStreamId = null;
+    selectedStream = null;
     students = await Student.findAll({
-      where: buildTeacherStudentWhere(selectedClassId, resolvedStreamId),
+      where: buildTeacherStudentWhere(selectedClassId, null),
       include: [{
         model: Stream,
         as: "stream",
@@ -733,6 +727,7 @@ router.get("/marks", async (req, res) => {
         ["fullName", "ASC"]
       ],
     });
+    students = await filterStudentsForSubject(students, selectedClass, selectedSubject);
     const marks = await Mark.findAll({
       where: {
         subjectId: selectedSubjectId,
@@ -943,7 +938,7 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
       throw new Error("You are not authorized to view this student");
     }
   }
-  const marks = await Mark.findAll({
+  const allMarks = await Mark.findAll({
     where: {
       studentId,
       term,
@@ -954,6 +949,7 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
       as: "subject"
     }],
   });
+  const marks = await filterMarksForStudent(student, allMarks);
   const attendance = await Attendance.findAll({
     where: {
       studentId,

@@ -1,0 +1,63 @@
+.card
+  .card-header
+    h2 Year 11 Subject Options
+    i.fas.fa-list-check
+  .card-body
+    p.elective-note
+      | Mathematics and English are compulsory. Tick the optional subjects each student opted to take; only compulsory and ticked subjects appear on the report card.
+    if !classes.length
+      .empty-state
+        i.fas.fa-user-graduate
+        p No Year 11 (Secondary) class available for you.
+    else
+      form.filter-form(method='GET', action=basePath)
+        .form-row
+          .form-group
+            label Class
+            select(name='classId', onchange='this.form.submit()')
+              each cls in classes
+                option(value=cls.id, selected=String(cls.id)===String(selectedClassId)) #{cls.name}
+      if compulsory.length
+        p.elective-compulsory
+          strong Compulsory:
+          |  #{compulsory.map(function (s) { return s.name; }).join(', ')}
+      if !students.length
+        .empty-state
+          i.fas.fa-user-graduate
+          p No active students in this class.
+      else if !optional.length
+        .empty-state
+          i.fas.fa-book
+          p No optional subjects are assigned to this class yet.
+      else
+        form(method='POST', action=`${basePath}/save`)
+          input(type='hidden', name='classId', value=selectedClassId)
+          .table-scroll
+            table.data-table.elective-table
+              thead
+                tr
+                  th #
+                  th Student
+                  each subject in optional
+                    th
+                      label.elective-head
+                        input.elective-all(type='checkbox', data-subject=subject.id, title='Select all')
+                        span #{subject.name}
+              tbody
+                each student, i in students
+                  tr
+                    td #{i + 1}
+                    td #{student.fullName}
+                    each subject in optional
+                      td.elective-cell
+                        input(type='checkbox', name=`e_${student.id}`, value=subject.id, data-subject=subject.id, checked=Boolean(chosen[student.id + '_' + subject.id]))
+          .form-actions
+            button.btn.btn-primary(type='submit')
+              i.fas.fa-save
+              span Save Subject Options
+      script.
+        document.querySelectorAll('.elective-all').forEach(function (all) {
+          all.addEventListener('change', function () {
+            document.querySelectorAll('.elective-cell input[data-subject="' + all.dataset.subject + '"]').forEach(function (box) { box.checked = all.checked; });
+          });
+        });

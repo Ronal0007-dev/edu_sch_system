@@ -5561,3 +5561,33 @@ body.sidebar-collapsed .main-content {
     justify-content: center;
   }
 }
+/* --- Year 11 subject options ------------------------------------------------ */
+.elective-note,
+.elective-compulsory {
+  margin-bottom: 1rem;
+  font-size: .9rem;
+}
+
+.elective-table th,
+.elective-table td {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.elective-table th:nth-child(2),
+.elective-table td:nth-child(2) {
+  text-align: left;
+}
+
+.elective-head {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  cursor: pointer;
+}
+
+.elective-table input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--primary);
+}

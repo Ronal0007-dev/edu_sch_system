@@ -233,6 +233,21 @@ const DisciplineRecord = sequelize.define(
   { tableName: "discipline_records", timestamps: true },
 );
 
+// ─── Student optional-subject choices (Year 11) ───────────────────────────────
+const StudentSubject = sequelize.define(
+  "StudentSubject",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    studentId: { type: DataTypes.INTEGER, allowNull: false },
+    subjectId: { type: DataTypes.INTEGER, allowNull: false },
+  },
+  {
+    tableName: "student_subjects",
+    timestamps: true,
+    indexes: [{ unique: true, fields: ["studentId", "subjectId"] }],
+  },
+);
+
 // ─── Teacher-Subject Assignment ───────────────────────────────────────────────
 const TeacherSubject = sequelize.define(
   "TeacherSubject",
@@ -495,6 +510,9 @@ DisciplineRecord.belongsTo(Student, { foreignKey: "studentId", as: "student" });
 DisciplineRecord.belongsTo(DisciplineReason, { foreignKey: "reasonId", as: "reasonDefinition" });
 DisciplineReason.hasMany(DisciplineRecord, { foreignKey: "reasonId", as: "records" });
 DisciplineRecord.belongsTo(Teacher, { foreignKey: "awardedByTeacherId", as: "awardedBy" });
+Student.hasMany(StudentSubject, { foreignKey: "studentId", as: "electedSubjects" });
+StudentSubject.belongsTo(Student, { foreignKey: "studentId", as: "student" });
+StudentSubject.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 
 // Join table belongsTo (needed for include in list views)
 TeacherClass.belongsTo(Teacher, { foreignKey: "teacherId", as: "teacher" });
@@ -562,6 +580,7 @@ module.exports = {
   ReportComment,
   DisciplineReason,
   DisciplineRecord,
+  StudentSubject,
   TeacherClass,
   TeacherSubject,
   ClassSubject,

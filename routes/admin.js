@@ -6,6 +6,7 @@ const {
   requireAdmin
 } = require("../middleware/auth");
 const {
+  getGrade,
   getRemark,
   getPrimaryExamGrade,
   primaryExamPassed,
@@ -17,6 +18,10 @@ const {
   calculateScore,
   calculateArtScore,
 } = require("../utils/grading");
+const {
+  filterMarksForStudent,
+  filterStudentsForSubject
+} = require("../utils/electives");
 const {
   sendPasswordResetEmail
 } = require("../utils/mailer");
@@ -1391,6 +1396,7 @@ router.get("/marks", async (req, res) => {
         ["fullName", "ASC"]
       ],
     });
+    students = await filterStudentsForSubject(students, selectedClass, selectedSubject);
     const marks = await Mark.findAll({
       where: {
         classId: selectedClass.id,
@@ -3185,7 +3191,6 @@ router.post("/assignments/teacher-class", async (req, res) => {
         where: {
           teacherId: parsedTeacherId,
           classId,
-          streamId: parsedStreamId || null,
         },
       }) || await TeacherClass.create({
         teacherId: parsedTeacherId,
@@ -4150,7 +4155,7 @@ async function buildClassReports(classId, term, year, status = "Active") {
   const isPrimary = deptCode === "Primary" || deptCode === "EYC";
   const studentReports = await Promise.all(
     students.map(async (student) => {
-      const marks = await Mark.findAll({
+      const allMarks = await Mark.findAll({
         where: {
           studentId: student.id,
           term,
@@ -4161,6 +4166,7 @@ async function buildClassReports(classId, term, year, status = "Active") {
           as: "subject"
         }],
       });
+      const marks = await filterMarksForStudent(student, allMarks);
       const attendance = await Attendance.findAll({
         where: {
           studentId: student.id
