@@ -1,4 +1,10 @@
-const { StudentSubject } = require("../models");
+const {
+  StudentSubject,
+  Class,
+  Department,
+  TeacherSubject,
+  TeacherClass,
+} = require("../models");
 
 // Year 11 (Secondary) students only have Mathematics and English as compulsory subjects.
 function isElectiveClass(cls) {
@@ -14,6 +20,22 @@ function isCompulsorySubject(subject) {
   return /^(english|mathematics|maths?)(\s+language)?$/i.test(
     String((subject && subject.name) || "").trim(),
   );
+}
+
+// Checks if a teacher is currently assigned to teach Year 11 in Secondary department.
+async function teacherTeachesYear11(teacherId) {
+  if (!teacherId) return false;
+  const classes = await Class.findAll({
+    include: [{ model: Department, as: "department" }],
+  });
+  const year11ClassIds = classes.filter(isElectiveClass).map((c) => c.id);
+  if (!year11ClassIds.length) return false;
+
+  const [tsCount, tcCount] = await Promise.all([
+    TeacherSubject.count({ where: { teacherId, classId: { $in: year11ClassIds } } }),
+    TeacherClass.count({ where: { teacherId, classId: { $in: year11ClassIds } } }),
+  ]);
+  return tsCount > 0 || tcCount > 0;
 }
 
 // Keeps compulsory subjects plus the optional subjects the student opted to take.
@@ -34,4 +56,10 @@ async function filterStudentsForSubject(students, cls, subject) {
   return students.filter((student) => opted.has(Number(student.id)));
 }
 
-module.exports = { isElectiveClass, isCompulsorySubject, filterMarksForStudent, filterStudentsForSubject };
+module.exports = {
+  isElectiveClass,
+  isCompulsorySubject,
+  teacherTeachesYear11,
+  filterMarksForStudent,
+  filterStudentsForSubject,
+};

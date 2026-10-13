@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const moment = require("moment");
-//const { Op } = require("sequelize");
+//const {Op} = require("sequelize")
 const {
   requireTeacher
 } = require("../middleware/auth");
@@ -14,7 +14,15 @@ const {
   secondaryExamPassed,
   buildExamAnalysis,
   isArtDesignSubject,
+  isArtDesignSenior,
+  isArtDesignJunior,
+  isArtDesignPrimary,
+  isPrimaryClass,
   calculateArtScore,
+  calculateArtJuniorScore,
+  calculatePrimaryScore,
+  getPrimaryCAGrade,
+  parseScoreInput,
   artGrade,
   ART_MAX,
 } = require("../utils/grading");
@@ -709,11 +717,12 @@ router.get("/marks", async (req, res) => {
       selectedClass && selectedClass.department ?
       selectedClass.department.code :
       "";
-    isArtDesign = isArtDesignSubject(
-      selectedSubject ? selectedSubject.name : "",
-      selectedClass ? selectedClass.name : "",
-      deptCode,
-    );
+    const className = selectedClass ? selectedClass.name : "";
+    const subjectName = selectedSubject ? selectedSubject.name : "";
+    isArtDesign = isArtDesignSenior(subjectName, className, deptCode);
+    const isArtDesignJuniorMode = isArtDesignJunior(subjectName, className, deptCode);
+    const isPrimary = isPrimaryClass(className, deptCode);
+
     // Marks entry always loads the whole class, regardless of stream or class-teacher assignment.
     const resolvedStreamId = null;
     selectedStream = null;
@@ -736,8 +745,21 @@ router.get("/marks", async (req, res) => {
         academicYear: year,
       },
     });
+    const isArtPrimary = selectedSubject && selectedClass ? isArtDesignPrimary(selectedSubject.name, selectedClass.name, deptCode) : false;
     marks.forEach((m) => {
-      existingMarks[m.studentId] = m;
+      const markObj = m.toJSON ? m.toJSON() : m;
+      if (isArtDesign) {
+        if (markObj.finalExam == null && markObj.totalScore != null) {
+          markObj.finalExam = markObj.totalScore;
+        }
+        if (!markObj.finalExamMax) markObj.finalExamMax = 72;
+      } else if (isArtPrimary) {
+        if (markObj.finalExam == null && markObj.totalScore != null) {
+          markObj.finalExam = Math.round((markObj.totalScore * 0.5) * 10) / 10;
+        }
+        if (!markObj.finalExamMax) markObj.finalExamMax = 50;
+      }
+      existingMarks[markObj.studentId] = markObj;
     });
   }
 
@@ -758,6 +780,9 @@ router.get("/marks", async (req, res) => {
     selectedStream,
     classStreamMap,
     isArtDesign,
+    isArtDesignJunior: selectedSubject && selectedClass ? isArtDesignJunior(selectedSubject.name, selectedClass.name, deptCode) : false,
+    isArtDesignPrimary: selectedSubject && selectedClass ? isArtDesignPrimary(selectedSubject.name, selectedClass.name, deptCode) : false,
+    isPrimary: selectedClass ? isPrimaryClass(selectedClass.name, deptCode) : false,
     ART_MAX,
     term,
     year,
@@ -780,8 +805,18 @@ router.post("/marks/save", async (req, res) => {
       isArtDesign: artFlag,
     } = req.body;
 
-    // Detect Art & Design mode from hidden form field sent by the view
-    const artMode = artFlag === "1";
+    const [selectedClass, selectedSubject] = await Promise.all([
+      Class.findById(classId, { include: [{ model: Department, as: "department" }] }),
+      Subject.findById(subjectId),
+    ]);
+    const deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : "";
+    const className = selectedClass ? selectedClass.name : "";
+    const subjectName = selectedSubject ? selectedSubject.name : "";
+
+    const isArtSenior = isArtDesignSenior(subjectName, className, deptCode);
+    const isArtJunior = isArtDesignJunior(subjectName, className, deptCode);
+    const isArtPrimary = isArtDesignPrimary(subjectName, className, deptCode);
+    const isPrimary = isPrimaryClass(className, deptCode);
 
     if (section === "fe") {
       // ── Save Final Exam scores only ────────────────────────────────────────
@@ -791,7 +826,10 @@ router.post("/marks/save", async (req, res) => {
       for (const studentId of feIds) {
         const finalExam = parseFloat(req.body[`fe_${studentId}`]);
         if (isNaN(finalExam)) continue;
-        const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
+        let finalExamMax = parseFloat(req.body[`femax_${studentId}`]);
+        if (isNaN(finalExamMax) || finalExamMax <= 0) {
+          finalExamMax = isPrimary ? 50 : isArtSenior ? 72 : null;
+        }
         const [mark] = await Mark.findOrCreate({
           where: {
             studentId,
@@ -819,25 +857,52 @@ router.post("/marks/save", async (req, res) => {
         await mark.update(updateData);
       }
       req.flash("success", "Final Exam marks saved");
-    } else if (artMode) {
-      // ── Art & Design: summation out of 72, no weighting/averaging ──────────
+    } else if (isArtSenior) {
+      // ── Art & Design (Year 10 & 11 Secondary): summation out of 72, cannot exceed 72 ──
       const studentIds = Object.keys(req.body)
         .filter((k) => k.startsWith("hw_"))
         .map((k) => k.replace("hw_", ""));
+
+      // Validation pass: reject if sum > 72
       for (const studentId of studentIds) {
-        const homework = parseFloat(req.body[`hw_${studentId}`]) || 0;
-        const groupWork = parseFloat(req.body[`gw_${studentId}`]) || 0;
-        const quiz = parseFloat(req.body[`qz_${studentId}`]) || 0;
-        const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
-        const unitTest = parseFloat(req.body[`ut_${studentId}`]) || 0;
-        const totalScore = calculateArtScore({
-          homework,
-          groupWork,
-          quiz,
-          classWork,
-          unitTest,
+        const hw = parseScoreInput(req.body[`hw_${studentId}`]);
+        const gw = parseScoreInput(req.body[`gw_${studentId}`]);
+        const qz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const cw = parseScoreInput(req.body[`cw_${studentId}`]);
+        const ut = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = Math.round((hw + gw + qz + cw + ut) * 10) / 10;
+        if (sum > 72) {
+          const st = await Student.findById(studentId);
+          req.flash(
+            "error",
+            `Cannot save marks: The total marks for ${st ? st.fullName : "Student"} (${sum}) exceeds the maximum allowed score of 72 for Art & Design.`
+          );
+          return res.redirect(
+            `/teacher/marks?subjectId=${subjectId}&classId=${classId}&streamId=${req.body.streamId || ""}&term=${term}&year=${academicYear}`
+          );
+        }
+      }
+
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const totalScore = Math.round((homework + groupWork + quiz + classWork + unitTest) * 10) / 10;
+        const grade = artGrade(totalScore); // 'Pass' (>=29) or 'Fail'
+
+        const existingMark = await Mark.findOne({
+          where: { studentId, subjectId, classId, term, academicYear },
         });
-        const grade = artGrade(totalScore); // 'Pass' or 'Fail'
+        // Auto-fill final report mark to totalScore and max to 72
+        const finalExam =
+          existingMark && existingMark.finalExam != null && existingMark.finalExam !== existingMark.totalScore
+            ? existingMark.finalExam
+            : totalScore;
+        const finalExamMax =
+          existingMark && existingMark.finalExamMax ? existingMark.finalExamMax : 72;
+
         await Mark.upsert({
           studentId,
           subjectId,
@@ -852,23 +917,124 @@ router.post("/marks/save", async (req, res) => {
           gradingMethod: "summation",
           totalScore,
           grade,
+          finalExam,
+          finalExamMax,
           enteredBy: req.session.teacher.id,
         });
       }
-      req.flash("success", "Art & Design marks saved (summation out of 72)");
-    } else {
-      // ── Regular CA: weighted or unweighted ─────────────────────────────────
+      req.flash("success", "Art & Design marks saved (summation out of 72, final report score set to total)");
+    } else if (isArtJunior) {
+      // ── Art & Design (Year 7, 8, 9 Secondary): average of assessments, dash (-) = 0 ──
       const studentIds = Object.keys(req.body)
         .filter((k) => k.startsWith("hw_"))
         .map((k) => k.replace("hw_", ""));
       for (const studentId of studentIds) {
-        const homework = parseFloat(req.body[`hw_${studentId}`]) || 0;
-        const groupWork = parseFloat(req.body[`gw_${studentId}`]) || 0;
-        const quiz = parseFloat(req.body[`qz_${studentId}`]) || 0;
-        const classWork = parseFloat(req.body[`cw_${studentId}`]) || 0;
-        const unitTest = parseFloat(req.body[`ut_${studentId}`]) || 0;
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = homework + groupWork + quiz + classWork + unitTest;
+        const totalScore = Math.round((sum / 5) * 10) / 10;
+        const grade = getGrade(totalScore);
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+          gradingMethod: "unweighted",
+          totalScore,
+          grade,
+          enteredBy: req.session.teacher.id,
+        });
+      }
+      req.flash("success", "Art & Design marks saved (average of assessments, dash counted as zero)");
+    } else if (isArtPrimary) {
+      // ── Primary department (Stage 1 to 6) Art & Design: summation to 100, pass mark 50, converted to 50% for FE ──
+      const studentIds = Object.keys(req.body)
+        .filter((k) => k.startsWith("hw_"))
+        .map((k) => k.replace("hw_", ""));
+
+      // Validation pass: reject if sum > 100
+      for (const studentId of studentIds) {
+        const hw = parseScoreInput(req.body[`hw_${studentId}`]);
+        const gw = parseScoreInput(req.body[`gw_${studentId}`]);
+        const qz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const cw = parseScoreInput(req.body[`cw_${studentId}`]);
+        const ut = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = Math.round((hw + gw + qz + cw + ut) * 10) / 10;
+        if (sum > 100) {
+          const st = await Student.findById(studentId);
+          req.flash(
+            "error",
+            `Cannot save marks: The total marks for ${st ? st.fullName : "Student"} (${sum}) exceeds the maximum allowed score of 100 for Art & Design.`
+          );
+          return res.redirect(
+            `/teacher/marks?subjectId=${subjectId}&classId=${classId}&streamId=${req.body.streamId || ""}&term=${term}&year=${academicYear}`
+          );
+        }
+      }
+
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const totalScore = Math.round((homework + groupWork + quiz + classWork + unitTest) * 10) / 10;
+        const grade = getPrimaryCAGrade(totalScore);
+        const convertedFe = Math.round((totalScore * 0.5) * 10) / 10;
+
+        const existingMark = await Mark.findOne({
+          where: { studentId, subjectId, classId, term, academicYear },
+        });
+        const finalExam =
+          existingMark && existingMark.finalExam != null && existingMark.finalExam !== Math.round(((existingMark.totalScore || 0) * 0.5) * 10) / 10
+            ? existingMark.finalExam
+            : convertedFe;
+        const finalExamMax =
+          existingMark && existingMark.finalExamMax ? existingMark.finalExamMax : 50;
+
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+          gradingMethod: "summation",
+          totalScore,
+          grade,
+          finalExam,
+          finalExamMax,
+          enteredBy: req.session.teacher.id,
+        });
+      }
+      req.flash("success", "Primary Art & Design marks saved (summation to 100, converted to 50% for Final Exam)");
+    } else {
+      // ── Regular CA: weighted or unweighted (Primary other subjects + Secondary other subjects) ──
+      const studentIds = Object.keys(req.body)
+        .filter((k) => k.startsWith("hw_"))
+        .map((k) => k.replace("hw_", ""));
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
         const method = req.body[`method_${studentId}`] || "weighted";
-        const totalScore = calculateScore({
+        const totalScore = calculateScore(
+          {
             homework,
             groupWork,
             quiz,
@@ -974,10 +1140,27 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
     student.class && student.class.department ?
     student.class.department.code :
     "";
-  const isPrimary = deptCode === "Primary" || deptCode === "EYC";
+  const isPrimary = isPrimaryClass(student.class ? student.class.name : "", deptCode);
+  const formattedMarks = marks.map((m) => {
+    const raw = m.toJSON ? m.toJSON() : m;
+    const sName = raw.subject ? raw.subject.name : "";
+    const cName = student.class ? student.class.name : "";
+    if (isArtDesignSenior(sName, cName, deptCode)) {
+      if ((raw.finalExam == null || raw.finalExam === 0) && raw.totalScore != null) {
+        raw.finalExam = raw.totalScore;
+      }
+      if (!raw.finalExamMax) raw.finalExamMax = 72;
+    } else if (isArtDesignPrimary(sName, cName, deptCode)) {
+      if ((raw.finalExam == null || raw.finalExam === 0) && raw.totalScore != null) {
+        raw.finalExam = Math.round((raw.totalScore * 0.5) * 10) / 10;
+      }
+      if (!raw.finalExamMax) raw.finalExamMax = 50;
+    }
+    return raw;
+  });
   return {
     student: student.toJSON(),
-    marks: marks.map((m) => m.toJSON()),
+    marks: formattedMarks,
     presentDays,
     totalDays,
     reportComment: reportComment ? reportComment.toJSON() : null,
@@ -1017,6 +1200,7 @@ router.get("/progressive-report/:studentId", async (req, res) => {
       year,
       getRemark,
       isArtDesignSubject,
+      isArtDesignPrimary,
       ART_MAX,
       artGrade,
       currentYear,
@@ -1064,6 +1248,7 @@ router.get("/final-report/:studentId", async (req, res) => {
       primaryExamPassed,
       secondaryExamPassed,
       isArtDesignSubject,
+      isArtDesignPrimary,
       ART_MAX,
       artGrade,
       currentYear,

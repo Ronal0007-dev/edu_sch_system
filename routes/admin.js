@@ -13,6 +13,14 @@ const {
   secondaryExamPassed,
   buildExamAnalysis,
   isArtDesignSubject,
+  isArtDesignSenior,
+  isArtDesignJunior,
+  isArtDesignPrimary,
+  isPrimaryClass,
+  parseScoreInput,
+  calculateArtJuniorScore,
+  calculatePrimaryScore,
+  getPrimaryCAGrade,
   ART_MAX,
   artGrade,
   calculateScore,
@@ -1338,7 +1346,7 @@ router.post("/attendance/submit", async (req, res) => {
 // ── Admin marks entry ───────────────────────────────────────────────────────────
 router.get("/marks", async (req, res) => {
   const currentYear = await getCurrentYear();
-  const [departments, classes, subjects] = await Promise.all([
+  const [departments, classes, subjects, classSubjects, teacherSubjects] = await Promise.all([
     Department.findAll({
       order: [
         ["name", "ASC"]
@@ -1358,11 +1366,52 @@ router.get("/marks", async (req, res) => {
         ["name", "ASC"]
       ]
     }),
+    ClassSubject.findAll({
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
+    }).catch(() => []),
+    TeacherSubject.findAll({
+      include: [{
+        model: Subject,
+        as: "subject"
+      }],
+    }).catch(() => []),
   ]);
   const classSubjectMap = {};
   subjects.forEach((subject) => {
-    if (!classSubjectMap[subject.classId]) classSubjectMap[subject.classId] = [];
-    classSubjectMap[subject.classId].push(subject.toJSON());
+    if (!subject.classId) return;
+    const key = String(subject.classId);
+    if (!classSubjectMap[key]) classSubjectMap[key] = [];
+    classSubjectMap[key].push({
+      id: subject.id,
+      name: subject.name,
+    });
+  });
+  (classSubjects || []).forEach((cs) => {
+    if (cs.classId && cs.subject) {
+      const key = String(cs.classId);
+      if (!classSubjectMap[key]) classSubjectMap[key] = [];
+      if (!classSubjectMap[key].some((s) => s.id === cs.subject.id)) {
+        classSubjectMap[key].push({
+          id: cs.subject.id,
+          name: cs.subject.name,
+        });
+      }
+    }
+  });
+  (teacherSubjects || []).forEach((ts) => {
+    if (ts.classId && ts.subject) {
+      const key = String(ts.classId);
+      if (!classSubjectMap[key]) classSubjectMap[key] = [];
+      if (!classSubjectMap[key].some((s) => s.id === ts.subject.id)) {
+        classSubjectMap[key].push({
+          id: ts.subject.id,
+          name: ts.subject.name,
+        });
+      }
+    }
   });
   const selectedClass = req.query.classId ?
     await Class.findById(req.query.classId, {
@@ -1381,6 +1430,14 @@ router.get("/marks", async (req, res) => {
       currentYear.terms[0].name :
       "Term 1");
   const year = req.query.year || (currentYear ? currentYear.name : "2024/2025");
+  const deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : "";
+  const className = selectedClass ? selectedClass.name : "";
+  const subjectName = selectedSubject ? selectedSubject.name : "";
+  const isArtDesign = isArtDesignSenior(subjectName, className, deptCode);
+  const isArtDesignJuniorMode = isArtDesignJunior(subjectName, className, deptCode);
+  const isArtPrimary = isArtDesignPrimary(subjectName, className, deptCode);
+  const isPrimary = isPrimaryClass(className, deptCode);
+
   let students = [];
   let existingMarks = {};
   if (selectedClass && selectedSubject) {
@@ -1406,15 +1463,21 @@ router.get("/marks", async (req, res) => {
       },
     });
     marks.forEach((mark) => {
-      existingMarks[mark.studentId] = mark;
+      const markObj = mark.toJSON ? mark.toJSON() : mark;
+      if (isArtDesign) {
+        if (markObj.finalExam == null && markObj.totalScore != null) {
+          markObj.finalExam = markObj.totalScore;
+        }
+        if (!markObj.finalExamMax) markObj.finalExamMax = 72;
+      } else if (isArtPrimary) {
+        if (markObj.finalExam == null && markObj.totalScore != null) {
+          markObj.finalExam = Math.round((markObj.totalScore * 0.5) * 10) / 10;
+        }
+        if (!markObj.finalExamMax) markObj.finalExamMax = 50;
+      }
+      existingMarks[markObj.studentId] = markObj;
     });
   }
-  const deptCode = selectedClass && selectedClass.department ? selectedClass.department.code : "";
-  const isArtDesign = isArtDesignSubject(
-    selectedSubject ? selectedSubject.name : "",
-    selectedClass ? selectedClass.name : "",
-    deptCode,
-  );
   res.render("admin/marks", {
     title: "Admin Marks",
     departments,
@@ -1429,6 +1492,9 @@ router.get("/marks", async (req, res) => {
     currentYear,
     deptCode,
     isArtDesign,
+    isArtDesignJunior: isArtDesignJuniorMode,
+    isArtDesignPrimary: isArtPrimary,
+    isPrimary,
     ART_MAX,
     selectedClassId: req.query.classId || "",
     selectedSubjectId: req.query.subjectId || "",
@@ -1457,6 +1523,12 @@ router.post("/marks/save", async (req, res) => {
     if (!subject || !cls || String(subject.classId) !== String(classId)) {
       throw new Error("The selected subject does not belong to the selected class");
     }
+    const deptCode = cls && cls.department ? cls.department.code : "";
+    const isArtSenior = isArtDesignSenior(subject.name, cls.name, deptCode);
+    const isArtJunior = isArtDesignJunior(subject.name, cls.name, deptCode);
+    const isArtPrimary = isArtDesignPrimary(subject.name, cls.name, deptCode);
+    const isPrimary = isPrimaryClass(cls.name, deptCode);
+
     const students = await Student.findAll({
       where: activeStudentWhere({
         classId
@@ -1464,16 +1536,20 @@ router.post("/marks/save", async (req, res) => {
     });
     const validIds = new Set(students.map((student) => String(student.id)));
     const enteredBy = req.session.admin.id;
-    const artMode = isArtDesignSubject(subject.name, cls.name, cls.department ? cls.department.code : "") && section !== "fe";
+
     const studentIds = Object.keys(req.body)
       .filter((key) => (section === "fe" ? key.startsWith("fe_") : key.startsWith("hw_")))
       .map((key) => key.replace(section === "fe" ? "fe_" : "hw_", ""))
       .filter((id) => validIds.has(String(id)));
+
+    if (section === "fe") {
     for (const studentId of studentIds) {
-      if (section === "fe") {
         const finalExam = parseFloat(req.body[`fe_${studentId}`]);
         if (isNaN(finalExam)) continue;
-        const finalExamMax = parseFloat(req.body[`femax_${studentId}`]) || null;
+        let finalExamMax = parseFloat(req.body[`femax_${studentId}`]);
+        if (isNaN(finalExamMax) || finalExamMax <= 0) {
+          finalExamMax = isPrimary ? 50 : isArtSenior ? 72 : null;
+        }
         const [mark] = await Mark.findOrCreate({
           where: {
             studentId,
@@ -1498,17 +1574,163 @@ router.post("/marks/save", async (req, res) => {
           finalExamMax,
           enteredBy
         });
+      }
+    } else if (isArtSenior) {
+      // ── Art & Design Senior (Year 10 & 11 Secondary): validate <= 72, auto-fill final report ──
+      for (const studentId of studentIds) {
+        const hw = parseScoreInput(req.body[`hw_${studentId}`]);
+        const gw = parseScoreInput(req.body[`gw_${studentId}`]);
+        const qz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const cw = parseScoreInput(req.body[`cw_${studentId}`]);
+        const ut = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = Math.round((hw + gw + qz + cw + ut) * 10) / 10;
+        if (sum > 72) {
+          const st = await Student.findById(studentId);
+          req.flash(
+            "error",
+            `Cannot save marks: The total marks for ${st ? st.fullName : "Student"} (${sum}) exceeds the maximum allowed score of 72 for Art & Design.`
+          );
+          return res.redirect(`/admin/marks?classId=${classId}&subjectId=${subjectId}&term=${term}&year=${academicYear}`);
+        }
+      }
+
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const totalScore = Math.round((homework + groupWork + quiz + classWork + unitTest) * 10) / 10;
+        const grade = artGrade(totalScore);
+
+        const existingMark = await Mark.findOne({
+          where: { studentId, subjectId, classId, term, academicYear },
+        });
+        const finalExam =
+          existingMark && existingMark.finalExam != null && existingMark.finalExam !== existingMark.totalScore
+            ? existingMark.finalExam
+            : totalScore;
+        const finalExamMax =
+          existingMark && existingMark.finalExamMax ? existingMark.finalExamMax : 72;
+
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+          gradingMethod: "summation",
+          totalScore,
+          grade,
+          finalExam,
+          finalExamMax,
+          enteredBy
+        });
+      }
+    } else if (isArtJunior) {
+      // ── Art & Design Junior (Year 7, 8, 9 Secondary): average of assessments, dash (-) = 0 ──
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = homework + groupWork + quiz + classWork + unitTest;
+        const totalScore = Math.round((sum / 5) * 10) / 10;
+        const grade = getGrade(totalScore);
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+          gradingMethod: "unweighted",
+          totalScore,
+          grade,
+          enteredBy
+        });
+      }
+    } else if (isArtPrimary) {
+      // ── Primary department (Stage 1 to 6) Art & Design: summation to 100, pass mark 50, converted to 50% for FE ──
+      for (const studentId of studentIds) {
+        const hw = parseScoreInput(req.body[`hw_${studentId}`]);
+        const gw = parseScoreInput(req.body[`gw_${studentId}`]);
+        const qz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const cw = parseScoreInput(req.body[`cw_${studentId}`]);
+        const ut = parseScoreInput(req.body[`ut_${studentId}`]);
+        const sum = Math.round((hw + gw + qz + cw + ut) * 10) / 10;
+        if (sum > 100) {
+          const st = await Student.findById(studentId);
+          req.flash(
+            "error",
+            `Cannot save marks: The total marks for ${st ? st.fullName : "Student"} (${sum}) exceeds the maximum allowed score of 100 for Art & Design.`
+          );
+          return res.redirect(`/admin/marks?classId=${classId}&subjectId=${subjectId}&term=${term}&year=${academicYear}`);
+        }
+      }
+
+      for (const studentId of studentIds) {
+        const homework = parseScoreInput(req.body[`hw_${studentId}`]);
+        const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
+        const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
+        const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
+        const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
+        const totalScore = Math.round((homework + groupWork + quiz + classWork + unitTest) * 10) / 10;
+        const grade = getPrimaryCAGrade(totalScore);
+        const convertedFe = Math.round((totalScore * 0.5) * 10) / 10;
+
+        const existingMark = await Mark.findOne({
+          where: { studentId, subjectId, classId, term, academicYear },
+        });
+        const finalExam =
+          existingMark && existingMark.finalExam != null && existingMark.finalExam !== Math.round(((existingMark.totalScore || 0) * 0.5) * 10) / 10
+            ? existingMark.finalExam
+            : convertedFe;
+        const finalExamMax =
+          existingMark && existingMark.finalExamMax ? existingMark.finalExamMax : 50;
+
+        await Mark.upsert({
+          studentId,
+          subjectId,
+          classId,
+          term,
+          academicYear,
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+          gradingMethod: "summation",
+          totalScore,
+          grade,
+          finalExam,
+          finalExamMax,
+          enteredBy
+        });
+      }
       } else {
+      // ── Regular CA (Primary other subjects & Secondary other subjects) ──
+      for (const studentId of studentIds) {
         const marks = {
-          homework: parseFloat(req.body[`hw_${studentId}`]) || 0,
-          groupWork: parseFloat(req.body[`gw_${studentId}`]) || 0,
-          quiz: parseFloat(req.body[`qz_${studentId}`]) || 0,
-          classWork: parseFloat(req.body[`cw_${studentId}`]) || 0,
-          unitTest: parseFloat(req.body[`ut_${studentId}`]) || 0,
+          homework: parseScoreInput(req.body[`hw_${studentId}`]),
+          groupWork: parseScoreInput(req.body[`gw_${studentId}`]),
+          quiz: parseScoreInput(req.body[`qz_${studentId}`]),
+          classWork: parseScoreInput(req.body[`cw_${studentId}`]),
+          unitTest: parseScoreInput(req.body[`ut_${studentId}`]),
         };
-        const method = artMode ? "unweighted" : (req.body[`method_${studentId}`] || "weighted");
-        const totalScore = artMode ? calculateArtScore(marks) : calculateScore(marks, method);
-        const grade = artMode ? artGrade(totalScore) : getGrade(totalScore);
+        const method = req.body[`method_${studentId}`] || "weighted";
+        const totalScore = calculateScore(marks, method);
+        const grade = getGrade(totalScore);
         await Mark.upsert({
           studentId,
           subjectId,
@@ -4152,7 +4374,7 @@ async function buildClassReports(classId, term, year, status = "Active") {
     ],
   });
   const deptCode = cls && cls.department ? cls.department.code : "";
-  const isPrimary = deptCode === "Primary" || deptCode === "EYC";
+  const isPrimary = isPrimaryClass(cls ? cls.name : "", deptCode);
   const studentReports = await Promise.all(
     students.map(async (student) => {
       const allMarks = await Mark.findAll({
@@ -4167,6 +4389,23 @@ async function buildClassReports(classId, term, year, status = "Active") {
         }],
       });
       const marks = await filterMarksForStudent(student, allMarks);
+      const formattedMarks = marks.map((m) => {
+        const raw = m.toJSON ? m.toJSON() : m;
+        const sName = raw.subject ? raw.subject.name : "";
+        const cName = cls ? cls.name : "";
+        if (isArtDesignSenior(sName, cName, deptCode)) {
+          if ((raw.finalExam == null || raw.finalExam === 0) && raw.totalScore != null) {
+            raw.finalExam = raw.totalScore;
+          }
+          if (!raw.finalExamMax) raw.finalExamMax = 72;
+        } else if (isArtDesignPrimary(sName, cName, deptCode)) {
+          if ((raw.finalExam == null || raw.finalExam === 0) && raw.totalScore != null) {
+            raw.finalExam = Math.round((raw.totalScore * 0.5) * 10) / 10;
+          }
+          if (!raw.finalExamMax) raw.finalExamMax = 50;
+        }
+        return raw;
+      });
       const attendance = await Attendance.findAll({
         where: {
           studentId: student.id
@@ -4191,7 +4430,7 @@ async function buildClassReports(classId, term, year, status = "Active") {
         null;
       return {
         student: student.toJSON(),
-        marks: marks.map((m) => m.toJSON()),
+        marks: formattedMarks,
         presentDays,
         totalDays,
         reportComment: reportComment ? reportComment.toJSON() : null,
@@ -4238,6 +4477,7 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
       status: s,
       getRemark,
       isArtDesignSubject,
+      isArtDesignPrimary,
       ART_MAX,
       artGrade,
       admin: req.session && req.session.admin ? req.session.admin : {},
@@ -4294,6 +4534,7 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
       cls,
       deptCode,
       isPrimary,
+      isArtDesignPrimary,
       studentReports,
       subjects,
       term: t,

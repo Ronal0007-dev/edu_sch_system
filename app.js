@@ -41,9 +41,21 @@ sessionStore.sync();
 // ── Flash ──────────────────────────────────────────────────────────────────────
 app.use(flash());
 
+const { teacherTeachesYear11 } = require('./utils/electives');
+
 // ── Locals ────────────────────────────────────────────────────────────────────
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   res.locals.session = req.session;
+  res.locals.canManageYear11Electives = false;
+  if (req.session && req.session.admin) {
+    res.locals.canManageYear11Electives = true;
+  } else if (req.session && req.session.teacher) {
+    try {
+      res.locals.canManageYear11Electives = await teacherTeachesYear11(req.session.teacher.id);
+    } catch (e) {
+      res.locals.canManageYear11Electives = false;
+    }
+  }
   next();
 });
 

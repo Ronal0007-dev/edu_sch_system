@@ -46,9 +46,10 @@ block content
           a.nav-item(href='/teacher/comments', class=title==='Report Comments'?'active':'')
             i.fas.fa-comment-alt
             span Report Comments
-          a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/electives' : '/teacher/electives'), class=title==='Year 11 Subject Options'?'active':'')
-            i.fas.fa-list-check
-            span Year 11 Subjects
+          if canManageYear11Electives
+            a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/electives' : '/teacher/electives'), class=title==='Year 11 Subject Options'?'active':'')
+              i.fas.fa-list-check
+              span Year 11 Subjects
         .nav-section
           span.nav-label Planning
           a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/lesson-plans' : '/teacher/lesson-plans'), class=title==='Lesson Plans' || title==='Create Lesson Plan' || title==='LESSON PLAN'?'active':'')

@@ -55,30 +55,58 @@ block body
           span Load
 
   if selectedSubject && selectedClass && students.length
-    - const isPrimary = deptCode === 'Primary' || deptCode === 'EYC'
+    - const isArtSenior = Boolean(isArtDesign)
+    - const isArtJuniorMode = Boolean(isArtDesignJunior)
+    - const isArtPrimaryMode = Boolean(isArtDesignPrimary)
+    - const isPrimaryDept = Boolean(isPrimary)
     - const isSecondary = deptCode === 'Secondary'
 
     //- ── SECTION 1: Continuous Assessment ───────────────────────────────────
     .section-title
       i.fas.fa-pen-alt
-      if isArtDesign
+      if isArtSenior
         span Art & Design (Summation) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
         span.exam-max-badge Out of #{ART_MAX}
+      else if isArtJuniorMode
+        span Art & Design (Average) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+        span.exam-max-badge Average (Dash '-' = 0)
+      else if isArtPrimaryMode
+        span Art & Design Primary (Summation to 100) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+        span.exam-max-badge Out of 100 (Pass ≥ 50)
       else
         span Continuous Assessment — #{selectedSubject.name} | #{selectedClass.name} | #{term}
       .section-dept-badge(class=`dept-${deptCode ? deptCode.toLowerCase() : ''}`) #{deptCode}
 
-    if isArtDesign
+    if isArtSenior
       .marks-info-bar
         .info-item
           span.info-label Mode
-          span.info-val Summation (H/W + G/W + QZ + C/W + U/T) — NO weighting or averaging
+          span.info-val Summation (H/W + G/W + QZ + C/W + U/T) — Maximum #{ART_MAX} marks
         .info-item
           span.info-label Out of
-          span.info-val #{ART_MAX} marks
+          span.info-val #{ART_MAX} marks (Cannot exceed 72)
         .info-item
           span.info-label Pass threshold
-          span.info-val ≥ #{Math.ceil(ART_MAX * 0.4)} / #{ART_MAX} (40%)
+          span.info-val ≥ #{Math.ceil(ART_MAX * 0.4)} / #{ART_MAX} (40%) — Total is transferred to Final Report
+    else if isArtJuniorMode
+      .marks-info-bar
+        .info-item
+          span.info-label Mode
+          span.info-val Average of Assessments: (H/W + G/W + QZ + C/W + U/T) / 5 — Unweighted
+        .info-item
+          span.info-label Missed Assessments
+          span.info-val Enter dash (-) if student didn't sit; counted as 0 in calculating average
+    else if isArtPrimaryMode
+      .marks-info-bar
+        .info-item
+          span.info-label Mode
+          span.info-val Summation of all marks to total 100 (H/W + G/W + QZ + C/W + U/T)
+        .info-item
+          span.info-label Pass mark
+          span.info-val 50 / 100
+        .info-item
+          span.info-label Final Exam Conversion
+          span.info-val CA total converted to 50% (out of 50) for Final Exam
     else
       .marks-info-bar
         .info-item
@@ -88,19 +116,19 @@ block body
           span.info-label Components
           span.info-val Each out of 100
 
-    form(method='POST', action='/teacher/marks/save')
+    form#caMarksForm(method='POST', action='/teacher/marks/save')
       input(type='hidden', name='classId', value=selectedClass.id)
       input(type='hidden', name='streamId', value=selectedStreamId || '')
       input(type='hidden', name='subjectId', value=selectedSubject.id)
       input(type='hidden', name='term', value=term)
       input(type='hidden', name='academicYear', value=year)
       input(type='hidden', name='section', value='ca')
-      input(type='hidden', name='isArtDesign', value=isArtDesign ? '1' : '0')
+      input(type='hidden', name='isArtDesign', value=isArtSenior ? '1' : '0')
 
       .marks-table-wrap
         table.marks-table.data-table
           thead
-            if isArtDesign
+            if isArtSenior
               tr
                 th Student
                 th(title='Home Work') H/W
@@ -117,8 +145,46 @@ block body
                 th +
                 th +
                 th +
-                th = Total
+                th = Total (Max 72)
                 th Pass/Fail
+            else if isArtJuniorMode
+              tr
+                th Student
+                th(title='Home Work (Enter - if absent)') H/W
+                th(title='Group Work (Enter - if absent)') G/W
+                th(title='Quiz (Enter - if absent)') QZ
+                th(title='Class Work (Enter - if absent)') C/W
+                th(title='Unit Test (Enter - if absent)') U/T
+                th Average
+                th Grade
+              tr.weight-row
+                th Average →
+                th +
+                th +
+                th +
+                th +
+                th +
+                th = Sum / 5
+                th —
+            else if isArtPrimaryMode
+              tr
+                th Student
+                th(title='Home Work') H/W
+                th(title='Group Work') G/W
+                th(title='Quiz') QZ
+                th(title='Class Work') C/W
+                th(title='Unit Test') U/T
+                th Total / 100
+                th Result (Pass ≥ 50)
+              tr.weight-row
+                th Summation →
+                th +
+                th +
+                th +
+                th +
+                th +
+                th = Total (Max 100)
+                th Pass / Fail
             else
               tr
                 th Student
@@ -151,42 +217,73 @@ block body
                       strong #{student.fullName}
                       if student.stream
                         small #{student.stream.name}
-                td
-                  input.mark-input.art-input(type='number', min=0, max=100, step=0.5, name=`hw_${student.id}`, value=existing ? existing.homework : '', placeholder='0')
-                td
-                  input.mark-input.art-input(type='number', min=0, max=100, step=0.5, name=`gw_${student.id}`, value=existing ? existing.groupWork : '', placeholder='0')
-                td
-                  input.mark-input.art-input(type='number', min=0, max=100, step=0.5, name=`qz_${student.id}`, value=existing ? existing.quiz : '', placeholder='0')
-                td
-                  input.mark-input.art-input(type='number', min=0, max=100, step=0.5, name=`cw_${student.id}`, value=existing ? existing.classWork : '', placeholder='0')
-                td
-                  input.mark-input.art-input(type='number', min=0, max=100, step=0.5, name=`ut_${student.id}`, value=existing ? existing.unitTest : '', placeholder='0')
-                if isArtDesign
+                if isArtJuniorMode
                   td
-                    span.total-display(data-sid=student.id)
-                      if existing && existing.totalScore != null
-                        | #{existing.totalScore}
-                      else
-                        | —
-                    span(style='color:var(--text-muted)') &nbsp;/ #{ART_MAX}
+                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`hw_${student.id}`, value=existing ? (existing.homework === 0 ? '0' : existing.homework) : '', placeholder='0 or -')
                   td
-                    span.grade-display(data-sid=student.id, class=existing ? (existing.grade==='Pass'?'pf-badge pf-pass':'pf-badge pf-fail') : '')
-                      | #{existing && existing.grade ? existing.grade : '—'}
-                else
+                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`gw_${student.id}`, value=existing ? (existing.groupWork === 0 ? '0' : existing.groupWork) : '', placeholder='0 or -')
                   td
-                    select.method-select(name=`method_${student.id}`)
-                      option(value='weighted', selected=!existing||existing.gradingMethod==='weighted') Weighted
-                      option(value='unweighted', selected=existing&&existing.gradingMethod==='unweighted') Unweighted
+                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`qz_${student.id}`, value=existing ? (existing.quiz === 0 ? '0' : existing.quiz) : '', placeholder='0 or -')
+                  td
+                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`cw_${student.id}`, value=existing ? (existing.classWork === 0 ? '0' : existing.classWork) : '', placeholder='0 or -')
+                  td
+                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`ut_${student.id}`, value=existing ? (existing.unitTest === 0 ? '0' : existing.unitTest) : '', placeholder='0 or -')
                   td
                     span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
                   td
                     span.grade-display(class=existing ? `grade-badge grade-${existing.grade}` : '', data-sid=student.id) #{existing && existing.grade ? existing.grade : '—'}
+                else
+                  td
+                    input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`hw_${student.id}`, value=existing ? existing.homework : '', placeholder='0')
+                  td
+                    input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`gw_${student.id}`, value=existing ? existing.groupWork : '', placeholder='0')
+                  td
+                    input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`qz_${student.id}`, value=existing ? existing.quiz : '', placeholder='0')
+                  td
+                    input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`cw_${student.id}`, value=existing ? existing.classWork : '', placeholder='0')
+                  td
+                    input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`ut_${student.id}`, value=existing ? existing.unitTest : '', placeholder='0')
+                  if isArtSenior
+                    td
+                      span.total-display(data-sid=student.id)
+                        if existing && existing.totalScore != null
+                          | #{existing.totalScore}
+                        else
+                          | —
+                      span(style='color:var(--text-muted)') &nbsp;/ #{ART_MAX}
+                    td
+                      span.grade-display(data-sid=student.id, class=existing ? (existing.grade==='Pass'?'pf-badge pf-pass':'pf-badge pf-fail') : '')
+                        | #{existing && existing.grade ? existing.grade : '—'}
+                  else if isArtPrimaryMode
+                    td
+                      span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
+                      span(style='color:var(--text-muted)') &nbsp;/ 100
+                    td
+                      - const primPassed = existing && existing.totalScore != null ? existing.totalScore >= 50 : null
+                      span.grade-display(data-sid=student.id, class=primPassed !== null ? (primPassed ? 'pf-badge pf-pass' : 'pf-badge pf-fail') : '')
+                        if primPassed !== null
+                          | #{primPassed ? 'Pass' : 'Fail'}
+                        else
+                          | —
+                  else
+                    td
+                      select.method-select(name=`method_${student.id}`)
+                        option(value='weighted', selected=!existing||existing.gradingMethod==='weighted') Weighted
+                        option(value='unweighted', selected=existing&&existing.gradingMethod==='unweighted') Unweighted
+                    td
+                      span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
+                    td
+                      span.grade-display(class=existing ? `grade-badge grade-${existing.grade}` : '', data-sid=student.id) #{existing && existing.grade ? existing.grade : '—'}
 
       .form-actions
         button.btn.btn-primary.btn-lg(type='submit')
           i.fas.fa-save
-          if isArtDesign
-            span Save Art & Design Marks
+          if isArtSenior
+            span Save Art & Design Marks (Max 72)
+          else if isArtJuniorMode
+            span Save Art & Design Marks (Average)
+          else if isArtPrimaryMode
+            span Save Art & Design Marks (Max 100)
           else
             span Save CA Marks
 
@@ -194,20 +291,45 @@ block body
     .section-title.section-exam
       i.fas.fa-file-alt
       span Final Examination — #{selectedSubject.name} | #{selectedClass.name} | #{term}
-      if isPrimary
+      if isArtSenior
+        span.exam-max-badge Out of #{ART_MAX} (Confirmed from CA)
+      else if isArtPrimaryMode
+        span.exam-max-badge Out of 50 (Converted 50%)
+      else if isPrimaryDept
         span.exam-max-badge Out of 50
       else if isSecondary
         span.exam-max-badge Out of (set per student below)
 
-    if isPrimary
+    if isArtSenior
+      .marks-info-bar
+        .info-item
+          span.info-label Note
+          span.info-val Art & Design (Year 10/11): Total CA marks are transferred as the final report score out of #{ART_MAX}. Edit below only to confirm or adjust.
+        .info-item
+          span.info-label Max Mark
+          span.info-val #{ART_MAX}
+        .info-item
+          span.info-label Pass Threshold
+          span.info-val ≥ #{Math.ceil(ART_MAX * 0.4)} / #{ART_MAX} (40%)
+    else if isArtPrimaryMode
+      .marks-info-bar
+        .info-item
+          span.info-label Note
+          span.info-val Primary Art & Design: Converted to 50% from CA summation. Pass threshold: ≥ 25 out of 50 (50%). Edit below to confirm if necessary.
+        .info-item
+          span.info-label Scale
+          span.info-val 0 Unclassified | 1-10 Basic | 11-20 Aspiring | 21-30 Good | 31-40 High | 41-50 Outstanding
+        .info-item
+          span.info-label Pass Threshold
+          span.info-val ≥ 25 (50%)
+    else if isPrimaryDept
       .marks-info-bar
         .info-item
           span.info-label Scale
           span.info-val 0 Unclassified | 1-10 Basic | 11-20 Aspiring | 21-30 Good | 31-40 High | 41-50 Outstanding
         .info-item
-          span.info-label Pass
-          span.info-val ≥ 21
-
+          span.info-label Pass Threshold
+          span.info-val ≥ 25 (50%)
     else if isSecondary
       .marks-info-bar
         .info-item
@@ -230,19 +352,27 @@ block body
           thead
             tr
               th Student
-              if isPrimary
+              if isPrimaryDept
                 th Final Exam Score (out of 50)
                 th Classification
               else
                 th Final Exam Score
-                th Max Mark (set once)
+                th Max Mark #{isArtSenior ? '(72)' : '(set once)'}
                 th % Score
                 th Pass/Fail
           tbody
             each student in students
               - const existing = existingMarks[student.id]
-              - const feScore = existing ? existing.finalExam : null
-              - const feMax = existing ? existing.finalExamMax : null
+              - let feScore = existing ? existing.finalExam : null
+              - let feMax = existing ? existing.finalExamMax : null
+              if isArtSenior
+                if feScore == null && existing && existing.totalScore != null
+                  - feScore = existing.totalScore
+                if !feMax
+                  - feMax = ART_MAX
+              else if isArtPrimaryMode
+                if feScore == null && existing && existing.totalScore != null
+                  - feScore = Math.round((existing.totalScore * 0.5) * 10) / 10
               tr
                 td
                   .student-mini
@@ -251,7 +381,7 @@ block body
                       strong #{student.fullName}
                       if student.stream
                         small #{student.stream.name}
-                if isPrimary
+                if isPrimaryDept
                   td
                     input.mark-input.fe-input(
                       type='number', min=0, max=50, step=0.5,
@@ -270,17 +400,17 @@ block body
                 else
                   td
                     input.mark-input.fe-input(
-                      type='number', min=0, step=0.5,
+                      type='number', min=0, max=isArtSenior ? 72 : null, step=0.5,
                       name=`fe_${student.id}`,
                       value=feScore != null ? feScore : '',
-                      placeholder='Score'
+                      placeholder=isArtSenior ? 'Score (max 72)' : 'Score'
                     )
                   td
                     input.mark-input.fe-max-input(
                       type='number', min=1, step=1,
                       name=`femax_${student.id}`,
-                      value=feMax ? feMax : '',
-                      placeholder='Max'
+                      value=feMax ? feMax : (isArtSenior ? ART_MAX : ''),
+                      placeholder=isArtSenior ? '72' : 'Max'
                     )
                   td
                     span.fe-pct-display(data-sid=student.id)
@@ -310,9 +440,22 @@ block body
       i.fas.fa-hand-pointer
       p Select a subject and class above to enter marks.
 
+  //- ── Marks Validation Popup Modal ──────────────────────────────────────────
+  .marks-modal-backdrop#marksErrorModal(style='display:none')
+    .marks-modal-dialog
+      .marks-modal-header
+        h3
+          i.fas.fa-exclamation-triangle
+          span Marks Validation Error
+        button.modal-close-btn(type='button', onclick='closeMarksModal()') &times;
+      .marks-modal-body
+        p#marksModalText The entered marks exceed the allowed limit. Please review the errors below:
+        ul.marks-modal-list#marksModalList
+      .marks-modal-footer
+        button.btn.btn-primary(type='button', onclick='closeMarksModal()') Review & Correct
+
   script.
     // Cascade: Dept → Class → Subject
-    // cascadeMap[deptId][classId] = { cls, subjects: [{id, name}] }
     const cascadeMap = !{JSON.stringify(cascadeMap)};
     const deptSel  = document.getElementById('deptSelect');
     const classSel = document.getElementById('classSelect');
@@ -372,21 +515,33 @@ block body
     // Init on page load (restore saved selections)
     if (deptSel.value) updateClasses();
 
-    // ── Live CA / Art & Design calculation ──────────────────────────────────
+    // ── Live Calculation & Validation ───────────────────────────────────────
     var isArtMode = !{isArtDesign ? 'true' : 'false'};
+    var isArtJuniorMode = !{isArtDesignJunior ? 'true' : 'false'};
+    var isArtPrimaryMode = !{isArtDesignPrimary ? 'true' : 'false'};
     var ART_MAX   = !{ART_MAX};
     var ART_PASS  = Math.ceil(ART_MAX * 0.4); // 29
 
     function getGrade(s) { return s>=90?'A':s>=80?'B':s>=70?'C':s>=60?'D':'F'; }
 
+    function parseInput(val) {
+      if (val === null || val === undefined) return 0;
+      var s = String(val).trim();
+      if (s === '' || s === '-') return 0;
+      var num = parseFloat(s);
+      return isNaN(num) ? 0 : num;
+    }
+
     function calcCA(row, method) {
       var g = function(n) {
         var el = row.querySelector('[name^="' + n + '_"]');
-        return el ? (parseFloat(el.value) || 0) : 0;
+        return el ? parseInput(el.value) : 0;
       };
-      var hw=g('hw'), gw=g('gw'), qz=g('qz'), cw=g('cw'), ut=g('ut');
+      var hw = g('hw'), gw = g('gw'), qz = g('qz'), cw = g('cw'), ut = g('ut');
       if (isArtMode) return hw + gw + qz + cw + ut;
-      return method==='weighted' ? hw*.10+gw*.15+qz*.20+cw*.20+ut*.35 : (hw+gw+qz+cw+ut)/5;
+      if (isArtJuniorMode) return (hw + gw + qz + cw + ut) / 5;
+      if (isArtPrimaryMode) return hw + gw + qz + cw + ut;
+      return method === 'weighted' ? (hw * 0.10 + gw * 0.15 + qz * 0.20 + cw * 0.20 + ut * 0.35) : (hw + gw + qz + cw + ut) / 5;
     }
 
     document.querySelectorAll('.marks-table tbody tr').forEach(function(row) {
@@ -397,7 +552,7 @@ block body
 
       function update() {
         var method = row.querySelector('.method-select') ? row.querySelector('.method-select').value : 'weighted';
-        var total  = calcCA(row, method);
+        var total = calcCA(row, method);
 
         if (isArtMode) {
           var passed = total >= ART_PASS;
@@ -406,10 +561,43 @@ block body
             gradeEl.textContent = passed ? 'Pass' : 'Fail';
             gradeEl.className = passed ? 'pf-badge pf-pass' : 'pf-badge pf-fail';
           }
+          var inputs = row.querySelectorAll('.mark-input');
+          if (total > ART_MAX) {
+            inputs.forEach(function(inp) { inp.classList.add('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '#dc2626';
+          } else {
+            inputs.forEach(function(inp) { inp.classList.remove('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '';
+          }
+        } else if (isArtJuniorMode) {
+          var grade = getGrade(total);
+          if (totalEl) totalEl.textContent = total.toFixed(1);
+          if (gradeEl) {
+            gradeEl.textContent = grade;
+            gradeEl.className = 'grade-badge grade-' + grade;
+          }
+        } else if (isArtPrimaryMode) {
+          var passed = total >= 50;
+          if (totalEl) totalEl.textContent = total.toFixed(1);
+          if (gradeEl) {
+            gradeEl.textContent = passed ? 'Pass' : 'Fail';
+            gradeEl.className = passed ? 'pf-badge pf-pass' : 'pf-badge pf-fail';
+          }
+          var inputs = row.querySelectorAll('.mark-input');
+          if (total > 100) {
+            inputs.forEach(function(inp) { inp.classList.add('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '#dc2626';
+          } else {
+            inputs.forEach(function(inp) { inp.classList.remove('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '';
+          }
         } else {
           var grade = getGrade(total);
           if (totalEl) totalEl.textContent = total.toFixed(1);
-          if (gradeEl) { gradeEl.textContent = grade; gradeEl.className = 'grade-badge grade-' + grade; }
+          if (gradeEl) {
+            gradeEl.textContent = grade;
+            gradeEl.className = 'grade-badge grade-' + grade;
+          }
         }
       }
 
@@ -418,40 +606,106 @@ block body
       });
     });
 
+    // ── Popup Modal Functions ───────────────────────────────────────────────
+    function showMarksModal(message, errorList) {
+      var modal = document.getElementById('marksErrorModal');
+      var textEl = document.getElementById('marksModalText');
+      var listEl = document.getElementById('marksModalList');
+      if (!modal) return;
+      textEl.textContent = message;
+      listEl.innerHTML = '';
+      errorList.forEach(function(item) {
+        var li = document.createElement('li');
+        li.textContent = item;
+        listEl.appendChild(li);
+      });
+      modal.style.display = 'flex';
+    }
+
+    function closeMarksModal() {
+      var modal = document.getElementById('marksErrorModal');
+      if (modal) modal.style.display = 'none';
+      var firstErr = document.querySelector('.input-mark-error');
+      if (firstErr) firstErr.focus();
+    }
+
+    // ── Form Submit Validation ──────────────────────────────────────────────
+    var caForm = document.getElementById('caMarksForm');
+    if (caForm) {
+      caForm.addEventListener('submit', function(e) {
+        var errors = [];
+        if (isArtMode) {
+          document.querySelectorAll('.marks-table tbody tr').forEach(function(row) {
+            var sid = row.dataset.student;
+            if (!sid) return;
+            var nameEl = row.querySelector('.student-mini strong');
+            var sName = nameEl ? nameEl.textContent.trim() : 'Student';
+            var total = calcCA(row);
+            if (total > ART_MAX) {
+              errors.push(sName + ': Total is ' + total.toFixed(1) + ' / 72 (exceeds 72 by ' + (total - ART_MAX).toFixed(1) + ')');
+            }
+          });
+          if (errors.length > 0) {
+            e.preventDefault();
+            showMarksModal('The sum of entered marks for Art & Design (Year 10/11) cannot exceed 72. Please correct the marks for the following students:', errors);
+            return false;
+          }
+        } else if (isArtPrimaryMode) {
+          document.querySelectorAll('.marks-table tbody tr').forEach(function(row) {
+            var sid = row.dataset.student;
+            if (!sid) return;
+            var nameEl = row.querySelector('.student-mini strong');
+            var sName = nameEl ? nameEl.textContent.trim() : 'Student';
+            var total = calcCA(row);
+            if (total > 100) {
+              errors.push(sName + ': Total is ' + total.toFixed(1) + ' / 100 (exceeds 100 by ' + (total - 100).toFixed(1) + ')');
+            }
+          });
+          if (errors.length > 0) {
+            e.preventDefault();
+            showMarksModal('The summation of marks for Art & Design in Primary department cannot exceed 100. Please correct the marks for the following students:', errors);
+            return false;
+          }
+        }
+      });
+    }
+
     // Live Primary FE classification
-    const primGradeLabel = s => s===0?'Unclassified':s<=10?'Basic':s<=20?'Aspiring':s<=30?'Good':s<=40?'High':'Outstanding';
-    document.querySelectorAll('.fe-input[data-primary]').forEach(inp => {
+    var primGradeLabel = function(s) {
+      return s===0?'Unclassified':s<=10?'Basic':s<=20?'Aspiring':s<=30?'Good':s<=40?'High':'Outstanding';
+    };
+    document.querySelectorAll('.fe-input[data-primary]').forEach(function(inp) {
       inp.addEventListener('input', function() {
-        const row = this.closest('tr');
-        const sid = row ? row.querySelector('.mini-avatar') ? row.querySelector('[name^="fe_"]').name.replace('fe_','') : null : null;
-        const dispEl = sid ? document.querySelector('.fe-class-display[data-sid="' + sid + '"]') : null;
+        var row = this.closest('tr');
+        var sid = row ? (row.querySelector('[name^="fe_"]') ? row.querySelector('[name^="fe_"]').name.replace('fe_','') : null) : null;
+        var dispEl = sid ? document.querySelector('.fe-class-display[data-sid="' + sid + '"]') : null;
         if (dispEl) {
-          const score = parseFloat(this.value) || 0;
-          const label = primGradeLabel(score);
-          const cls = 'prim-grade prim-' + label.toLowerCase();
+          var score = parseFloat(this.value) || 0;
+          var label = primGradeLabel(score);
+          var cls = 'prim-grade prim-' + label.toLowerCase();
           dispEl.innerHTML = '<span class="' + cls + '">' + label + '</span>';
         }
       });
     });
 
     // Live Secondary FE pass/fail
-    document.querySelectorAll('.fe-input:not([data-primary]), .fe-max-input').forEach(inp => {
+    document.querySelectorAll('.fe-input:not([data-primary]), .fe-max-input').forEach(function(inp) {
       inp.addEventListener('input', function() {
-        const row = this.closest('tr');
+        var row = this.closest('tr');
         if (!row) return;
-        const feInp = row.querySelector('.fe-input');
-        const maxInp = row.querySelector('.fe-max-input');
-        const nameAttr = feInp ? feInp.name : '';
-        const sid = nameAttr.replace('fe_', '');
-        const score = parseFloat(feInp ? feInp.value : 0) || 0;
-        const max = parseFloat(maxInp ? maxInp.value : 0) || 0;
-        const pctEl = document.querySelector('.fe-pct-display[data-sid="' + sid + '"]');
-        const passEl = document.querySelector('.fe-pass-display[data-sid="' + sid + '"]');
+        var feInp = row.querySelector('.fe-input');
+        var maxInp = row.querySelector('.fe-max-input');
+        var nameAttr = feInp ? feInp.name : '';
+        var sid = nameAttr.replace('fe_', '');
+        var score = parseFloat(feInp ? feInp.value : 0) || 0;
+        var max = parseFloat(maxInp ? maxInp.value : 0) || 0;
+        var pctEl = document.querySelector('.fe-pct-display[data-sid="' + sid + '"]');
+        var passEl = document.querySelector('.fe-pass-display[data-sid="' + sid + '"]');
         if (max > 0) {
-          const pct = (score / max) * 100;
+          var pct = (score / max) * 100;
           if (pctEl) pctEl.textContent = pct.toFixed(1) + '%';
           if (passEl) {
-            const passed = pct >= 40;
+            var passed = pct >= 40;
             passEl.innerHTML = '<span class="pf-badge ' + (passed?'pf-pass':'pf-fail') + '">' + (passed?'Pass':'Fail') + '</span>';
           }
         }

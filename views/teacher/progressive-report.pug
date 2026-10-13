@@ -81,10 +81,9 @@ block content
           tbody
             if marks.length
               each m in marks
-                - const isArt = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : '')
-                - let artResult = m.grade === 'Pass' ? 'Pass' : 'Fail'
-                if isArt && student.class && student.class.name === 'Year 10'
-                  - artResult = (m.totalScore != null && m.totalScore < 36) ? 'Fail' : 'Pass'
+                - const isArtSenior = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : '')
+                - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : '') : false
+                - let artResult = isArtSenior ? (m.totalScore != null ? (m.totalScore >= 29 ? 'Pass' : 'Fail') : (m.grade || '-')) : isArtPrim ? (m.totalScore != null ? (m.totalScore >= 50 ? 'Pass' : 'Fail') : (m.grade || '-')) : null
                 tr
                   td.subject-cell #{m.subject ? m.subject.name : '-'}
                   td #{m.homework != null ? m.homework : '-'}
@@ -93,18 +92,21 @@ block content
                   td #{m.classWork != null ? m.classWork : '-'}
                   td #{m.unitTest != null ? m.unitTest : '-'}
                   td
-                    if isArt
+                    if isArtSenior
                       strong #{m.totalScore != null ? m.totalScore : '-'}
                       span(style='color:var(--text-muted)') &nbsp;/ #{ART_MAX}
+                    else if isArtPrim
+                      strong #{m.totalScore != null ? m.totalScore : '-'}
+                      span(style='color:var(--text-muted)') &nbsp;/ 100
                     else
                       strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
                   td
-                    if isArt
+                    if isArtSenior || isArtPrim
                       span(class=artResult === 'Pass' ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{artResult}
                     else
                       span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
                   td
-                    if isArt
+                    if isArtSenior || isArtPrim
                       | #{artResult}
                     else
                       | #{getRemark(m.grade)}
@@ -112,7 +114,7 @@ block content
               tr
                 td(colspan=9, style='text-align:center;padding:1rem;color:#64748b') No marks recorded for #{term}.
           if marks.length
-            - const regularMarks = marks.filter(m => !isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', student.class && student.class.department ? student.class.department.code : ''))
+            - const regularMarks = marks.filter(m => { const sName = m.subject ? m.subject.name : ''; const cName = student.class ? student.class.name : ''; const dCode = student.class && student.class.department ? student.class.department.code : ''; return !isArtDesignSubject(sName, cName, dCode) && !(isArtDesignPrimary && isArtDesignPrimary(sName, cName, dCode)); })
             if regularMarks.length
               tfoot
                 tr.summary-row
@@ -142,6 +144,8 @@ block content
           span QZ 20%
           span C/W 20%
           span U/T 35%
+            span C/W 20%
+            span U/T 35%
 
       if reportComment && reportComment.comment
         .class-teacher-comment

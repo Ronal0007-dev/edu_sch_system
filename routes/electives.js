@@ -1,9 +1,9 @@
 const express = require("express");
 const {
-  Class, Department, Student, Stream, Subject, StudentSubject, Teacher, TeacherClass,
+  Class, Department, Student, Stream, Subject, StudentSubject, Teacher, TeacherClass, TeacherSubject,
 } = require("../models");
 const { requireAny } = require("../middleware/auth");
-const { isElectiveClass, isCompulsorySubject } = require("../utils/electives");
+const { isElectiveClass, isCompulsorySubject, teacherTeachesYear11 } = require("../utils/electives");
 
 const router = express.Router();
 router.use(requireAny);
@@ -11,6 +11,19 @@ router.use(requireAny);
 function isAdmin(req) {
   return Boolean(req.session.admin) || (req.session.teacher && req.session.teacher.role === "admin");
 }
+
+async function checkYear11TeacherAuth(req, res, next) {
+  if (isAdmin(req)) return next();
+  const teacherId = req.session.teacher ? req.session.teacher.id : null;
+  const canTeach = await teacherTeachesYear11(teacherId);
+  if (!canTeach) {
+    req.flash("error", "Only teachers who teach Year 11 in Secondary department can access Year 11 subject options.");
+    return res.redirect(req.session.teacher && req.session.teacher.role === "academician" ? "/academician/dashboard" : "/teacher/dashboard");
+  }
+  next();
+}
+
+router.use(checkYear11TeacherAuth);
 
 async function allowedClasses(req) {
   const classes = (await Class.findAll({
@@ -21,11 +34,14 @@ async function allowedClasses(req) {
 
   const teacher = await Teacher.findById(req.session.teacher.id);
   if (!teacher) return [];
-  if (teacher.role === "academician") {
-    return classes.filter((cls) => String(cls.departmentId) === String(teacher.departmentId));
-  }
-  const assigned = await TeacherClass.findAll({ where: { teacherId: teacher.id } });
-  const ids = new Set(assigned.map((row) => Number(row.classId)));
+  const [assignedClasses, assignedSubjects] = await Promise.all([
+    TeacherClass.findAll({ where: { teacherId: teacher.id } }),
+    TeacherSubject.findAll({ where: { teacherId: teacher.id } }),
+  ]);
+  const ids = new Set([
+    ...assignedClasses.map((row) => Number(row.classId)),
+    ...assignedSubjects.map((row) => Number(row.classId)),
+  ]);
   return classes.filter((cls) => ids.has(Number(cls.id)));
 }
 

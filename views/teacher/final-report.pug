@@ -77,9 +77,10 @@ block content
             tbody
               if marks.length
                 each m in marks
-                  - const fe = m.finalExam != null ? m.finalExam : null
+                  - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) : false
+                  - let fe = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null)
                   - const pg = fe===null?null:fe===0?{grade:'U',label:'Unclassified'}:fe<=10?{grade:'B',label:'Basic'}:fe<=20?{grade:'As',label:'Aspiring'}:fe<=30?{grade:'G',label:'Good'}:fe<=40?{grade:'H',label:'High'}:{grade:'O',label:'Outstanding'}
-                  - const passed = fe !== null && fe >= 21
+                  - const passed = fe !== null && fe >= 25
                   tr
                     td.subject-cell #{m.subject ? m.subject.name : '-'}
                     td
@@ -107,7 +108,7 @@ block content
               span.prim-grade.prim-basic Basic (1–10)
               span.prim-grade.prim-unclassified Unclassified (0)
           .exam-key(style='margin-top:.5rem')
-            h4 Pass Threshold: ≥ 21 out of 50
+            h4 Pass Threshold: ≥ 25 out of 50 (50%)
 
         else
           //- SECONDARY: teacher-set max, pass >= 40%
@@ -122,8 +123,9 @@ block content
             tbody
               if marks.length
                 each m in marks
-                  - const fe = m.finalExam != null ? m.finalExam : null
-                  - const feMax = m.finalExamMax || null
+                  - const isArtSenior = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode)
+                  - let fe = m.finalExam != null ? m.finalExam : (isArtSenior && m.totalScore != null ? m.totalScore : null)
+                  - let feMax = m.finalExamMax || (isArtSenior ? ART_MAX : null)
                   - const pct = fe !== null && feMax ? ((fe/feMax)*100) : null
                   - const passed = pct !== null && pct >= 40
                   tr
@@ -145,8 +147,8 @@ block content
 
       if marks.length
         .final-summary
-          - const feMarks = marks.filter(m => m.finalExam != null)
-          - const passCount = isPrimary ? feMarks.filter(m => m.finalExam >= 21).length : feMarks.filter(m => m.finalExamMax && (m.finalExam/m.finalExamMax)*100 >= 40).length
+          - const feMarks = marks.filter(m => (m.finalExam != null || (isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) && m.totalScore != null) || (isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) && m.totalScore != null)))
+          - const passCount = isPrimary ? feMarks.filter(m => { const isArtPrim = isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode); const s = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null); return s !== null && s >= 25; }).length : feMarks.filter(m => { const isArt = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode); const s = m.finalExam != null ? m.finalExam : m.totalScore; const max = m.finalExamMax || (isArt ? ART_MAX : null); return max && (s/max)*100 >= 40; }).length
           .summary-stat
             span.summary-label Subjects Sat:
             span.summary-val #{feMarks.length}

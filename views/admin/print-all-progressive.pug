@@ -63,9 +63,10 @@ block content
                   - const rawSubjectName = (m.subject ? m.subject.name : '') || ''
                   - const className = (cls2.name || '') || ''
                   
-                  //- Bulletproof matching: True if it contains 'Art' and class contains '10'
-                  - const isArt = isArtDesignSubject(rawSubjectName, className, dept2.code || '') || rawSubjectName.toLowerCase().includes('art')
-                  - const isYear10Art = isArt && className.toLowerCase().includes('10')
+                  //- Senior Art & Design: Year 10 & 11 Secondary (Max 72)
+                  - const isArtSenior = isArtDesignSubject(rawSubjectName, className, dept2.code || '') || (rawSubjectName.toLowerCase().includes('art') && /^year\s*(10|11)/i.test(className))
+                  - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(rawSubjectName, className, dept2.code || '') : false
+                  - const artPassed = isArtSenior ? (m.totalScore != null ? (m.totalScore >= 29) : ((m.grade || '').toLowerCase() === 'pass')) : isArtPrim ? (m.totalScore != null ? (m.totalScore >= 50) : ((m.grade || '').toLowerCase() === 'pass')) : false
                   
                   tr
                     td.subject-cell #{rawSubjectName || '-'}
@@ -75,32 +76,26 @@ block content
                     td #{m.classWork != null ? m.classWork : '-'}
                     td #{m.unitTest != null ? m.unitTest : '-'}
                     td
-                      if isArt
+                      if isArtSenior
                         strong #{m.totalScore != null ? m.totalScore : '-'}
                         span(style='color:#64748b') &nbsp;/ #{ART_MAX}
+                      else if isArtPrim
+                        strong #{m.totalScore != null ? m.totalScore : '-'}
+                        span(style='color:#64748b') &nbsp;/ 100
                       else
                         strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
                     td
-                      if isArt || isYear10Art
-                        - const score = m.totalScore || 0
-                        //- Check if score is above 34, OR check if the string itself says Pass/Pa
-                        - const rawGrade = (m.grade || '').trim().toLowerCase()
-                        - const passed = (isYear10Art ? (score > 34) : (rawGrade === 'pass' || rawGrade === 'pa'))
-                        
-                        span(class=passed ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{passed ? 'Pass' : 'Fail'}
+                      if isArtSenior || isArtPrim
+                        span(class=artPassed ? 'pf-badge pf-pass' : 'pf-badge pf-fail') #{artPassed ? 'Pass' : 'Fail'}
                       else
                         span(class=`grade-badge grade-${m.grade}`) #{m.grade || '-'}
                     td
-                      if isArt || isYear10Art
-                        - const score = m.totalScore || 0
-                        - const rawGrade = (m.grade || '').trim().toLowerCase()
-                        - const passed = (isYear10Art ? (score > 34) : (rawGrade === 'pass' || rawGrade === 'pa'))
-                        
-                        | #{passed ? 'Pass' : 'Fail'}
+                      if isArtSenior || isArtPrim
+                        | #{artPassed ? 'Pass' : 'Fail'}
                       else
                         | #{getRemark(m.grade)}
             if sr.marks.length
-              - const regMarks = sr.marks.filter(m => { const c2 = sr.student.class||{}; const d2 = c2.department||{}; return !isArtDesignSubject(m.subject?m.subject.name:'', c2.name||'', d2.code||''); })
+              - const regMarks = sr.marks.filter(m => { const c2 = sr.student.class||{}; const d2 = c2.department||{}; const sName = m.subject?m.subject.name:''; const cName = c2.name||''; const dCode = d2.code||''; return !isArtDesignSubject(sName, cName, dCode) && !(isArtDesignPrimary && isArtDesignPrimary(sName, cName, dCode)); })
               if regMarks.length
                 tfoot
                   tr.summary-row
