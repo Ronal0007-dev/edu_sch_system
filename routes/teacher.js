@@ -25,6 +25,8 @@ const {
   parseScoreInput,
   artGrade,
   ART_MAX,
+  getSecondaryJuniorRemark,
+  getSecondarySeniorRemark,
 } = require("../utils/grading");
 const {
   filterMarksForStudent,
@@ -1249,6 +1251,8 @@ router.get("/final-report/:studentId", async (req, res) => {
       secondaryExamPassed,
       isArtDesignSubject,
       isArtDesignPrimary,
+      getSecondaryJuniorRemark,
+      getSecondarySeniorRemark,
       ART_MAX,
       artGrade,
       currentYear,

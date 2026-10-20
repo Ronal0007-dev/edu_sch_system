@@ -210,7 +210,7 @@ block body
               tr
                 td #{student.fullName}
                 td
-                  input.mark-input(type='number', min=0, max=isArtSenior ? 72 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '')
+                  input.mark-input(type='number', min=0, max=isArtSenior ? 144 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '')
                 td
                   input.mark-input(type='number', min=1, step=1, name=`femax_${student.id}`, value=feMax ? feMax : '')
       .form-actions

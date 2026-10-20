@@ -25,6 +25,8 @@ const {
   artGrade,
   calculateScore,
   calculateArtScore,
+  getSecondaryJuniorRemark,
+  getSecondarySeniorRemark,
 } = require("../utils/grading");
 const {
   filterMarksForStudent,
@@ -4535,6 +4537,8 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
       deptCode,
       isPrimary,
       isArtDesignPrimary,
+      getSecondaryJuniorRemark,
+      getSecondarySeniorRemark,
       studentReports,
       subjects,
       term: t,

@@ -1,46 +1,33 @@
 extends ../layout
 
 block content
+  - const classNameNorm = (student.class ? student.class.name : '').trim()
+  - const isJuniorSec = deptCode === 'Secondary' && /^year\s*[789]\b/i.test(classNameNorm)
+  - const isSeniorSec = deptCode === 'Secondary' && /^year\s*(10|11)\b/i.test(classNameNorm)
+
   .report-card-page
-    .report-card-controls.no-print
-      a.btn.btn-outline(href='javascript:history.back()')
-        i.fas.fa-arrow-left
-        span Back
+    .no-print.report-card-controls
+      a.btn.btn-outline(href='/teacher/report-cards') ← Back to Report Cards
       button.btn.btn-primary(onclick='window.print()')
         i.fas.fa-print
-        span Print Final Report
+        span Print Report Card
       .term-selector
         form(method='GET', action=`/teacher/final-report/${student.id}`)
-          .form-row
-            .form-group
-              label Term
-              select(name='term')
-                if allTerms && allTerms.length
-                  each t in allTerms
-                    option(value=t.name, selected=term===t.name) #{t.name}#{!t.isOpen ? ' (Closed)' : ''}
-                else
-                  option(value='Term 1', selected=term==='Term 1') Term 1
-            .form-group
-              label Year
-              select(name='year')
-                if currentYear
-                  option(value=currentYear.name, selected=year===currentYear.name) #{currentYear.name}
-                each yr in academicYears
-                  if !currentYear || yr.id !== currentYear.id
-                    option(value=yr.name, selected=year===yr.name) #{yr.name}
-            button.btn.btn-sm.btn-outline(type='submit') Load
-      a.btn.btn-outline(href=`/teacher/progressive-report/${student.id}?term=${term}&year=${year}`)
-        i.fas.fa-file-alt
-        span View Progressive Report
+          select(name='term', onchange='this.form.submit()')
+            each t in allTerms
+              option(value=t.name, selected=t.name === term) #{t.name}
+          select(name='year', onchange='this.form.submit()')
+            each y in academicYears
+              option(value=y.name, selected=y.name === year) #{y.name}
 
     .report-card
       .report-card-header
         .school-info
           .school-logo-img
-            img(src='/images/logo.png', alt='School Logo' width='64')
+            img(src='/images/logo.png', alt='School Logo', width='64')
           div
             h1 Canon Andrea Mwaka School
-            p "Never tire of doing what is right" 2 thessalonians 3:13
+            p "Never tire of doing what is right" 2 Thessalonians 3:13
         .report-meta
           .report-type-badge.badge-final FINAL REPORT
           h2 Final Examination Results
@@ -66,7 +53,6 @@ block content
 
       .marks-section
         if isPrimary
-          //- PRIMARY: out of 50 with classification
           table.report-table
             thead
               tr
@@ -77,9 +63,9 @@ block content
             tbody
               if marks.length
                 each m in marks
-                  - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) : false
-                  - let fe = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null)
-                  - const pg = fe===null?null:fe===0?{grade:'U',label:'Unclassified'}:fe<=10?{grade:'B',label:'Basic'}:fe<=20?{grade:'As',label:'Aspiring'}:fe<=30?{grade:'G',label:'Good'}:fe<=40?{grade:'H',label:'High'}:{grade:'O',label:'Outstanding'}
+                  - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(m.subject ? m.subject.name : '', classNameNorm, deptCode) : false
+                  - const fe = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null)
+                  - const pg = fe === null ? null : fe === 0 ? 'Unclassified' : fe <= 10 ? 'Basic' : fe <= 20 ? 'Aspiring' : fe <= 30 ? 'Good' : fe <= 40 ? 'High' : 'Outstanding'
                   - const passed = fe !== null && fe >= 25
                   tr
                     td.subject-cell #{m.subject ? m.subject.name : '-'}
@@ -87,68 +73,91 @@ block content
                       strong #{fe !== null ? fe : '—'}
                     td
                       if pg
-                        span(class=`prim-grade prim-${pg.label.toLowerCase()}`) #{pg.label}
+                        span(class=`prim-grade prim-${pg.toLowerCase()}`) #{pg}
                       else
                         | —
                     td
                       if fe !== null
-                        span(class=`pf-badge ${passed?'pf-pass':'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
+                        span(class=`pf-badge ${passed ? 'pf-pass' : 'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
                       else
                         | —
               else
                 tr
-                  td(colspan=4, style='text-align:center;padding:1rem;color:#64748b') No final exam marks recorded.
+                  td(colspan=4, style='text-align:center;color:#64748b') No final exam marks recorded.
           .exam-key
-            h4 Classification (out of 50):
-            .grade-key-grid
-              span.prim-grade.prim-outstanding Outstanding (41–50)
-              span.prim-grade.prim-high High (31–40)
-              span.prim-grade.prim-good Good (21–30)
-              span.prim-grade.prim-aspiring Aspiring (11–20)
-              span.prim-grade.prim-basic Basic (1–10)
-              span.prim-grade.prim-unclassified Unclassified (0)
-          .exam-key(style='margin-top:.5rem')
+            h4 Classification (out of 50): &nbsp;
+              span.prim-grade.prim-outstanding Outstanding 41–50
+              |  &nbsp;
+              span.prim-grade.prim-high High 31–40
+              |  &nbsp;
+              span.prim-grade.prim-good Good 21–30
+              |  &nbsp;
+              span.prim-grade.prim-aspiring Aspiring 11–20
+              |  &nbsp;
+              span.prim-grade.prim-basic Basic 1–10
+              |  &nbsp;
+              span.prim-grade.prim-unclassified Unclassified 0
+          .exam-key(style='margin-top:.35rem')
             h4 Pass Threshold: ≥ 25 out of 50 (50%)
 
         else
-          //- SECONDARY: teacher-set max, pass >= 40%
           table.report-table
             thead
               tr
                 th Subject
                 th Score
                 th Max Mark
-                th Percentage
+                //- th Percentage
+                if isJuniorSec
+                  th Remark (S1–S4)
+                if isSeniorSec
+                  th Grade (9–U)
                 th Result
             tbody
               if marks.length
                 each m in marks
-                  - const isArtSenior = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode)
-                  - let fe = m.finalExam != null ? m.finalExam : (isArtSenior && m.totalScore != null ? m.totalScore : null)
-                  - let feMax = m.finalExamMax || (isArtSenior ? ART_MAX : null)
-                  - const pct = fe !== null && feMax ? ((fe/feMax)*100) : null
+                  - const subName = m.subject ? m.subject.name : ''
+                  - const isSeniorArt = isArtDesignSenior ? isArtDesignSenior(subName, classNameNorm, deptCode) : false
+                  - const rawFe = m.finalExam != null ? m.finalExam : null
+                  - const rawFeMax = m.finalExamMax != null ? m.finalExamMax : null
+                  
+                  //- Double score and max mark for Year 10/11 Art & Design
+                  - const fe = rawFe !== null && isSeniorArt ? rawFe * 2 : rawFe
+                  - const feMax = rawFeMax !== null && isSeniorArt ? rawFeMax * 2 : rawFeMax
+                  
+                  - const pct = fe !== null && feMax && feMax > 0 ? ((fe / feMax) * 100) : null
                   - const passed = pct !== null && pct >= 40
+                  
+                  - const juniorRemark = isJuniorSec && fe !== null && typeof getSecondaryJuniorRemark === 'function' ? getSecondaryJuniorRemark(subName, fe) : '—'
+                  - const seniorRemark = isSeniorSec && fe !== null && typeof getSecondarySeniorRemark === 'function' ? getSecondarySeniorRemark(subName, fe) : 'U'
                   tr
-                    td.subject-cell #{m.subject ? m.subject.name : '-'}
+                    td.subject-cell #{subName}
                     td
                       strong #{fe !== null ? fe : '—'}
-                    td #{feMax ? feMax : '—'}
-                    td #{pct !== null ? pct.toFixed(1)+'%' : '—'}
+                    td #{feMax !== null ? feMax : '—'}
+                    //- td #{pct !== null ? pct.toFixed(1) + '%' : '—'}
+                    if isJuniorSec
+                      td
+                        strong #{juniorRemark}
+                    if isSeniorSec
+                      td
+                        strong #{seniorRemark}
                     td
                       if fe !== null && feMax
-                        span(class=`pf-badge ${passed?'pf-pass':'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
+                        span(class=`pf-badge ${passed ? 'pf-pass' : 'pf-fail'}`) #{passed ? 'Pass' : 'Fail'}
                       else
                         | —
               else
+                - const colSpanVal = isJuniorSec || isSeniorSec ? 6 : 5
                 tr
-                  td(colspan=5, style='text-align:center;padding:1rem;color:#64748b') No final exam marks recorded.
+                  td(colspan=colSpanVal, style='text-align:center;color:#64748b') No final exam marks recorded.
           .exam-key
             h4 Pass Threshold: ≥ 40% of set max mark per subject
 
       if marks.length
         .final-summary
-          - const feMarks = marks.filter(m => (m.finalExam != null || (isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) && m.totalScore != null) || (isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode) && m.totalScore != null)))
-          - const passCount = isPrimary ? feMarks.filter(m => { const isArtPrim = isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode); const s = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null); return s !== null && s >= 25; }).length : feMarks.filter(m => { const isArt = isArtDesignSubject(m.subject ? m.subject.name : '', student.class ? student.class.name : '', deptCode); const s = m.finalExam != null ? m.finalExam : m.totalScore; const max = m.finalExamMax || (isArt ? ART_MAX : null); return max && (s/max)*100 >= 40; }).length
+          - const feMarks = marks.filter(m => (m.finalExam != null || (isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', classNameNorm, deptCode) && m.totalScore != null)))
+          - const passCount = isPrimary ? feMarks.filter(m => { const isArtPrim = isArtDesignPrimary && isArtDesignPrimary(m.subject ? m.subject.name : '', classNameNorm, deptCode); const s = m.finalExam != null ? m.finalExam : (isArtPrim && m.totalScore != null ? Math.round((m.totalScore * 0.5) * 10) / 10 : null); return s !== null && s >= 25; }).length : feMarks.filter(m => m.finalExamMax && (m.finalExam / m.finalExamMax) * 100 >= 40).length
           .summary-stat
             span.summary-label Subjects Sat:
             span.summary-val #{feMarks.length}
@@ -166,19 +175,12 @@ block content
             |  Class Teacher's Comment
           p.comment-text #{reportComment.comment}
 
-      .report-card-footer
+      //- .report-card-footer
         .signature-area.with-stamp
           .sig-box
             p ___________________________
             p Class Teacher
-          //- .sig-box
-          //-   p ___________________________
-          //-   p Parent / Guardian
+          
           .sig-box
             p ___________________________
             p Head Teacher
-          //- .stamp-box
-            img(src='/images/school-stamp.png', alt='School Stamp')
-            p Official Stamp
-
-      .print-date Generated: #{new Date().toLocaleDateString()}
