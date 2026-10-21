@@ -68,8 +68,8 @@ block body
         span Art & Design (Summation) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
         span.exam-max-badge Out of #{ART_MAX}
       else if isArtJuniorMode
-        span Art & Design (Average) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
-        span.exam-max-badge Average (Dash '-' = 0)
+        span Art & Design (Summation to 100) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+        span.exam-max-badge Out of 100 (Max 100)
       else if isArtPrimaryMode
         span Art & Design Primary (Summation to 100) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
         span.exam-max-badge Out of 100 (Pass ≥ 50)
@@ -92,10 +92,10 @@ block body
       .marks-info-bar
         .info-item
           span.info-label Mode
-          span.info-val Average of Assessments: (H/W + G/W + QZ + C/W + U/T) / 5 — Unweighted
+          span.info-val Summation of Assessments: (H/W + G/W + QZ + C/W + U/T) — Maximum 100 marks
         .info-item
-          span.info-label Missed Assessments
-          span.info-val Enter dash (-) if student didn't sit; counted as 0 in calculating average
+          span.info-label Over-Limit Rule
+          span.info-val Total marks cannot exceed 100. Submissions over 100 trigger an alert modal.
     else if isArtPrimaryMode
       .marks-info-bar
         .info-item
@@ -150,22 +150,22 @@ block body
             else if isArtJuniorMode
               tr
                 th Student
-                th(title='Home Work (Enter - if absent)') H/W
-                th(title='Group Work (Enter - if absent)') G/W
-                th(title='Quiz (Enter - if absent)') QZ
-                th(title='Class Work (Enter - if absent)') C/W
-                th(title='Unit Test (Enter - if absent)') U/T
-                th Average
+                th(title='Home Work') H/W
+                th(title='Group Work') G/W
+                th(title='Quiz') QZ
+                th(title='Class Work') C/W
+                th(title='Unit Test') U/T
+                th Total / 100
                 th Grade
               tr.weight-row
-                th Average →
+                th Summation →
                 th +
                 th +
                 th +
                 th +
                 th +
-                th = Sum / 5
-                th —
+                th = Total (Max 100)
+                th Grade
             else if isArtPrimaryMode
               tr
                 th Student
@@ -219,19 +219,20 @@ block body
                         small #{student.stream.name}
                 if isArtJuniorMode
                   td
-                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`hw_${student.id}`, value=existing ? (existing.homework === 0 ? '0' : existing.homework) : '', placeholder='0 or -')
+                    input.mark-input(type='number', min=0, max=100, step=0.5, name=`hw_${student.id}`, value=existing ? existing.homework : '', placeholder='0')
                   td
-                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`gw_${student.id}`, value=existing ? (existing.groupWork === 0 ? '0' : existing.groupWork) : '', placeholder='0 or -')
+                    input.mark-input(type='number', min=0, max=100, step=0.5, name=`gw_${student.id}`, value=existing ? existing.groupWork : '', placeholder='0')
                   td
-                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`qz_${student.id}`, value=existing ? (existing.quiz === 0 ? '0' : existing.quiz) : '', placeholder='0 or -')
+                    input.mark-input(type='number', min=0, max=100, step=0.5, name=`qz_${student.id}`, value=existing ? existing.quiz : '', placeholder='0')
                   td
-                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`cw_${student.id}`, value=existing ? (existing.classWork === 0 ? '0' : existing.classWork) : '', placeholder='0 or -')
+                    input.mark-input(type='number', min=0, max=100, step=0.5, name=`cw_${student.id}`, value=existing ? existing.classWork : '', placeholder='0')
                   td
-                    input.mark-input.art-junior-input(type='text', inputmode='decimal', name=`ut_${student.id}`, value=existing ? (existing.unitTest === 0 ? '0' : existing.unitTest) : '', placeholder='0 or -')
+                    input.mark-input(type='number', min=0, max=100, step=0.5, name=`ut_${student.id}`, value=existing ? existing.unitTest : '', placeholder='0')
                   td
                     span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
+                    span(style='color:var(--text-muted)') &nbsp;/ 100
                   td
-                    span.grade-display(class=existing ? `grade-badge grade-${existing.grade}` : '', data-sid=student.id) #{existing && existing.grade ? existing.grade : '—'}
+                    span.grade-display(data-sid=student.id, class=existing ? `grade-badge grade-${existing.grade}` : '') #{existing && existing.grade ? existing.grade : '—'}
                 else
                   td
                     input.mark-input(type='number', min=0, max=isArtSenior ? 72 : 100, step=0.5, name=`hw_${student.id}`, value=existing ? existing.homework : '', placeholder='0')
@@ -281,7 +282,7 @@ block body
           if isArtSenior
             span Save Art & Design Marks (Max 72)
           else if isArtJuniorMode
-            span Save Art & Design Marks (Average)
+            span Save Art & Design Marks (Max 100)
           else if isArtPrimaryMode
             span Save Art & Design Marks (Max 100)
           else
@@ -539,7 +540,7 @@ block body
       };
       var hw = g('hw'), gw = g('gw'), qz = g('qz'), cw = g('cw'), ut = g('ut');
       if (isArtMode) return hw + gw + qz + cw + ut;
-      if (isArtJuniorMode) return (hw + gw + qz + cw + ut) / 5;
+      if (isArtJuniorMode) return hw + gw + qz + cw + ut; // Summation out of 100 for Junior Art & Design
       if (isArtPrimaryMode) return hw + gw + qz + cw + ut;
       return method === 'weighted' ? (hw * 0.10 + gw * 0.15 + qz * 0.20 + cw * 0.20 + ut * 0.35) : (hw + gw + qz + cw + ut) / 5;
     }
@@ -575,6 +576,14 @@ block body
           if (gradeEl) {
             gradeEl.textContent = grade;
             gradeEl.className = 'grade-badge grade-' + grade;
+          }
+          var inputs = row.querySelectorAll('.mark-input');
+          if (total > 100) {
+            inputs.forEach(function(inp) { inp.classList.add('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '#dc2626';
+          } else {
+            inputs.forEach(function(inp) { inp.classList.remove('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '';
           }
         } else if (isArtPrimaryMode) {
           var passed = total >= 50;
@@ -648,6 +657,22 @@ block body
           if (errors.length > 0) {
             e.preventDefault();
             showMarksModal('The sum of entered marks for Art & Design (Year 10/11) cannot exceed 72. Please correct the marks for the following students:', errors);
+            return false;
+          }
+        } else if (isArtJuniorMode) {
+          document.querySelectorAll('.marks-table tbody tr').forEach(function(row) {
+            var sid = row.dataset.student;
+            if (!sid) return;
+            var nameEl = row.querySelector('.student-mini strong');
+            var sName = nameEl ? nameEl.textContent.trim() : 'Student';
+            var total = calcCA(row);
+            if (total > 100) {
+              errors.push(sName + ': Total is ' + total.toFixed(1) + ' / 100 (exceeds 100 by ' + (total - 100).toFixed(1) + ')');
+            }
+          });
+          if (errors.length > 0) {
+            e.preventDefault();
+            showMarksModal('The total summation of marks for Art & Design (Year 7-9) cannot exceed 100. Please correct the marks for the following students:', errors);
             return false;
           }
         } else if (isArtPrimaryMode) {
