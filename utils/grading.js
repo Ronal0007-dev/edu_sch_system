@@ -277,6 +277,7 @@ exports.getSecondarySeniorRemark = (subjectName, score) => {
 
 exports.buildExamAnalysis = (marks, deptCode) => {
   const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+  // group by subject
   const bySubject = {};
   marks.forEach(m => {
     const sid = m.subjectId;
@@ -297,6 +298,9 @@ exports.buildExamAnalysis = (marks, deptCode) => {
   });
 };
 
+/**
+ * Helper to check if subject name matches Art & Design
+ */
 function isArtSubject(subjectName) {
   if (!subjectName) return false;
   const sNorm = subjectName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -304,6 +308,9 @@ function isArtSubject(subjectName) {
 }
 exports.isArtSubject = isArtSubject;
 
+/**
+ * Check if a class is in Primary department (Stage 1 to 6 / Primary / EYC)
+ */
 function isPrimaryClass(className, deptCode) {
   const dNorm = String(deptCode || '').trim().toLowerCase();
   if (dNorm === 'primary' || dNorm === 'eyc') return true;
@@ -312,6 +319,23 @@ function isPrimaryClass(className, deptCode) {
 }
 exports.isPrimaryClass = isPrimaryClass;
 
+function isStage12PrimaryFinalReportClass(className, deptCode) {
+  const department = String(deptCode || "").trim().toLowerCase();
+  const classMatch = String(className || "").trim().match(/^stage\s*([12])\b/i);
+  return department === "primary" && !!classMatch;
+}
+exports.isStage12PrimaryFinalReportClass = isStage12PrimaryFinalReportClass;
+
+function isStage12PrimaryFinalReportSubject(subjectName, className, deptCode) {
+  const subject = String(subjectName || "").trim().toLowerCase();
+  return isStage12PrimaryFinalReportClass(className, deptCode) &&
+    ["science", "mathematics", "english"].includes(subject);
+}
+exports.isStage12PrimaryFinalReportSubject = isStage12PrimaryFinalReportSubject;
+
+/**
+ * Parse score input. A dash (-) represents that student did not sit for assessment and is treated as 0.
+ */
 function parseScoreInput(val) {
   if (val === null || val === undefined) return 0;
   const s = String(val).trim();
@@ -321,6 +345,11 @@ function parseScoreInput(val) {
 }
 exports.parseScoreInput = parseScoreInput;
 
+/**
+ * ART & DESIGN (Year 10 & Year 11 Secondary) — CA out of 72.
+ * No weighting, no averaging: raw summation of all 5 components, max 72.
+ * Pass threshold: >= 40% of 72 = >= 28.8 (rounded to >= 29).
+ */
 const ART_MAX = 72;
 exports.ART_MAX = ART_MAX;
 
@@ -333,6 +362,10 @@ function isArtDesignSenior(subjectName, className, deptCode) {
 }
 exports.isArtDesignSenior = isArtDesignSenior;
 
+/**
+ * ART & DESIGN (Year 7, Year 8, Year 9 Secondary) — Average of assessments (Sum / 5).
+ * Summation of components and find average (NOT weighted). Dash (-) counts as 0.
+ */
 function isArtDesignJunior(subjectName, className, deptCode) {
   if (!isArtSubject(subjectName)) return false;
   const cNorm = (className || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -342,12 +375,18 @@ function isArtDesignJunior(subjectName, className, deptCode) {
 }
 exports.isArtDesignJunior = isArtDesignJunior;
 
+/**
+ * ART & DESIGN (Primary department — Stage 1 to 6, Primary, EYC).
+ * Summation of all marks to total 100, pass mark 50.
+ * Score obtained is converted to 50% for Final Exam (out of 50).
+ */
 function isArtDesignPrimary(subjectName, className, deptCode) {
   if (!isArtSubject(subjectName)) return false;
   return isPrimaryClass(className, deptCode);
 }
 exports.isArtDesignPrimary = isArtDesignPrimary;
 
+// Backward-compatible alias: refers to the out-of-72 summation mode (Year 10 & 11)
 exports.isArtDesignSubject = function(subjectName, className, deptCode) {
   return isArtDesignSenior(subjectName, className, deptCode);
 };
@@ -390,5 +429,6 @@ exports.getPrimaryCAGrade = function(score) {
 };
 
 exports.artGrade = function(total) {
+  // Pass threshold: >= 40% of 72 = >= 28.8 → round to >= 29
   return total >= Math.ceil(ART_MAX * 0.4) ? 'Pass' : 'Fail';
 };

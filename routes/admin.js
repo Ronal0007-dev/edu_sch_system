@@ -17,6 +17,8 @@ const {
   isArtDesignJunior,
   isArtDesignPrimary,
   isPrimaryClass,
+  isStage12PrimaryFinalReportClass,
+  isStage12PrimaryFinalReportSubject,
   parseScoreInput,
   calculateArtJuniorScore,
   calculatePrimaryScore,
@@ -4522,6 +4524,17 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
       studentReports
     } =
     await buildClassReports(classId, t, y, s);
+    if (isStage12PrimaryFinalReportClass(cls.name, deptCode)) {
+      studentReports.forEach((studentReport) => {
+        studentReport.marks = studentReport.marks.filter((mark) =>
+          isStage12PrimaryFinalReportSubject(
+            mark.subject ? mark.subject.name : "",
+            cls.name,
+            deptCode,
+          ),
+        );
+      });
+    }
     // Collect all unique subjects across all student marks
     const subjectMap = {};
     studentReports.forEach((sr) =>

@@ -3,12 +3,12 @@ extends ../partials/teacher-layout
 block body
   - const editing = !!plan
   - const selectedValue = (value, fallback) => value !== undefined && value !== null ? value : fallback
-  form.card.lesson-plan-form(method='POST' action=editing ? `/teacher/lesson-plans/${plan.id}/update` : '/teacher/lesson-plans/save')
+  form.card.lesson-plan-form(method='POST' action=editing ? `${portalBase}/lesson-plans/${plan.id}/update` : `${portalBase}/lesson-plans/save`)
     .card-header
       h2 LESSON PLAN
       .lesson-plan-form-header
         if editing
-          a.btn.btn-sm.btn-outline(href=`/teacher/lesson-plans/${plan.id}`)
+          a.btn.btn-sm.btn-outline(href=`${portalBase}/lesson-plans/${plan.id}`)
             i.fas.fa-arrow-left
             | Back to lesson plan
         span.badge.badge-warning #{editing ? 'Editing — pending review' : 'Pending review'}
@@ -68,7 +68,7 @@ block body
           label(for=field.key) #{field.label}
           textarea.rich-editor(id=field.key name=field.key rows='4' placeholder=`Write ${field.label.toLowerCase()}...`)!= selectedValue(editing && plan[field.key], '')
       .form-actions
-        a.btn.btn-outline(href=editing ? `/teacher/lesson-plans/${plan.id}` : '/teacher/lesson-plans') Cancel
+        a.btn.btn-outline(href=editing ? `${portalBase}/lesson-plans/${plan.id}` : `${portalBase}/lesson-plans`) Cancel
         button.btn.btn-primary(type='submit')
           i.fas.fa-paper-plane
           | #{editing ? 'Save changes' : 'Submit lesson plan'}
@@ -81,6 +81,7 @@ block body
       textarea.style.display = 'none';
       textarea.parentNode.insertBefore(editor, textarea);
       var quill = new Quill(editor, { theme: 'snow', modules: { toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link']] } });
+      quill.root.innerHTML = textarea.value || '';
       textarea.form.addEventListener('submit', function () { textarea.value = quill.root.innerHTML; });
     });
     var classSelect = document.getElementById('classId');
@@ -95,11 +96,13 @@ block body
       Array.from(subjectSelect.options).forEach(function (option) {
         option.hidden = option.value && option.dataset.classId !== classSelect.value;
       });
-      subjectSelect.value = '';
+      var selectedSubject = subjectSelect.options[subjectSelect.selectedIndex];
+      if (!selectedSubject || selectedSubject.dataset.classId !== classSelect.value) {
+        subjectSelect.value = '';
+      }
     });
     classSelect.dispatchEvent(new Event('change'));
     var tags = JSON.parse(document.getElementById('objectiveTags').value || '[]');
-    renderTags();
     var tagInput = document.getElementById('tagInput');
     var chips = document.getElementById('chips');
     var tagField = document.getElementById('objectiveTags');
@@ -112,6 +115,7 @@ block body
       });
       tagField.value = JSON.stringify(tags);
     }
+    renderTags();
     tagInput.addEventListener('keydown', function (event) {
       if (event.key === 'Enter') { event.preventDefault(); var tag = tagInput.value.trim(); if (tag && tags.indexOf(tag) < 0) tags.push(tag); tagInput.value = ''; renderTags(); }
     });

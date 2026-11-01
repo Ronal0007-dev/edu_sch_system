@@ -18,6 +18,8 @@ const {
   isArtDesignJunior,
   isArtDesignPrimary,
   isPrimaryClass,
+  isStage12PrimaryFinalReportClass,
+  isStage12PrimaryFinalReportSubject,
   calculateArtScore,
   calculateArtJuniorScore,
   calculatePrimaryScore,
@@ -1240,6 +1242,18 @@ router.get("/final-report/:studentId", async (req, res) => {
       year,
       req.session.teacher.id,
     );
+    if (isStage12PrimaryFinalReportClass(
+      data.student.class ? data.student.class.name : "",
+      data.deptCode,
+    )) {
+      data.marks = data.marks.filter((mark) =>
+        isStage12PrimaryFinalReportSubject(
+          mark.subject ? mark.subject.name : "",
+          data.student.class ? data.student.class.name : "",
+          data.deptCode,
+        ),
+      );
+    }
     res.render("teacher/final-report", {
       title: "Final Report Card",
       ...data,
