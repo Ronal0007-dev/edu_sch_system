@@ -4,7 +4,6 @@ seed.js
 docker-compose.yml
 Dockerfile
 .gitignore
-edu_sch_system_new.zip
-edu_sch_system_1.zip
+edu_sch_system.zip
 seeders/*
 README.md
