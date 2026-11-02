@@ -1637,15 +1637,39 @@ router.post("/marks/save", async (req, res) => {
         });
       }
     } else if (isArtJunior) {
-      // ── Art & Design Junior (Year 7, 8, 9 Secondary): average of assessments, dash (-) = 0 ──
+      // ── Art & Design Junior (Year 7, 8, 9 Secondary): summation out of 100 ──
+      for (const studentId of studentIds) {
+        const { sum } = calculateArtJuniorScore({
+          homework: req.body[`hw_${studentId}`],
+          groupWork: req.body[`gw_${studentId}`],
+          quiz: req.body[`qz_${studentId}`],
+          classWork: req.body[`cw_${studentId}`],
+          unitTest: req.body[`ut_${studentId}`],
+        });
+        if (sum > 100) {
+          const student = await Student.findById(studentId);
+          req.flash(
+            "error",
+            `Cannot save marks: The total marks for ${student ? student.fullName : "Student"} (${sum}) exceeds the maximum allowed score of 100 for Year 7–9 Art & Design.`,
+          );
+          return res.redirect(
+            `/admin/marks?classId=${classId}&subjectId=${subjectId}&term=${term}&year=${academicYear}`,
+          );
+        }
+      }
       for (const studentId of studentIds) {
         const homework = parseScoreInput(req.body[`hw_${studentId}`]);
         const groupWork = parseScoreInput(req.body[`gw_${studentId}`]);
         const quiz = parseScoreInput(req.body[`qz_${studentId}`]);
         const classWork = parseScoreInput(req.body[`cw_${studentId}`]);
         const unitTest = parseScoreInput(req.body[`ut_${studentId}`]);
-        const sum = homework + groupWork + quiz + classWork + unitTest;
-        const totalScore = Math.round((sum / 5) * 10) / 10;
+        const totalScore = calculateArtJuniorScore({
+          homework,
+          groupWork,
+          quiz,
+          classWork,
+          unitTest,
+        }).sum;
         const grade = getGrade(totalScore);
         await Mark.upsert({
           studentId,
@@ -1658,7 +1682,7 @@ router.post("/marks/save", async (req, res) => {
           quiz,
           classWork,
           unitTest,
-          gradingMethod: "unweighted",
+          gradingMethod: "summation",
           totalScore,
           grade,
           enteredBy
@@ -4472,6 +4496,19 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
       cls,
       studentReports
     } = await buildClassReports(classId, t, y, s);
+    const deptCode = cls.department ? cls.department.code : "";
+    studentReports.forEach((studentReport) => {
+      studentReport.marks.forEach((mark) => {
+        if (isArtDesignJunior(
+          mark.subject ? mark.subject.name : "",
+          cls.name,
+          deptCode,
+        )) {
+          mark.totalScore = calculateArtJuniorScore(mark).sum;
+          mark.grade = getGrade(mark.totalScore);
+        }
+      });
+    });
     res.render("admin/print-all-progressive", {
       title: "Progressive Report Cards — " + (cls.name || ""),
       cls,
@@ -4480,6 +4517,7 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
       year: y,
       status: s,
       getRemark,
+      isArtDesignJunior,
       isArtDesignSubject,
       isArtDesignPrimary,
       ART_MAX,

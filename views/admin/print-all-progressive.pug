@@ -65,6 +65,7 @@ block content
                   
                   //- Senior Art & Design: Year 10 & 11 Secondary (Max 72)
                   - const isArtSenior = isArtDesignSubject(rawSubjectName, className, dept2.code || '') || (rawSubjectName.toLowerCase().includes('art') && /^year\s*(10|11)/i.test(className))
+                  - const isArtJunior = isArtDesignJunior && isArtDesignJunior(rawSubjectName, className, dept2.code || '')
                   - const isArtPrim = isArtDesignPrimary ? isArtDesignPrimary(rawSubjectName, className, dept2.code || '') : false
                   - const artPassed = isArtSenior ? (m.totalScore != null ? (m.totalScore >= 29) : ((m.grade || '').toLowerCase() === 'pass')) : isArtPrim ? (m.totalScore != null ? (m.totalScore >= 50) : ((m.grade || '').toLowerCase() === 'pass')) : false
                   
@@ -79,6 +80,9 @@ block content
                       if isArtSenior
                         strong #{m.totalScore != null ? m.totalScore : '-'}
                         span(style='color:#64748b') &nbsp;/ #{ART_MAX}
+                      else if isArtJunior
+                        strong #{m.totalScore != null ? m.totalScore.toFixed(1) : '-'}
+                        span(style='color:#64748b') &nbsp;/ 100
                       else if isArtPrim
                         strong #{m.totalScore != null ? m.totalScore : '-'}
                         span(style='color:#64748b') &nbsp;/ 100

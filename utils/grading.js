@@ -363,8 +363,8 @@ function isArtDesignSenior(subjectName, className, deptCode) {
 exports.isArtDesignSenior = isArtDesignSenior;
 
 /**
- * ART & DESIGN (Year 7, Year 8, Year 9 Secondary) — Average of assessments (Sum / 5).
- * Summation of components and find average (NOT weighted). Dash (-) counts as 0.
+ * ART & DESIGN (Year 7, Year 8, Year 9 Secondary) — summation out of 100.
+ * Dash (-) counts as 0.
  */
 function isArtDesignJunior(subjectName, className, deptCode) {
   if (!isArtSubject(subjectName)) return false;
@@ -400,14 +400,12 @@ exports.calculateArtScore = function(marks) {
 };
 
 exports.calculateArtJuniorScore = function(marks) {
-  const hw = parseScoreInput(marks.homework);
-  const gw = parseScoreInput(marks.groupWork);
-  const qz = parseScoreInput(marks.quiz);
-  const cw = parseScoreInput(marks.classWork);
-  const ut = parseScoreInput(marks.unitTest);
-  const sum = hw + gw + qz + cw + ut;
-  const average = Math.round((sum / 5) * 10) / 10;
-  return { sum, average };
+  const sum = parseScoreInput(marks.homework)
+    + parseScoreInput(marks.groupWork)
+    + parseScoreInput(marks.quiz)
+    + parseScoreInput(marks.classWork)
+    + parseScoreInput(marks.unitTest);
+  return { sum: Math.round(sum * 10) / 10 };
 };
 
 exports.calculatePrimaryScore = function(marks) {

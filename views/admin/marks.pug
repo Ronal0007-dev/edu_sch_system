@@ -41,8 +41,8 @@ block body
         span Art & Design (Summation) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
         span.exam-max-badge Out of #{ART_MAX}
       else if isArtJuniorMode
-        span Art & Design (Average) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
-        span.exam-max-badge Average (Dash '-' = 0)
+        span Art & Design (Summation) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
+        span.exam-max-badge Out of 100 (Dash '-' = 0)
       else if isArtPrimaryMode
         span Art & Design Primary (Summation to 100) — #{selectedSubject.name} | #{selectedClass.name} | #{term}
         span.exam-max-badge Out of 100 (Pass ≥ 50)
@@ -61,10 +61,10 @@ block body
       .marks-info-bar
         .info-item
           span.info-label Mode
-          span.info-val Average of Assessments: (H/W + G/W + QZ + C/W + U/T) / 5 (Unweighted)
+          span.info-val Summation of assessments: H/W + G/W + QZ + C/W + U/T — Maximum 100 marks
         .info-item
           span.info-label Missed Assessments
-          span.info-val Enter dash (-) if student didn't sit; counted as 0 in calculating average
+          span.info-val Enter dash (-) if student didn't sit; counted as 0
     else if isArtPrimaryMode
       .marks-info-bar
         .info-item
@@ -92,7 +92,7 @@ block body
                 th Total / #{ART_MAX}
                 th Result
               else if isArtJuniorMode
-                th Average
+                th Total / 100
                 th Grade
               else if isArtPrimaryMode
                 th Total / 100
@@ -118,6 +118,7 @@ block body
                     input.mark-input(type='text', inputmode='decimal', name=`ut_${student.id}`, value=existing ? (existing.unitTest === 0 ? '0' : existing.unitTest) : '', placeholder='0 or -')
                   td
                     span.total-display(data-sid=student.id) #{existing && existing.totalScore != null ? existing.totalScore.toFixed(1) : '—'}
+                    span(style='color:var(--text-muted)') &nbsp;/ 100
                   td
                     span.grade-display(data-sid=student.id) #{existing && existing.grade ? existing.grade : '—'}
                 else
@@ -160,7 +161,7 @@ block body
           if isArtSenior
             span Save Art & Design Marks (Max 72)
           else if isArtJuniorMode
-            span Save Art & Design Marks (Average)
+            span Save Art & Design Marks (Max 100)
           else if isArtPrimaryMode
             span Save Primary Marks (Max 100)
           else
@@ -210,7 +211,7 @@ block body
               tr
                 td #{student.fullName}
                 td
-                  input.mark-input(type='number', min=0, max=isArtSenior ? 144 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '')
+                  input.mark-input(type='number', min=0, max=isArtSenior ? 72 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '')
                 td
                   input.mark-input(type='number', min=1, step=1, name=`femax_${student.id}`, value=feMax ? feMax : '')
       .form-actions
@@ -291,7 +292,7 @@ block body
       };
       var hw = g('hw'), gw = g('gw'), qz = g('qz'), cw = g('cw'), ut = g('ut');
       if (isArtMode) return hw + gw + qz + cw + ut;
-      if (isArtJuniorMode) return (hw + gw + qz + cw + ut) / 5;
+      if (isArtJuniorMode) return hw + gw + qz + cw + ut;
       if (isArtPrimaryMode) return hw + gw + qz + cw + ut;
       return method === 'weighted' ? (hw * 0.10 + gw * 0.15 + qz * 0.20 + cw * 0.20 + ut * 0.35) : (hw + gw + qz + cw + ut) / 5;
     }
@@ -323,6 +324,19 @@ block body
           }
         } else if (isArtJuniorMode) {
           if (totalEl) totalEl.textContent = total.toFixed(1);
+          var inputs = row.querySelectorAll('.mark-input');
+          if (total > 100) {
+            inputs.forEach(function(inp) { inp.classList.add('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '#dc2626';
+          } else {
+            inputs.forEach(function(inp) { inp.classList.remove('input-mark-error'); });
+            if (totalEl) totalEl.style.color = '';
+          }
+          if (gradeEl) {
+            var grade = getGrade(total);
+            gradeEl.textContent = grade;
+            gradeEl.className = 'grade-badge grade-' + grade;
+          }
         } else if (isArtPrimaryMode) {
           var passed = total >= 50;
           if (totalEl) totalEl.textContent = total.toFixed(1);
@@ -344,6 +358,7 @@ block body
       row.querySelectorAll('.mark-input, select').forEach(function(el) {
         el.addEventListener('input', update);
       });
+      if (isArtJuniorMode) update();
     });
 
     function showMarksModal(message, errorList) {
@@ -402,6 +417,20 @@ block body
           if (errors.length > 0) {
             e.preventDefault();
             showMarksModal('The summation of marks for Art & Design in Primary department cannot exceed 100. Please correct the marks for the following students:', errors);
+            return false;
+          }
+        } else if (isArtJuniorMode) {
+          document.querySelectorAll('.marks-table tbody tr').forEach(function(row) {
+            var nameEl = row.querySelector('strong');
+            var sName = nameEl ? nameEl.textContent.trim() : 'Student';
+            var total = calcCA(row);
+            if (total > 100) {
+              errors.push(sName + ': Total is ' + total.toFixed(1) + ' / 100 (exceeds 100 by ' + (total - 100).toFixed(1) + ')');
+            }
+          });
+          if (errors.length > 0) {
+            e.preventDefault();
+            showMarksModal('Year 7–9 Art & Design marks cannot exceed 100. Please correct the total for the following students:', errors);
             return false;
           }
         }
