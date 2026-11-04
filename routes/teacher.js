@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const moment = require("moment");
+const https = require("https");
 //const {Op} = require("sequelize")
 const {
   requireTeacher
@@ -54,6 +55,120 @@ const {
 } = require("../models");
 
 router.use(requireTeacher);
+
+let inspirationalQuoteCache = null;
+let inspirationalQuotePromise = null;
+let nextQuoteFetchAt = 0;
+const fallbackTeacherMessages = [
+  "Your patience and dedication help every learner take their next step.",
+  "The care you bring to teaching can make a lasting difference.",
+  "Every lesson is an opportunity to help someone discover what they can do."
+];
+
+function getTeacherGreeting(hour) {
+  if (hour < 12) return { text: "Good morning", className: "morning" };
+  if (hour < 17) return { text: "Good afternoon", className: "afternoon" };
+  return { text: "Good evening", className: "evening" };
+}
+
+function getFallbackTeacherMessage() {
+  return {
+    text: fallbackTeacherMessages[Math.floor(Math.random() * fallbackTeacherMessages.length)],
+    author: "",
+    source: ""
+  };
+}
+
+function fetchInspirationalQuote() {
+  return new Promise((resolve, reject) => {
+    const request = https.get("https://zenquotes.io/api/random", { timeout: 1800 }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+        if (body.length > 16000) request.destroy(new Error("Quote response was too large."));
+      });
+      response.on("end", () => {
+        if (response.statusCode !== 200) {
+          return reject(new Error(`Quote service returned HTTP ${response.statusCode}.`));
+        }
+        try {
+          const [quote] = JSON.parse(body);
+          if (!quote || typeof quote.q !== "string" || !quote.q.trim()) {
+            return reject(new Error("Quote service returned an invalid response."));
+          }
+          resolve({
+            text: quote.q.trim(),
+            author: typeof quote.a === "string" ? quote.a.trim() : "",
+            source: "https://zenquotes.io/"
+          });
+        } catch (error) {
+          reject(new Error(`Could not read quote response: ${error.message}`));
+        }
+      });
+    });
+    request.on("timeout", () => request.destroy(new Error("Quote service request timed out.")));
+    request.on("error", reject);
+  });
+}
+
+async function getInspirationalTeacherMessage() {
+  if (inspirationalQuoteCache) return inspirationalQuoteCache;
+  if (inspirationalQuotePromise) return inspirationalQuotePromise;
+  if (Date.now() < nextQuoteFetchAt) return getFallbackTeacherMessage();
+
+  nextQuoteFetchAt = Date.now() + 6 * 60 * 60 * 1000;
+  inspirationalQuotePromise = fetchInspirationalQuote()
+    .then((quote) => {
+      inspirationalQuoteCache = quote;
+      return quote;
+    })
+    .catch((error) => {
+      console.warn("Could not load an online teacher encouragement quote:", error.message);
+      return getFallbackTeacherMessage();
+    })
+    .finally(() => {
+      inspirationalQuotePromise = null;
+    });
+  return inspirationalQuotePromise;
+}
+
+function getCurrentOrNextLesson(entries, now) {
+  const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const todayName = now.format("dddd");
+  if (!weekdays.includes(todayName)) {
+    const nextWeekday = weekdays.find((day) => entries.some((entry) => entry.day === day));
+    const next = nextWeekday && entries
+      .filter((entry) => entry.day === nextWeekday)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0];
+    return next ? { entry: next, timing: `${nextWeekday} · ${String(next.startTime).slice(0, 5)}` } : null;
+  }
+
+  const nowMinutes = now.hour() * 60 + now.minute();
+  const todayEntries = entries
+    .filter((entry) => entry.day === todayName)
+    .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  const current = todayEntries.find((entry) =>
+    timeToMinutes(entry.startTime) <= nowMinutes &&
+    timeToMinutes(entry.endTime) > nowMinutes
+  );
+  if (current) return { entry: current, timing: `Happening now · ${String(current.startTime).slice(0, 5)}–${String(current.endTime).slice(0, 5)}` };
+
+  const laterToday = todayEntries.find((entry) => timeToMinutes(entry.startTime) > nowMinutes);
+  if (laterToday) return { entry: laterToday, timing: `Next lesson today · ${String(laterToday.startTime).slice(0, 5)}` };
+
+  for (let offset = 1; offset <= 7; offset++) {
+    const day = now.clone().add(offset, "days").format("dddd");
+    const next = entries
+      .filter((entry) => entry.day === day)
+      .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))[0];
+    if (next) {
+      const label = offset === 1 ? "Tomorrow" : day;
+      return { entry: next, timing: `Next lesson · ${label} at ${String(next.startTime).slice(0, 5)}` };
+    }
+  }
+  return null;
+}
 
 // ── Helper: current year ───────────────────────────────────────────────────────
 async function getCurrentYear() {
@@ -249,6 +364,33 @@ router.get("/dashboard", async (req, res) => {
     });
     const canTakeAttendance = !isWeekend && !holiday;
     const currentYear = await getCurrentYear();
+    const now = moment().utcOffset(180);
+    const activeTerm = currentYear && currentYear.terms
+      ? currentYear.terms.find((term) =>
+        term.isOpen &&
+        now.isSameOrAfter(term.startDate, "day") &&
+        now.isSameOrBefore(term.endDate, "day")
+      ) || currentYear.terms.find((term) => term.isOpen) || currentYear.terms[0]
+      : null;
+    const teacherTimetable = currentYear
+      ? await Timetable.findAll({
+        where: {
+          teacherId: req.session.teacher.id,
+          academicYear: currentYear.name,
+          ...(activeTerm ? { term: activeTerm.name } : {})
+        },
+        include: [{
+          model: Subject,
+          as: "subject",
+          include: [{ model: Class, as: "class" }]
+        }]
+      })
+      : [];
+    const teacherWelcome = {
+      ...getTeacherGreeting(now.hour()),
+      lesson: getCurrentOrNextLesson(teacherTimetable, now),
+      message: await getInspirationalTeacherMessage()
+    };
 
     const {
       count,
@@ -281,6 +423,7 @@ router.get("/dashboard", async (req, res) => {
         teacherSubjects: teacherSubjectRows,
         classTeacherClasses,
       },
+      teacherWelcome,
       today,
       canTakeAttendance,
       isWeekend,
@@ -300,6 +443,11 @@ router.get("/dashboard", async (req, res) => {
     res.render("teacher/dashboard", {
       title: "Teacher Dashboard",
       teacher: null,
+      teacherWelcome: {
+        ...getTeacherGreeting(moment().utcOffset(180).hour()),
+        lesson: null,
+        message: getFallbackTeacherMessage()
+      },
       today: "",
       canTakeAttendance: false,
       isWeekend: false,

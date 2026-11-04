@@ -1,0 +1,41 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Deleted Students
+      .header-actions
+        span.count-badge #{students.length}
+    .card-body
+      p These student records are archived and excluded from reports. Restore a record to return the student to their previous status.
+      if students && students.length
+        table.data-table
+          thead
+            tr
+              th #
+              th Name
+              th Gender
+              th Class
+              th Stream
+              th Previous Status
+              th Deleted
+              th Action
+          tbody
+            each student, i in students
+              tr
+                td #{i + 1}
+                td #{student.fullName}
+                td #{student.gender}
+                td #{student.class ? student.class.name : '-'}
+                td #{student.stream ? student.stream.name : '-'}
+                td #{student.previousStatus}
+                td #{new Date(student.deletedAt).toLocaleDateString('en-GB')}
+                td
+                  form(method='POST', action=`/admin/students/deleted/${student.id}/restore`)
+                    button.btn.btn-sm.btn-outline(type='submit', onclick='return confirm("Restore this student to their previous status?")')
+                      i.fas.fa-undo
+                      span Restore
+      else
+        .empty-state
+          i.fas.fa-user-slash
+          p No deleted students found.

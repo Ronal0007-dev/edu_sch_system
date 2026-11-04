@@ -5711,3 +5711,199 @@ body.sidebar-collapsed .main-content {
   background-color: #451a1a !important;
   color: #fecaca !important;
 }
+
+.teacher-welcome-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem 1.25rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.teacher-welcome-morning {
+  color: #14532d;
+  border-color: #86efac;
+  background: linear-gradient(120deg, #dcfce7, #bbf7d0);
+}
+
+.teacher-welcome-afternoon {
+  color: #713f12;
+  border-color: #facc15;
+  background: linear-gradient(120deg, #fef9c3, #fde68a);
+}
+
+.teacher-welcome-evening {
+  color: #7f1d1d;
+  border-color: #fca5a5;
+  background: linear-gradient(120deg, #fee2e2, #fecaca);
+}
+
+.teacher-welcome-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.teacher-welcome-icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 2.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 55%);
+  font-size: 1.05rem;
+}
+
+.teacher-welcome-heading h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.teacher-welcome-heading p,
+.teacher-welcome-lesson p,
+.teacher-welcome-quote p {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+}
+
+.teacher-welcome-content {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.teacher-welcome-lesson,
+.teacher-welcome-quote {
+  display: flex;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgb(15 23 42 / 10%);
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 38%);
+  font-size: 0.87rem;
+  line-height: 1.4;
+}
+
+.teacher-welcome-lesson > i,
+.teacher-welcome-quote > i {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+}
+
+.teacher-welcome-lesson > div,
+.teacher-welcome-quote > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-welcome-quote blockquote {
+  margin: 0.2rem 0 0;
+  font-style: italic;
+}
+
+.teacher-welcome-quote .quote-author {
+  font-size: 0.78rem;
+}
+
+.teacher-welcome-quote a {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: inherit;
+  font-size: 0.74rem;
+  text-decoration: underline;
+}
+
+.teacher-welcome-timetable {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #1d4ed8;
+  border-radius: 0.5rem;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.teacher-welcome-timetable:hover {
+  border-color: #1e40af;
+  background: #1e40af;
+  color: #fff;
+}
+
+:root[data-theme="dark"] .teacher-welcome-morning {
+  border-color: #4ade80;
+  background: linear-gradient(120deg, #14532d, #052e16);
+  color: #f0fdf4;
+}
+
+:root[data-theme="dark"] .teacher-welcome-afternoon {
+  border-color: #facc15;
+  background: linear-gradient(120deg, #713f12, #422006);
+  color: #fffbeb;
+}
+
+:root[data-theme="dark"] .teacher-welcome-evening {
+  border-color: #fda4af;
+  background: linear-gradient(120deg, #7f1d1d, #450a0a);
+  color: #fff1f2;
+}
+
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-heading h2,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-heading p,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-lesson,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-lesson p,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote strong,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote blockquote,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote p,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote a {
+  color: inherit;
+}
+
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-lesson,
+:root[data-theme="dark"] .teacher-welcome-card .teacher-welcome-quote {
+  border-color: rgb(255 255 255 / 24%);
+  background: rgb(15 23 42 / 32%);
+}
+
+@media (max-width: 700px) {
+  .teacher-welcome-card {
+    gap: 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .teacher-welcome-content {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-welcome-timetable {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 420px) {
+  .teacher-welcome-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .teacher-welcome-timetable {
+    justify-self: stretch;
+  }
+}

@@ -28,7 +28,6 @@ block body
             a.btn.btn-outline(href='/admin/students/graduated') Clear
 
       if students && students.length
-        br
         table.data-table
           thead
             tr
@@ -51,16 +50,17 @@ block body
                     i.fas.fa-eye
                   a.btn.btn-sm.btn-outline(href=`/admin/students/${student.id}/edit` title='Edit student')
                     i.fas.fa-edit
-                  //- a.btn.btn-sm.btn-outline(href=`/admin/students/graduated/print?studentId=${student.id}` title='Print student')
-                  //-   i.fas.fa-print
+                  a.btn.btn-sm.btn-outline(href=`/admin/students/graduated/print?studentId=${student.id}` title='Print student')
+                    i.fas.fa-print
                   if student.class
                     a.btn.btn-sm.btn-outline(href=`/admin/reports/attendance?classId=${student.class.id}` title='Attendance records')
                       i.fas.fa-calendar-check
                     a.btn.btn-sm.btn-outline(href=`/admin/reports/examination?classId=${student.class.id}` title='Report records')
                       i.fas.fa-file-alt
-                  a.btn.btn-sm.btn-outline(href=`/admin/discipline/student/${student.id}` title='View discipline')
+                  a.btn.btn-sm.btn-outline(href=`/admin/discipline/student/${student.id}`)
                     i.fas.fa-folder-open
-                  form(method='POST', action=`/admin/students/${student.id}/delete`, style='display:inline')
+                    span View discipline
+                  form(method='POST', action=`/admin/students/graduated/${student.id}/delete`, style='display:inline')
                     button.btn.btn-danger.btn-sm(type='submit', onclick='return confirm("Delete this graduated student?")' title='Delete student')
                       i.fas.fa-trash
       else

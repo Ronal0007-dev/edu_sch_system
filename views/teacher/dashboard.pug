@@ -1,6 +1,39 @@
 extends ../partials/teacher-layout
 
 block body
+  if teacherWelcome
+    .teacher-welcome-card(class=`teacher-welcome-${teacherWelcome.className}`)
+      .teacher-welcome-heading
+        .teacher-welcome-icon
+          i.fas.fa-sun
+        div
+          h2 #{teacherWelcome.text}, #{teacher ? teacher.fullName : 'Teacher'}!
+          p Your next opportunity to make a difference starts here.
+      .teacher-welcome-content
+        .teacher-welcome-lesson
+          i.fas.fa-chalkboard-teacher
+          div
+            strong #{teacherWelcome.lesson ? teacherWelcome.lesson.timing : 'No upcoming lesson found'}
+            if teacherWelcome.lesson && teacherWelcome.lesson.entry
+              p
+                | #{teacherWelcome.lesson.entry.subject ? teacherWelcome.lesson.entry.subject.name : 'Lesson'}
+                if teacherWelcome.lesson.entry.subject && teacherWelcome.lesson.entry.subject.class
+                  |  · #{teacherWelcome.lesson.entry.subject.class.name}
+                if teacherWelcome.lesson.entry.location
+                  |  · #{teacherWelcome.lesson.entry.location}
+            else
+              p Check your timetable for your next scheduled class.
+        .teacher-welcome-quote
+          i.fas.fa-quote-left
+          div
+            strong A little inspiration for your teaching day
+            blockquote #{teacherWelcome.message.text}
+            if teacherWelcome.message.author
+              p.quote-author — #{teacherWelcome.message.author}
+            if teacherWelcome.message.source
+              a(href=teacherWelcome.message.source target='_blank' rel='noopener noreferrer') Source: ZenQuotes
+      a.teacher-welcome-timetable(href='/teacher/timetable') View timetable
+
   if !canTakeAttendance
     .alert.alert-warning
       i.fas.fa-exclamation-triangle

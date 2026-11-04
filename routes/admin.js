@@ -67,6 +67,7 @@ const upload = multer({
   },
 });
 const {
+  sequelize,
   AcademicYear,
   Term,
   Department,
@@ -75,6 +76,7 @@ const {
   Stream,
   Subject,
   Student,
+  DeletedStudent,
   TeacherClass,
   TeacherSubject,
   ClassSubject,
@@ -197,13 +199,36 @@ async function graduatedStudentWhere(extra = {}) {
     .filter(isGraduatingClass)
     .map((cls) => cls.id);
   const legacyGraduates = graduatingClassIds.length
-    ? [{ isActive: false, classId: { $in: graduatingClassIds } }]
+    ? [{
+        isActive: false,
+        status: { $ne: "Deleted" },
+        classId: { $in: graduatingClassIds }
+      }]
     : [];
 
   return {
     $or: [{ status: "Graduated" }, ...legacyGraduates],
     ...extra,
   };
+}
+
+async function archiveStudentForRestore(student, transaction) {
+  const snapshot = {
+    fullName: student.fullName,
+    gender: student.gender,
+    classId: student.classId,
+    streamId: student.streamId || null,
+    previousStatus: student.status || "Active",
+    previousIsActive: Boolean(student.isActive),
+    deletedAt: new Date(),
+  };
+  const [archivedStudent, created] = await DeletedStudent.findOrCreate({
+    where: { studentId: student.id },
+    defaults: { studentId: student.id, ...snapshot },
+    transaction,
+  });
+  if (!created) await archivedStudent.update(snapshot, { transaction });
+  await student.update({ isActive: false, status: "Deleted" }, { transaction });
 }
 
 async function studentStatusWhere(status, classId) {
@@ -2540,21 +2565,61 @@ router.post("/students", async (req, res) => {
   res.redirect("/admin/students");
 });
 
+router.post("/students/graduated/:id/delete", async (req, res) => {
+  try {
+    await sequelize.transaction(async (transaction) => {
+    const graduate = await Student.findOne({
+        where: await graduatedStudentWhere({ id: req.params.id }),
+        transaction,
+    });
+    if (!graduate) throw new Error("Graduated student not found");
+      await archiveStudentForRestore(graduate, transaction);
+    });
+    req.flash("success", "Graduated student removed");
+  } catch (err) {
+    req.flash("error", "Error: " + err.message);
+  }
+  res.redirect("/admin/students/graduated");
+});
+
 router.post("/students/:id/delete", async (req, res) => {
   try {
-    await Student.update({
-      isActive: false,
-      status: "Active"
-    }, {
-      where: {
-        id: req.params.id
-      }
-    }, );
+    await sequelize.transaction(async (transaction) => {
+      const student = await Student.findById(req.params.id, { transaction });
+      if (!student) throw new Error("Student not found");
+      if (student.status === "Deleted") throw new Error("Student is already deleted");
+      await archiveStudentForRestore(student, transaction);
+    });
     req.flash("success", "Student removed");
   } catch (err) {
     req.flash("error", "Error: " + err.message);
   }
   res.redirect("/admin/students");
+});
+
+router.post("/students/deleted/:id/restore", async (req, res) => {
+  try {
+    await sequelize.transaction(async (transaction) => {
+      const archivedStudent = await DeletedStudent.findById(req.params.id, { transaction });
+      if (!archivedStudent) throw new Error("Deleted student record not found");
+      const student = await Student.findById(archivedStudent.studentId, { transaction });
+      if (!student) throw new Error("Original student record not found; it cannot be restored automatically");
+
+      await student.update({
+        fullName: archivedStudent.fullName,
+        gender: archivedStudent.gender,
+        classId: archivedStudent.classId,
+        streamId: archivedStudent.streamId,
+        status: archivedStudent.previousStatus,
+        isActive: archivedStudent.previousIsActive,
+      }, { transaction });
+      await archivedStudent.destroy({ transaction });
+    });
+    req.flash("success", "Student restored successfully");
+  } catch (err) {
+    req.flash("error", "Error: " + err.message);
+  }
+  res.redirect("/admin/students/deleted");
 });
 
 router.post("/students/:id/promote", async (req, res) => {
@@ -2680,6 +2745,63 @@ router.get("/students/moved", async (req, res) => {
       success: req.flash("success") || [],
     });
 
+  } catch (err) {
+    req.flash("error", err.message);
+    res.redirect("/admin/students");
+  }
+});
+
+router.get("/students/deleted", async (req, res) => {
+  try {
+    const deletedStudents = await Student.findAll({
+      where: {
+        $or: [
+          { status: "Deleted" },
+          { isActive: false, status: "Active" },
+        ],
+      },
+      include: [{
+        model: Class,
+        as: "class",
+        include: [{ model: Department, as: "department" }],
+      }],
+    });
+
+    for (const student of deletedStudents) {
+      const previousStatus = isGraduatingClass(student.class) ? "Graduated" : "Active";
+      await DeletedStudent.findOrCreate({
+        where: { studentId: student.id },
+        defaults: {
+          studentId: student.id,
+          fullName: student.fullName,
+          gender: student.gender,
+          classId: student.classId,
+          streamId: student.streamId || null,
+          previousStatus,
+          previousIsActive: previousStatus === "Active",
+          deletedAt: student.updatedAt || new Date(),
+        },
+      });
+      if (student.status !== "Deleted") {
+        await student.update({ status: "Deleted" });
+      }
+    }
+
+    const archivedStudents = await DeletedStudent.findAll({
+      include: [
+        { model: Class, as: "class", include: [{ model: Department, as: "department" }] },
+        { model: Stream, as: "stream" },
+      ],
+      order: [["deletedAt", "DESC"], ["fullName", "ASC"]],
+    });
+
+    res.render("admin/deleted-students", {
+      title: "Deleted Students",
+      students: archivedStudents.map((student) => student.toJSON()),
+      admin: req.session.admin,
+      error: req.flash("error") || [],
+      success: req.flash("success") || [],
+    });
   } catch (err) {
     req.flash("error", err.message);
     res.redirect("/admin/students");
@@ -4832,7 +4954,7 @@ router.get("/backup", async (req, res) => {
     if (fs.existsSync(backupDir)) {
       backupFiles = fs
         .readdirSync(backupDir)
-        .filter((f) => f.endsWith(".zip"))
+        .filter((f) => f.endsWith(".zip") || f.endsWith(".sql.gz"))
         .map((f) => {
           const stat = fs.statSync(path.join(backupDir, f));
           return {
@@ -4864,11 +4986,35 @@ router.get("/backup", async (req, res) => {
   });
 });
 
+router.get("/backup/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  if (
+    path.basename(filename) !== filename ||
+    !/^backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:-\d{3})?\.(?:zip|sql\.gz)$/.test(filename)
+  ) {
+    return res.status(404).send("Backup not found");
+  }
+
+  const backupPath = path.join(
+    path.resolve(process.env.BACKUP_DIR || "./backups"),
+    filename,
+  );
+  if (!fs.existsSync(backupPath)) return res.status(404).send("Backup not found");
+  return res.download(backupPath, filename);
+});
+
 router.post("/backup/run", async (req, res) => {
   try {
     const result = await runBackup(true);
     if (result.success) {
-      req.flash("success", `Backup created and emailed: ${result.file}`);
+      req.flash(
+        "success",
+        result.warning
+          ? `Backup created locally: ${result.file}. ${result.warning}`
+          : result.emailSent
+            ? `Backup created and emailed: ${result.file}`
+            : `Backup created locally: ${result.file}`,
+      );
     } else {
       req.flash("error", "Backup failed: " + result.error);
     }

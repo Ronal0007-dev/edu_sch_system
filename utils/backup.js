@@ -1,199 +1,308 @@
 'use strict';
 require('dotenv').config();
-const { exec } = require('child_process');
+const mysql = require('mysql2');
 const path = require('path');
 const fs = require('fs');
-const archiver = require('archiver');
+const zlib = require('zlib');
 const nodemailer = require('nodemailer');
 
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || './backups');
+const BACKUP_LOCK = path.join(BACKUP_DIR, '.backup.lock');
+const STALE_LOCK_AGE_MS = 24 * 60 * 60 * 1000;
+let activeBackupPromise = null;
 
-// ── Ensure backup directory exists ────────────────────────────────────────────
 function ensureDir() {
   if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
-// ── Run mysqldump ──────────────────────────────────────────────────────────────
-function dumpDatabase() {
+function query(connection, sql) {
   return new Promise((resolve, reject) => {
-    ensureDir();
-    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const sqlFile = path.join(BACKUP_DIR, `backup-${ts}.sql`);
-    const zipFile = path.join(BACKUP_DIR, `backup-${ts}.zip`);
-
-    const host = process.env.DB_HOST || 'localhost';
-    const user = process.env.DB_USER || 'root';
-    const pass = process.env.DB_PASS || '';
-    const db   = process.env.DB_NAME || 'school_system';
-
-    // Build mysqldump command — password passed via env var to avoid shell warning
-    const passEnv = pass ? `MYSQL_PWD="${pass}"` : '';
-    const cmd = `${passEnv} mysqldump -h ${host} -u ${user} --single-transaction --routines --triggers ${db} > "${sqlFile}"`;
-
-    exec(cmd, { shell: '/bin/bash' }, async (err) => {
-      if (err) {
-        // Clean up empty file if dump failed
-        if (fs.existsSync(sqlFile)) fs.unlinkSync(sqlFile);
-        return reject(new Error('mysqldump failed: ' + err.message));
-      }
-
-      // Zip the SQL file
-      try {
-        await zipFile_(sqlFile, zipFile);
-        fs.unlinkSync(sqlFile); // Remove raw SQL after zipping
-        resolve({ zipFile, ts });
-      } catch (zipErr) {
-        reject(zipErr);
-      }
+    connection.query(sql, (error, rows) => {
+      if (error) return reject(error);
+      resolve(rows);
     });
   });
 }
 
-// ── Zip a single file ──────────────────────────────────────────────────────────
-function zipFile_(inputPath, outputPath) {
+function connectToDatabase() {
+  const connection = mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASS || '',
+    database: process.env.DB_NAME || 'dodomaca_sch_system',
+    connectTimeout: 10000,
+    supportBigNumbers: true,
+    bigNumberStrings: true,
+    timezone: 'Z'
+  });
+
   return new Promise((resolve, reject) => {
-    const output = fs.createWriteStream(outputPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    output.on('close', resolve);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.file(inputPath, { name: path.basename(inputPath) });
-    archive.finalize();
+    connection.connect((error) => {
+      if (error) {
+        connection.destroy();
+        return reject(error);
+      }
+      resolve(connection);
+    });
   });
 }
 
-// ── Send email with backup attachment ─────────────────────────────────────────
-async function sendBackupEmail(zipFile, ts) {
+async function writeChunk(gzip, value) {
+  await new Promise((resolve, reject) => {
+    gzip.write(value, (error) => error ? reject(error) : resolve());
+  });
+}
+
+async function acquireBackupLock() {
+  ensureDir();
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const lock = await fs.promises.open(BACKUP_LOCK, 'wx');
+      try {
+        await lock.writeFile(JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
+      } finally {
+        await lock.close();
+      }
+      return;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+
+      const stat = await fs.promises.stat(BACKUP_LOCK).catch((statError) => {
+        if (statError.code !== 'ENOENT') throw statError;
+        return null;
+      });
+      if (stat && Date.now() - stat.mtimeMs > STALE_LOCK_AGE_MS) {
+        await fs.promises.unlink(BACKUP_LOCK).catch((unlinkError) => {
+          if (unlinkError.code !== 'ENOENT') throw unlinkError;
+        });
+        continue;
+      }
+      throw new Error('Another database backup is already running.');
+    }
+  }
+  throw new Error('Could not acquire the database backup lock.');
+}
+
+async function dumpDatabase() {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, '');
+  const backupFile = path.join(BACKUP_DIR, `backup-${ts}.sql.gz`);
+  const output = fs.createWriteStream(backupFile, { flags: 'wx' });
+  const gzip = zlib.createGzip({ level: zlib.constants.Z_BEST_SPEED });
+  let outputCreated = false;
+  output.once('open', () => { outputCreated = true; });
+  gzip.pipe(output);
+
+  const outputFinished = new Promise((resolve, reject) => {
+    output.once('finish', resolve);
+    output.once('error', reject);
+    gzip.once('error', reject);
+  });
+  outputFinished.catch(() => {});
+
+  let connection;
+  let transactionStarted = false;
+  try {
+    connection = await connectToDatabase();
+    await query(connection, 'SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    await query(connection, 'START TRANSACTION WITH CONSISTENT SNAPSHOT');
+    transactionStarted = true;
+
+    const tableRows = await query(connection, 'SHOW FULL TABLES');
+    const objects = tableRows.map((row) => {
+      const [name, type] = Object.values(row);
+      return { name, type: String(type || 'BASE TABLE').toUpperCase() };
+    });
+    const tables = objects.filter((object) => object.type !== 'VIEW');
+    const views = objects.filter((object) => object.type === 'VIEW');
+    const databaseName = process.env.DB_NAME || 'school_system';
+
+    await writeChunk(gzip, `-- Database backup: ${databaseName}\n-- Created: ${new Date().toISOString()}\n\nSET FOREIGN_KEY_CHECKS=0;\n\n`);
+
+    for (const table of tables) {
+      const tableId = mysql.escapeId(table.name);
+      const createRows = await query(connection, `SHOW CREATE TABLE ${tableId}`);
+      const createEntry = Object.entries(createRows[0] || {}).find(([key]) => /^Create Table$/i.test(key));
+      if (!createEntry) throw new Error(`Could not read the schema for table "${table.name}".`);
+      await writeChunk(gzip, `DROP TABLE IF EXISTS ${tableId};\n${createEntry[1]};\n\n`);
+    }
+
+    for (const table of tables) {
+      const tableId = mysql.escapeId(table.name);
+      const rowStream = connection.query(`SELECT * FROM ${tableId}`).stream({ highWaterMark: 20 });
+      let columns = null;
+      let columnList = null;
+      let values = [];
+
+      for await (const row of rowStream) {
+        if (!columns) {
+          columns = Object.keys(row);
+          columnList = columns.map((column) => mysql.escapeId(column)).join(', ');
+          await writeChunk(gzip, `-- Data for ${tableId}\n`);
+        }
+
+        values.push(`(${columns.map((column) => connection.escape(row[column])).join(', ')})`);
+        if (values.length >= 100) {
+          await writeChunk(gzip, `INSERT INTO ${tableId} (${columnList}) VALUES\n${values.join(',\n')};\n`);
+          values = [];
+        }
+      }
+
+      if (values.length) {
+        await writeChunk(gzip, `INSERT INTO ${tableId} (${columnList}) VALUES\n${values.join(',\n')};\n`);
+      }
+      if (columns) await writeChunk(gzip, '\n');
+    }
+
+    for (const view of views) {
+      const viewId = mysql.escapeId(view.name);
+      const createRows = await query(connection, `SHOW CREATE TABLE ${viewId}`);
+      const createEntry = Object.entries(createRows[0] || {}).find(([key]) => /^Create View$/i.test(key));
+      if (!createEntry) throw new Error(`Could not read the definition for view "${view.name}".`);
+      const definition = createEntry[1].replace(/\s+DEFINER=`[^`]*`@`[^`]*`/i, '');
+      await writeChunk(gzip, `DROP VIEW IF EXISTS ${viewId};\n${definition};\n\n`);
+    }
+
+    await query(connection, 'COMMIT');
+    transactionStarted = false;
+    await writeChunk(gzip, '\nSET FOREIGN_KEY_CHECKS=1;\n');
+    gzip.end();
+    await outputFinished;
+    return { backupFile, ts };
+  } catch (error) {
+    gzip.destroy();
+    output.destroy();
+    if (outputCreated) {
+      await fs.promises.unlink(backupFile).catch((unlinkError) => {
+        if (unlinkError.code !== 'ENOENT') console.error('Could not remove partial backup:', unlinkError.message);
+      });
+    }
+    if (transactionStarted && connection) {
+      await query(connection, 'ROLLBACK').catch((rollbackError) => {
+        console.error('Could not roll back backup transaction:', rollbackError.message);
+      });
+    }
+    throw error;
+  } finally {
+    if (connection) {
+      await new Promise((resolve) => connection.end(() => resolve()));
+    }
+  }
+}
+
+async function sendBackupEmail(backupFile) {
+  const recipient = process.env.BACKUP_EMAIL || process.env.MAIL_USER;
+  if (!recipient) {
+    return { sent: false, warning: 'No backup email recipient is configured; download the local copy instead.' };
+  }
+
+  const size = fs.statSync(backupFile).size;
+  const maxBytes = (Number(process.env.BACKUP_EMAIL_MAX_MB) || 10) * 1024 * 1024;
+  if (size > maxBytes) {
+    const limitMb = Math.round(maxBytes / (1024 * 1024));
+    return {
+      sent: false,
+      warning: `Email skipped because the backup exceeds the ${limitMb} MB attachment limit; download the local copy instead.`
+    };
+  }
+
   const transporter = nodemailer.createTransport({
     host: process.env.MAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.MAIL_PORT) || 587,
+    port: Number(process.env.MAIL_PORT) || 587,
     secure: false,
-    auth: {
-      user: process.env.MAIL_USER,
-      pass: process.env.MAIL_PASS
-    },
+    auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
     tls: { rejectUnauthorized: false }
   });
-
-  const recipient = process.env.BACKUP_EMAIL || process.env.MAIL_USER;
   const dateStr = new Date().toLocaleDateString('en-GB', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
-  const fileSize = (fs.statSync(zipFile).size / 1024).toFixed(1);
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; margin:0; padding:20px; }
-        .container { max-width: 520px; margin:0 auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.08); }
-        .header { background: linear-gradient(135deg,#0f172a,#1a56db); padding:28px 36px; }
-        .header h1 { color:#fff; margin:0; font-size:20px; }
-        .header p { color:#93c5fd; margin:4px 0 0; font-size:13px; }
-        .body { padding:28px 36px; }
-        .body h2 { color:#1e293b; font-size:16px; margin:0 0 12px; }
-        .body p { color:#475569; font-size:14px; line-height:1.6; margin:0 0 12px; }
-        .info-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 18px; margin:16px 0; }
-        .info-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; border-bottom:1px solid #f1f5f9; }
-        .info-row:last-child { border-bottom:none; }
-        .info-label { color:#64748b; font-weight:600; }
-        .info-value { color:#1e293b; font-weight:700; }
-        .footer { background:#f8fafc; padding:18px 36px; text-align:center; font-size:12px; color:#94a3b8; border-top:1px solid #e2e8f0; }
-        .attach-note { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; font-size:13px; color:#1d4ed8; margin-top:16px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🎓 Canon Andrea Mwaka School</h1>
-          <p>Automatic Database Backup</p>
-        </div>
-        <div class="body">
-          <h2>Scheduled Backup Complete</h2>
-          <p>Your Canon Andrea Mwaka School database has been automatically backed up. Please find the backup file attached to this email.</p>
-          <div class="info-box">
-            <div class="info-row">
-              <span class="info-label">Date</span>
-              <span class="info-value">${dateStr}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Database</span>
-              <span class="info-value">${process.env.DB_NAME || 'school_system'}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">File</span>
-              <span class="info-value">${path.basename(zipFile)}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Size</span>
-              <span class="info-value">${fileSize} KB (compressed)</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Next Backup</span>
-              <span class="info-value">In 7 days</span>
-            </div>
-          </div>
-          <div class="attach-note">
-            📎 The backup file <strong>${path.basename(zipFile)}</strong> is attached to this email. Store it in a safe location.
-          </div>
-        </div>
-        <div class="footer">
-          Canon Andrea Mwaka School Management System · Automated Backup Service
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+  const filename = path.basename(backupFile);
+  const fileSize = (size / 1024).toFixed(1);
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Canon Andrea Mwaka School <cams.admission@gmail.com>',
+    from: process.env.MAIL_FROM || process.env.MAIL_USER,
     to: recipient,
-    subject: `Canon Andrea Mwaka School Database Backup — ${dateStr}`,
-    html,
+    subject: `School Database Backup — ${dateStr}`,
+    html: `<p>The database backup has completed.</p><p>Database: ${process.env.DB_NAME || 'school_system'}<br>File: ${filename}<br>Size: ${fileSize} KB</p>`,
     attachments: [{
-      filename: path.basename(zipFile),
-      path: zipFile,
-      contentType: 'application/zip'
+      filename,
+      path: backupFile,
+      contentType: 'application/gzip'
     }]
   });
 
-  console.log(`✅ Backup email sent to ${recipient}`);
+  console.log(`Backup email sent to ${recipient}`);
+  return { sent: true };
 }
 
-// ── Delete old backups (keep last 4 = 1 month) ────────────────────────────────
 function pruneOldBackups() {
   try {
     ensureDir();
     const files = fs.readdirSync(BACKUP_DIR)
-      .filter(f => f.startsWith('backup-') && f.endsWith('.zip'))
-      .map(f => ({ name: f, time: fs.statSync(path.join(BACKUP_DIR, f)).mtimeMs }))
+      .filter((name) => name.startsWith('backup-') && (name.endsWith('.zip') || name.endsWith('.sql.gz')))
+      .map((name) => ({ name, time: fs.statSync(path.join(BACKUP_DIR, name)).mtimeMs }))
       .sort((a, b) => b.time - a.time);
 
-    // Keep the 4 most recent, delete the rest
-    files.slice(4).forEach(f => {
-      fs.unlinkSync(path.join(BACKUP_DIR, f.name));
-      console.log(`🗑  Pruned old backup: ${f.name}`);
+    files.slice(4).forEach((file) => {
+      fs.unlinkSync(path.join(BACKUP_DIR, file.name));
+      console.log(`Pruned old backup: ${file.name}`);
     });
-  } catch (e) {
-    console.error('Prune error:', e.message);
+  } catch (error) {
+    console.error('Prune error:', error.message);
   }
 }
 
-// ── Main backup function ───────────────────────────────────────────────────────
-async function runBackup(manual = false) {
+async function performBackup(manual) {
   const label = manual ? 'Manual' : 'Scheduled';
-  console.log(`\n🔄 [${new Date().toISOString()}] ${label} backup starting...`);
+  let lockAcquired = false;
+  console.log(`[${new Date().toISOString()}] ${label} backup starting...`);
   try {
-    const { zipFile, ts } = await dumpDatabase();
-    console.log(`✅ Database dumped: ${path.basename(zipFile)}`);
-    await sendBackupEmail(zipFile, ts);
+    await acquireBackupLock();
+    lockAcquired = true;
+    const { backupFile } = await dumpDatabase();
+    console.log(`Database backup created: ${path.basename(backupFile)}`);
+
+    let emailResult;
+    try {
+      emailResult = await sendBackupEmail(backupFile);
+    } catch (emailError) {
+      emailResult = {
+        sent: false,
+        warning: `Email delivery failed: ${emailError.message}. Download the local copy instead.`
+      };
+      console.error('Backup email failed:', emailError.message);
+    }
     pruneOldBackups();
-    console.log(`✅ ${label} backup complete.\n`);
-    return { success: true, file: path.basename(zipFile) };
-  } catch (err) {
-    console.error(`❌ ${label} backup failed:`, err.message);
-    return { success: false, error: err.message };
+    console.log(`${label} backup complete.`);
+    return {
+      success: true,
+      file: path.basename(backupFile),
+      emailSent: emailResult.sent,
+      warning: emailResult.warning
+    };
+  } catch (error) {
+    console.error(`${label} backup failed:`, error.message);
+    return { success: false, error: error.message };
+  } finally {
+    if (lockAcquired) {
+      await fs.promises.unlink(BACKUP_LOCK).catch((error) => {
+        if (error.code !== 'ENOENT') console.error('Could not release backup lock:', error.message);
+      });
+    }
+  }
+}
+
+async function runBackup(manual = false) {
+  if (activeBackupPromise) {
+    return { success: false, error: 'A database backup is already running.' };
+  }
+
+  activeBackupPromise = performBackup(manual);
+  try {
+    return await activeBackupPromise;
+  } finally {
+    activeBackupPromise = null;
   }
 }
 

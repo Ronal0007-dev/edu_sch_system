@@ -149,7 +149,7 @@ const Student = sequelize.define(
     streamId: { type: DataTypes.INTEGER },
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     status: {
-      type: DataTypes.ENUM("Active", "Moved", "Graduated"),
+      type: DataTypes.ENUM("Active", "Moved", "Graduated", "Deleted"),
       defaultValue: "Active",
     },
   },
@@ -159,6 +159,26 @@ const Student = sequelize.define(
     indexes: [
       { name: "idx_students_class_active", fields: ["classId", "isActive"] },
     ],
+  },
+);
+
+const DeletedStudent = sequelize.define(
+  "DeletedStudent",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    studentId: { type: DataTypes.INTEGER, allowNull: false, unique: true },
+    fullName: { type: DataTypes.STRING(100), allowNull: false },
+    gender: { type: DataTypes.ENUM("Male", "Female"), allowNull: false },
+    classId: { type: DataTypes.INTEGER, allowNull: false },
+    streamId: { type: DataTypes.INTEGER, allowNull: true },
+    previousStatus: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "Active" },
+    previousIsActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    deletedAt: { type: DataTypes.DATE, allowNull: false },
+  },
+  {
+    tableName: "deleted_students",
+    timestamps: true,
+    indexes: [{ fields: ["deletedAt"] }],
   },
 );
 
@@ -464,6 +484,8 @@ Subject.belongsTo(Class, { foreignKey: "classId", as: "class" });
 
 Class.hasMany(Student, { foreignKey: "classId", as: "students" });
 Student.belongsTo(Class, { foreignKey: "classId", as: "class" });
+DeletedStudent.belongsTo(Class, { foreignKey: "classId", as: "class", constraints: false });
+DeletedStudent.belongsTo(Stream, { foreignKey: "streamId", as: "stream", constraints: false });
 
 Stream.hasMany(Student, { foreignKey: "streamId", as: "students" });
 Student.belongsTo(Stream, { foreignKey: "streamId", as: "stream" });
@@ -577,6 +599,7 @@ module.exports = {
   Stream,
   Subject,
   Student,
+  DeletedStudent,
   ReportComment,
   DisciplineReason,
   DisciplineRecord,

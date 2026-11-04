@@ -10,7 +10,7 @@ block body
         .info-box(style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:1rem;margin-bottom:1rem')
           p(style='font-size:.85rem;color:#166534;margin:0')
             i.fas.fa-shield-alt(style='margin-right:.4rem')
-            | Automatic backups run every Sunday at 2:00 AM and are emailed to:
+            | Automatic backups run every Sunday at 2:00 AM. A local copy is always kept:
           p(style='font-weight:700;color:#15803d;margin:.4rem 0 0;font-size:.9rem') #{backupEmail}
 
         .info-box(style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:1rem;margin-bottom:1.25rem')
@@ -24,7 +24,7 @@ block body
             span Run Backup Now
           p.form-hint(style='margin-top:.75rem')
             i.fas.fa-clock
-            | This may take a moment. The backup will be emailed after completion.
+            | This may take a moment. The backup is streamed to local storage and emailed when within the configured mail size limit.
 
     .card
       .card-header
@@ -38,6 +38,7 @@ block body
                 th File Name
                 th Size
                 th Created
+                th Download
             tbody
               each f in backupFiles
                 tr
@@ -46,6 +47,10 @@ block body
                     | #{f.name}
                   td #{f.size}
                   td #{f.date}
+                  td
+                    a.btn.btn-sm.btn-outline(href=`/admin/backup/download/${encodeURIComponent(f.name)}`)
+                      i.fas.fa-download
+                      span Download
         else
           .empty-state
             i.fas.fa-database
