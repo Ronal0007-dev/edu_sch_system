@@ -2,7 +2,11 @@ const express = require("express");
 const {
   Class, Department, Student, Stream, Subject, StudentSubject, Teacher, TeacherClass, TeacherSubject,
 } = require("../models");
-const { requireAny } = require("../middleware/auth");
+const {
+  requireAny,
+  customPermissionForRequest,
+  hasCustomPermission,
+} = require("../middleware/auth");
 const { isElectiveClass, isCompulsorySubject, teacherTeachesYear11 } = require("../utils/electives");
 
 const router = express.Router();
@@ -12,8 +16,27 @@ function isAdmin(req) {
   return Boolean(req.session.admin) || (req.session.teacher && req.session.teacher.role === "admin");
 }
 
+function isDepartmentHead(req) {
+  return req.session.teacher && req.session.teacher.role === "head_of_department";
+}
+
+function isPrincipal(req) {
+  return req.session.teacher && req.session.teacher.role === "principal";
+}
+
+function hasCurrentPermission(req) {
+  const requested = customPermissionForRequest(req);
+  return !!(requested && hasCustomPermission(req.session.teacher, requested.module, requested.action));
+}
+
 async function checkYear11TeacherAuth(req, res, next) {
   if (isAdmin(req)) return next();
+  if ((isDepartmentHead(req) || isPrincipal(req)) && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentPermission(req)) {
+    return res.status(403).send("This role has read-only access.");
+  }
+  if (hasCurrentPermission(req)) return next();
+  if (isPrincipal(req)) return next();
+  if (isDepartmentHead(req)) return next();
   const teacherId = req.session.teacher ? req.session.teacher.id : null;
   const canTeach = await teacherTeachesYear11(teacherId);
   if (!canTeach) {
@@ -34,6 +57,13 @@ async function allowedClasses(req) {
 
   const teacher = await Teacher.findById(req.session.teacher.id);
   if (!teacher) return [];
+  if (isDepartmentHead(req)) {
+    return classes.filter((cls) => String(cls.departmentId) === String(teacher.departmentId));
+  }
+  if (isPrincipal(req)) return classes;
+  if (["view", "add", "edit", "delete", "print"].some((action) => hasCustomPermission(req.session.teacher, "year11", action))) {
+    return classes;
+  }
   const [assignedClasses, assignedSubjects] = await Promise.all([
     TeacherClass.findAll({ where: { teacherId: teacher.id } }),
     TeacherSubject.findAll({ where: { teacherId: teacher.id } }),
@@ -74,7 +104,7 @@ router.get("/", async (req, res) => {
       });
       rows.forEach((row) => { chosen[`${row.studentId}_${row.subjectId}`] = true; });
     }
-    res.render(req.session.admin ? "admin/electives" : "teacher/electives", {
+    res.render(req.session.admin || isPrincipal(req) ? "admin/electives" : "teacher/electives", {
       title: "Year 11 Subject Options",
       classes: classes.map((cls) => cls.toJSON()),
       selectedClassId: selected ? selected.id : "",

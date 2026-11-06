@@ -11,11 +11,32 @@ const {
   DisciplineRecord,
 } = require("../models");
 const {
-  requireAny
+  requireAny,
+  customPermissionForRequest,
+  hasCustomPermission,
 } = require("../middleware/auth");
 
 const router = express.Router();
 router.use(requireAny);
+function hasCurrentPermission(req) {
+  const requested = customPermissionForRequest(req);
+  return !!(requested && hasCustomPermission(req.session.teacher, requested.module, requested.action));
+}
+
+function hasDisciplinePermission(req, action) {
+  return !!(req.session.teacher && hasCustomPermission(req.session.teacher, "discipline", action));
+}
+
+router.use((req, res, next) => {
+  const role = req.session.teacher && req.session.teacher.role;
+  if (req.baseUrl === "/admin/discipline" && !req.session.admin && role !== "principal" && role !== "head_of_department" && !hasCurrentPermission(req)) {
+    return res.status(403).send("Not authorized");
+  }
+  if ((role === "principal" || role === "head_of_department") && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentPermission(req)) {
+    return res.status(403).send("This role has read-only access.");
+  }
+  next();
+});
 
 function actor(req) {
   return req.session.teacher ?
@@ -38,11 +59,15 @@ function isAdmin(req) {
 }
 
 function isAcademician(req) {
-  return req.session.teacher && req.session.teacher.role === "academician";
+  return req.session.teacher && ["academician", "head_of_department"].includes(req.session.teacher.role);
+}
+
+function isPrincipal(req) {
+  return req.session.teacher && req.session.teacher.role === "principal";
 }
 
 function canManageRecords(req) {
-  return isAdmin(req) || isAcademician(req);
+  return isAdmin(req) || isAcademician(req) || hasCurrentPermission(req);
 }
 
 async function currentTerm() {
@@ -179,13 +204,13 @@ async function renderList(req, res, message) {
     term: values.term,
     academicYear: values.academicYear
   };
-  if (!isAdmin(req) && !isAcademician(req)) where.awardedByTeacherId = req.session.teacher.id;
+  if (!isAdmin(req) && !isAcademician(req) && !isPrincipal(req) && !hasDisciplinePermission(req, "view")) where.awardedByTeacherId = req.session.teacher.id;
   const records = await loadRecords(req, where);
   const totals = {};
   records.forEach((row) => {
     totals[row.studentId] = (totals[row.studentId] || 0) + row.points;
   });
-  const role = isAdmin(req) ? "admin" : "teacher";
+  const role = isAdmin(req) || req.baseUrl === "/admin/discipline" ? "admin" : "teacher";
   const basePath = req.baseUrl === "/admin/discipline" ? "/admin/discipline" : req.baseUrl === "/academician/discipline" ? "/academician/discipline" : req.baseUrl === "/teacher/discipline" ? "/teacher/discipline" : "/discipline";
   res.render(`${role}/discipline`, {
     title: "Discipline Record",
@@ -230,7 +255,7 @@ router.get("/print", async (req, res) => {
     academicYear: values.academicYear
   };
   if (req.query.studentId) where.studentId = req.query.studentId;
-  if (!isAdmin(req) && !isAcademician(req)) where.awardedByTeacherId = req.session.teacher.id;
+  if (!isAdmin(req) && !isAcademician(req) && !isPrincipal(req) && !hasDisciplinePermission(req, "view")) where.awardedByTeacherId = req.session.teacher.id;
   const records = await loadRecords(req, where);
   res.render("discipline-print", {
     title: "Discipline Record",
@@ -244,7 +269,7 @@ router.get("/student/:id", async (req, res) => {
   const active = await currentTerm();
   const values = termValues(req, active && active.term ? active.term : null);
   if (!values.academicYear && active && active.year) values.academicYear = active.year.name;
-  const student = isAdmin(req)
+  const student = isAdmin(req) || isPrincipal(req) || hasDisciplinePermission(req, "view")
     ? await Student.findById(req.params.id, {
       include: [{ model: Class, as: "class", include: [{ model: Department, as: "department" }] }],
     })
@@ -258,7 +283,7 @@ router.get("/student/:id", async (req, res) => {
     term: values.term,
     academicYear: values.academicYear
   });
-  if (!isAdmin(req) && !isAcademician(req) && !records.some((item) => String(item.awardedByTeacherId) === String(req.session.teacher.id))) return res.status(403).send("Not authorized");
+  if (!isAdmin(req) && !isAcademician(req) && !isPrincipal(req) && !hasDisciplinePermission(req, "view") && !records.some((item) => String(item.awardedByTeacherId) === String(req.session.teacher.id))) return res.status(403).send("Not authorized");
   res.render("discipline-student", {
     title: "Student Discipline Record",
     student: student.toJSON(),
@@ -313,7 +338,7 @@ router.post("/records", async (req, res) => {
 });
 
 router.post("/reasons", async (req, res) => {
-  if (!isAdmin(req)) return res.status(403).send("Not authorized");
+  if (!isAdmin(req) && !hasCurrentPermission(req)) return res.status(403).send("Not authorized");
   try {
     const points = parseInt(req.body.points, 10);
     if (!req.body.name || !Number.isInteger(points) || points === 0) throw new Error("Reason and a non-zero point value are required.");
@@ -389,7 +414,7 @@ router.post("/records/:id/update", async (req, res) => {
 });
 
 router.post("/reset", async (req, res) => {
-  if (!isAdmin(req)) return res.status(403).send("Not authorized");
+  if (!isAdmin(req) && !hasCurrentPermission(req)) return res.status(403).send("Not authorized");
   const term = String(req.body.term || "").trim();
   const academicYear = String(req.body.academicYear || "").trim();
   if (!term || !academicYear) return res.status(400).send("Term and academic year are required.");
@@ -404,7 +429,7 @@ router.post("/reset", async (req, res) => {
 });
 
 router.post("/reasons/:id/delete", async (req, res) => {
-  if (!isAdmin(req)) return res.status(403).send("Not authorized");
+  if (!isAdmin(req) && !hasCurrentPermission(req)) return res.status(403).send("Not authorized");
   await DisciplineReason.update({
     isActive: false
   }, {

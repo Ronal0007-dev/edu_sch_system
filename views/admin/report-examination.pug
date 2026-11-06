@@ -49,6 +49,9 @@ block body
         a.btn.btn-outline(href=`/admin/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
           i.fas.fa-file-alt
           span Print All Final
+        a.btn.btn-outline(href=`/admin/reports/academic-report/${selectedClass}?term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+          i.fas.fa-book-open
+          span Academic Report
 
   if report
     .card

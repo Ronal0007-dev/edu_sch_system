@@ -2,35 +2,45 @@ extends ../partials/admin-layout
 
 block body
   .two-col-layout
-    .card.form-card
-      .card-header
-        h2 Add Teacher
-        i.fas.fa-user-plus
-      .card-body
-        form(method='POST', action='/admin/teachers')
-          .form-group
-            label Full Name
-            input(type='text', name='fullName', required, placeholder='e.g. John Doe')
-          .form-group
-            label Phone Number
-            input(type='text', name='phone', required, placeholder='e.g. 0712345678')
-          .form-group
-            label Email Address
-            input(type='email', name='email', required, placeholder='teacher@school.edu')
-          .form-group
-            label Department
-            select(name='departmentId', required)
-              option(value='') Select department
-              each dept in departments
-                option(value=dept.id) #{dept.name} (#{dept.code})
-          br
-          .form-hint
-            i.fas.fa-key
-            span Default password: PhoneNumber + DepartmentCode (e.g. 0712345678EYC)
-          br
-          button.btn.btn-primary(type='submit')
-            i.fas.fa-save
-            span Add Teacher
+    if canManagePermissions
+      .card.form-card
+        .card-header
+          h2 Add Teacher or Staff User
+          i.fas.fa-user-plus
+        .card-body
+          form(method='POST', action='/admin/teachers')
+            .form-group
+              label Full Name
+              input(type='text', name='fullName', required, placeholder='e.g. John Doe')
+            .form-group
+              label Phone Number
+              input(type='text', name='phone', required, placeholder='e.g. 0712345678')
+            .form-group
+              label Email Address
+              input(type='email', name='email', required, placeholder='teacher@school.edu')
+            .form-group
+              label Department
+              select(name='departmentId', required)
+                option(value='') Select department
+                each dept in departments
+                  option(value=dept.id) #{dept.name} (#{dept.code})
+            .form-group
+              label Account Role
+              select(name='role')
+                option(value='teacher') Teacher
+                option(value='class_teacher') Class Teacher
+                option(value='academician') Academician
+                option(value='head_of_department') Head of Department
+                option(value='principal') Principal
+                option(value='exam_officer') Exam Officer
+            br
+            .form-hint
+              i.fas.fa-key
+              span Default password: PhoneNumber + DepartmentCode (e.g. 0712345678EYC)
+            br
+            button.btn.btn-primary(type='submit')
+              i.fas.fa-save
+              span Add Teacher
 
     .card
       .card-header
@@ -53,8 +63,10 @@ block body
                 th Name
                 th Phone
                 th Department
+                th Role
                 th Status
-                th Actions
+                if canManagePermissions
+                  th Actions
             tbody
               each teacher in teachers
                 tr
@@ -65,39 +77,46 @@ block body
                   td #{teacher.phone}
                   //- td #{teacher.email}
                   td #{teacher.department ? teacher.department.code : '-'}
-                  //- td
-                    span(class=`role-badge role-${teacher.role}`) #{teacher.role.replace('_', ' ').toUpperCase()}
+                  td
+                    span(class=`role-badge role-${teacher.role}`) #{teacher.role.replace(/_/g, ' ').toUpperCase()}
                   td
                     span(class=`status-dot ${teacher.isActive ? 'active' : 'inactive'}`) #{teacher.isActive ? 'Active' : 'Inactive'}
-                  td.actions-cell
-                    .action-group
-                      //- Role management
-                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/role`)
-                        select.select-sm(name='role')
-                          option(value='teacher', selected=teacher.role==='teacher') Teacher
-                          option(value='class_teacher', selected=teacher.role==='class_teacher') Class Teacher
-                          option(value='academician', selected=teacher.role==='academician') Academician
-                          option(value='admin', selected=teacher.role==='admin') Admin
-                        button.btn.btn-sm.btn-outline(type='submit') Set Role
-                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/revoke-role`)
-                        button.btn.btn-sm.btn-warning(type='submit') Revoke
-                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
-                        button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
-                          | #{teacher.isActive ? 'Deactivate' : 'Activate'}
-                      a.btn.btn-sm.btn-outline(href=`/admin/teachers/view/${teacher.id}`)
-                        i.fas.fa-eye
-                        span View
-                      a.btn.btn-sm.btn-outline(href=`/admin/teachers/edit/${teacher.id}`)
-                        i.fas.fa-edit
-                        span Edit
-                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/reset-password`, onclick='return confirm("Send password reset email to " + "#{teacher.fullName}" + "?")')
-                        button.btn.btn-sm.btn-outline(type='submit', title='Send reset link to teacher email')
-                          i.fas.fa-envelope
-                          span Reset Pwd
-                      form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/delete`, onsubmit='return confirm("Delete this teacher and their related records? This cannot be undone.")')
-                        button.btn.btn-sm.btn-danger(type='submit')
-                          i.fas.fa-trash
-                          span Delete
+                  if canManagePermissions
+                    td.actions-cell
+                      .action-group
+                        //- Role management
+                        form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/role`)
+                          select.select-sm(name='role')
+                            option(value='teacher', selected=teacher.role==='teacher') Teacher
+                            option(value='class_teacher', selected=teacher.role==='class_teacher') Class Teacher
+                            option(value='academician', selected=teacher.role==='academician') Academician
+                            option(value='head_of_department', selected=teacher.role==='head_of_department') Head of Department
+                            option(value='principal', selected=teacher.role==='principal') Principal
+                            option(value='exam_officer', selected=teacher.role==='exam_officer') Exam Officer
+                            option(value='admin', selected=teacher.role==='admin') Admin
+                          button.btn.btn-sm.btn-outline(type='submit') Set Role
+                        form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/revoke-role`)
+                          button.btn.btn-sm.btn-warning(type='submit') Revoke
+                        form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/toggle`)
+                          button.btn.btn-sm(class=teacher.isActive?'btn-danger':'btn-success', type='submit')
+                            | #{teacher.isActive ? 'Deactivate' : 'Activate'}
+                        a.btn.btn-sm.btn-outline(href=`/admin/teachers/view/${teacher.id}`)
+                          i.fas.fa-eye
+                          span View
+                        a.btn.btn-sm.btn-outline(href=`/admin/teachers/edit/${teacher.id}`)
+                          i.fas.fa-edit
+                          span Edit
+                        a.btn.btn-sm.btn-outline(href=`/admin/teachers/${teacher.id}/permissions`)
+                          i.fas.fa-user-lock
+                          span Permissions
+                        form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/reset-password`, onclick='return confirm("Send password reset email to " + "#{teacher.fullName}" + "?")')
+                          button.btn.btn-sm.btn-outline(type='submit', title='Send reset link to teacher email')
+                            i.fas.fa-envelope
+                            span Reset Pwd
+                        form.inline-form(method='POST', action=`/admin/teachers/${teacher.id}/delete`, onsubmit='return confirm("Delete this teacher and their related records? This cannot be undone.")')
+                          button.btn.btn-sm.btn-danger(type='submit')
+                            i.fas.fa-trash
+                            span Delete
         else
           .empty-state
             i.fas.fa-chalkboard-teacher

@@ -1,0 +1,13 @@
+extends layout
+
+block content
+  .marks-modal-backdrop
+    .marks-modal-dialog(role='alertdialog', aria-modal='true', aria-labelledby='accessDeniedTitle', aria-describedby='accessDeniedMessage')
+      .marks-modal-header
+        h3#accessDeniedTitle
+          i.fas.fa-lock
+          | Access restricted
+      .marks-modal-body
+        p#accessDeniedMessage #{message}
+      .marks-modal-footer
+        a.btn.btn-primary(href=returnUrl) Return to your page

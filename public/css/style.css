@@ -366,9 +366,16 @@ body.sidebar-collapsed .main-content {
 }
 
 .brand-sub {
-  display: block;
+  display: inline-block;
+  width: fit-content;
+  margin-top: .25rem;
+  padding: .2rem .55rem;
+  border: 1px solid rgba(74, 222, 128, .35);
+  border-radius: 999px;
+  background: rgba(22, 163, 74, .18);
   font-size: .72rem;
-  color: #64748b;
+  color: #86efac;
+  font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
 }
@@ -3810,6 +3817,7 @@ body.sidebar-collapsed .main-content {
   border-radius: var(--radius-sm);
   padding: .85rem 1rem;
   margin: 1rem 0;
+  overflow: auto;
 }
 
 .class-teacher-comment h4 {
@@ -3829,6 +3837,25 @@ body.sidebar-collapsed .main-content {
   line-height: 1.6;
   color: var(--text);
   font-style: italic;
+}
+
+.class-teacher-comment .stamp-box {
+  display: block;
+  float: right;
+  width: 100px;
+  margin: 0 0 .4rem .8rem;
+}
+
+.class-teacher-comment .stamp-box img {
+  display: block;
+  width: 100%;
+  height: auto;
+  opacity: .7;
+}
+
+.class-teacher-comment .stamp-box p {
+  font-size: .65rem;
+  margin-top: .15rem;
 }
 
 /* ─── Class Teacher badge on assignments ────────────────────────────────────── */
@@ -5301,6 +5328,10 @@ body.sidebar-collapsed .main-content {
 :root[data-theme="dark"] .sidebar .brand-sub,
 :root[data-theme="dark"] .sidebar .nav-label {
   color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .sidebar .brand-sub {
+  color: #86efac;
 }
 
 /* Keep semantic accents vivid while replacing light-only component surfaces. */

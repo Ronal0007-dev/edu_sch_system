@@ -92,6 +92,9 @@ block content
             h4
               i.fas.fa-comment-alt
               |  Class Teacher's Comment
+            .stamp-box
+              img(src='/images/school-stamp.png', alt='School Stamp')
+              p Official Stamp
             p.comment-text #{sr.reportComment.comment}
 
         .grading-key
@@ -103,7 +106,7 @@ block content
             span.grade-badge.grade-D D — Satisfactory (60-69)
             span.grade-badge.grade-F F — Fail (0-59)
 
-        .report-card-footer
+        //- .report-card-footer
           .signature-area.with-stamp
             .sig-box
               p ___________________________

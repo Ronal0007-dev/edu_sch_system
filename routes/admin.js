@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const moment = require("moment");
 const {
-  requireAdmin
+  requireAdminArea
 } = require("../middleware/auth");
 const {
   getGrade,
@@ -88,7 +88,7 @@ const {
   SubstituteRequest,
 } = require("../models");
 
-router.use(requireAdmin);
+router.use(requireAdminArea);
 
 // ── Safe flash helper ─────────────────────────────────────────────────────────
 function flash(req, type) {
@@ -239,6 +239,20 @@ async function studentStatusWhere(status, classId) {
     return { isActive: true, status: "Moved", ...(classId ? { classId } : {}) };
   }
   return activeStudentWhere(classId ? { classId } : {});
+}
+
+function reportDepartmentId(req) {
+  const teacher = req.session.teacher;
+  return teacher && teacher.role === "head_of_department" ?
+    teacher.departmentId :
+    null;
+}
+
+async function reportClassIsAllowed(req, classId) {
+  const departmentId = reportDepartmentId(req);
+  if (!departmentId) return true;
+  const cls = await Class.findById(classId);
+  return !!cls && String(cls.departmentId) === String(departmentId);
 }
 
 async function validateUniqueSubjectForClass(classId, name, subjectId = null) {
@@ -820,9 +834,88 @@ router.get("/teachers", async (req, res) => {
       total: count
     },
     admin: req.session.admin,
+    canManagePermissions: Boolean(req.session.admin),
     error: req.flash("error"),
     success: req.flash("success"),
   });
+});
+
+const customizablePermissions = {
+  reports: "Reports",
+  discipline: "Discipline records",
+  lesson_plans: "Lesson plans",
+  year11: "Year 11 subject options",
+  students: "Students",
+  assignments: "Assignments",
+  attendance: "Attendance",
+  marks: "Examinations and marks",
+  classes: "Classes",
+  streams: "Streams",
+  subjects: "Subjects",
+  departments: "Departments",
+  academic_years: "Academic years and terms",
+  timetable: "Timetables",
+  holidays: "Public holidays",
+  backup: "Database backups",
+};
+const permissionActions = ["add", "view", "delete", "print", "edit"];
+
+router.get("/teachers/:id/permissions", async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.params.id);
+    if (!teacher) {
+      req.flash("error", "Teacher not found");
+      return res.redirect("/admin/teachers");
+    }
+    let permissions = {};
+    if (teacher.customPermissions) {
+      try {
+        permissions = JSON.parse(teacher.customPermissions);
+      } catch (err) {
+        throw new Error(`Saved permissions for ${teacher.fullName} are invalid.`);
+      }
+    }
+    res.render("admin/user-permissions", {
+      title: "User Permissions",
+      teacher: teacher.toJSON(),
+      permissions,
+      permissionModules: customizablePermissions,
+      permissionActions,
+      admin: req.session.admin,
+      error: req.flash("error"),
+      success: req.flash("success"),
+    });
+  } catch (err) {
+    req.flash("error", err.message);
+    res.redirect("/admin/teachers");
+  }
+});
+
+router.post("/teachers/:id/permissions", async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.params.id);
+    if (!teacher) throw new Error("Teacher not found");
+    if (req.body.clearCustomPermissions === "1") {
+      await teacher.update({ customPermissions: null });
+      req.flash("success", `Custom permissions cleared for ${teacher.fullName}.`);
+      return res.redirect(`/admin/teachers/${teacher.id}/permissions`);
+    }
+    const requested = req.body.permissions || {};
+    const permissions = {};
+    Object.keys(customizablePermissions).forEach((moduleName) => {
+      const actions = [].concat(requested[moduleName] || []);
+      const validActions = actions.filter((action) => permissionActions.includes(action));
+      if (validActions.length) permissions[moduleName] = Array.from(new Set(validActions));
+    });
+    await teacher.update({
+      customPermissions: Object.keys(permissions).length ? JSON.stringify(permissions) : null,
+    });
+    req.flash("success", `Custom permissions updated for ${teacher.fullName}.`);
+    res.redirect(`/admin/teachers/${teacher.id}/permissions`);
+  } catch (err) {
+    req.flash("error", err.message);
+    res.redirect(`/admin/teachers/${req.params.id}/permissions`);
+  }
 });
 
 // ── Admin: Assign Academician Role ──────────────────────────────────────────
@@ -848,7 +941,8 @@ router.post("/teachers", async (req, res) => {
       fullName,
       phone,
       email,
-      departmentId
+      departmentId,
+      role
     } = req.body;
     // Validate unique email
     const existing = await Teacher.findOne({
@@ -866,6 +960,8 @@ router.post("/teachers", async (req, res) => {
       throw new Error("A teacher with this phone number already exists");
     const dept = await Department.findById(departmentId);
     if (!dept) throw new Error("Invalid department selected");
+    const allowedRoles = ["teacher", "class_teacher", "academician", "head_of_department", "principal", "exam_officer"];
+    if (!allowedRoles.includes(role || "teacher")) throw new Error("Invalid staff role selected");
     const defaultPassword = phone + dept.code;
     const hash = await bcrypt.hash(defaultPassword, 10);
     await Teacher.create({
@@ -874,6 +970,7 @@ router.post("/teachers", async (req, res) => {
       email,
       password: hash,
       departmentId,
+      role: role || "teacher",
     });
     req.flash(
       "success",
@@ -1136,7 +1233,7 @@ router.get("/teachers/view/:id", async (req, res) => {
 
 router.post("/teachers/:id/role", async (req, res) => {
   try {
-    const allowedRoles = ["teacher", "class_teacher", "academician", "admin"];
+    const allowedRoles = ["teacher", "class_teacher", "academician", "head_of_department", "principal", "exam_officer", "admin"];
     const role = String(req.body.role || "").trim();
     if (!allowedRoles.includes(role)) throw new Error("Invalid teacher role selected");
     const teacher = await Teacher.findById(req.params.id);
@@ -4416,6 +4513,7 @@ router.get("/reports/attendance/print", async (req, res) => {
 // ── Examination Report ────────────────────────────────────────────────────────
 router.get("/reports/examination", async (req, res) => {
   const classes = await Class.findAll({
+    where: reportDepartmentId(req) ? { departmentId: reportDepartmentId(req) } : {},
     include: [{
       model: Department,
       as: "department"
@@ -4428,6 +4526,9 @@ router.get("/reports/examination", async (req, res) => {
     total = 0;
 
   if (req.query.classId) {
+    if (!await reportClassIsAllowed(req, req.query.classId)) {
+      return res.status(403).send("You may only view examination reports for your department.");
+    }
     const where = {
       classId: req.query.classId
     };
@@ -4497,7 +4598,10 @@ router.get("/reports/examination", async (req, res) => {
 });
 
 // ── Helper: build class student reports ───────────────────────────────────────
-async function buildClassReports(classId, term, year, status = "Active") {
+async function buildClassReports(req, classId, term, year, status = "Active") {
+  if (!await reportClassIsAllowed(req, classId)) {
+    throw new Error("You may only view reports for your department.");
+  }
   const cls = await Class.findById(classId, {
     include: [{
       model: Department,
@@ -4617,7 +4721,7 @@ router.get("/reports/print-all-report-cards", async (req, res) => {
     const {
       cls,
       studentReports
-    } = await buildClassReports(classId, t, y, s);
+    } = await buildClassReports(req, classId, t, y, s);
     const deptCode = cls.department ? cls.department.code : "";
     studentReports.forEach((studentReport) => {
       studentReport.marks.forEach((mark) => {
@@ -4683,7 +4787,7 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
       isPrimary,
       studentReports
     } =
-    await buildClassReports(classId, t, y, s);
+    await buildClassReports(req, classId, t, y, s);
     if (isStage12PrimaryFinalReportClass(cls.name, deptCode)) {
       studentReports.forEach((studentReport) => {
         studentReport.marks = studentReport.marks.filter((mark) =>
@@ -4734,6 +4838,7 @@ router.get("/reports/print-all-final-reports", async (req, res) => {
 router.get("/reports/exam-analysis", async (req, res) => {
   const currentYear = await getCurrentYear();
   const classes = await Class.findAll({
+    where: reportDepartmentId(req) ? { departmentId: reportDepartmentId(req) } : {},
     include: [{
       model: Department,
       as: "department"
@@ -4757,6 +4862,9 @@ router.get("/reports/exam-analysis", async (req, res) => {
 
   let analysisData = null;
   if (req.query.classId) {
+    if (!await reportClassIsAllowed(req, req.query.classId)) {
+      return res.status(403).send("You may only view exam analysis for your department.");
+    }
     const cls = await Class.findById(req.query.classId, {
       include: [{
         model: Department,
@@ -4827,6 +4935,9 @@ router.get("/reports/academic-report/:classId", async (req, res) => {
         as: "department"
       }],
     });
+    if (!cls || !await reportClassIsAllowed(req, req.params.classId)) {
+      return res.status(403).send("You may only view academic reports for your department.");
+    }
     const deptCode = cls && cls.department ? cls.department.code : "";
     const isPrimary = deptCode === "Primary" || deptCode === "EYC";
     const students = await Student.findAll({

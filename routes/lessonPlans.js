@@ -10,17 +10,30 @@ const {
   Department,
   Term,
 } = require("../models");
+const {
+  customPermissionForRequest,
+  hasCustomPermission,
+} = require("../middleware/auth");
+
+function hasLessonPlanPermission(req, action) {
+  return !!(req.session.teacher && hasCustomPermission(req.session.teacher, "lesson_plans", action));
+}
+
+function hasCurrentLessonPlanPermission(req) {
+  const requested = customPermissionForRequest(req);
+  return !!(requested && hasCustomPermission(req.session.teacher, requested.module, requested.action));
+}
 
 function currentUser(req) {
   return req.session.teacher || req.session.admin;
 }
 
 function portal(req) {
-  return req.session.admin || (req.session.teacher && req.session.teacher.role === "admin") ? "admin" : "teacher";
+  return req.session.admin || (req.session.teacher && ["admin", "head_of_department", "principal"].includes(req.session.teacher.role)) ? "admin" : "teacher";
 }
 
 function lessonPlanPath(req, id) {
-  if (req.session.admin) return `/admin/lesson-plans/${id}`;
+  if (req.session.admin || (req.session.teacher && ["head_of_department", "principal"].includes(req.session.teacher.role))) return `/admin/lesson-plans/${id}`;
   if (req.session.teacher && req.session.teacher.role === "academician") {
     return `/academician/lesson-plans/${id}`;
   }
@@ -28,32 +41,39 @@ function lessonPlanPath(req, id) {
 }
 
 function portalBase(req) {
-  if (req.session.admin) return "/admin";
+  if (req.session.admin || (req.session.teacher && ["head_of_department", "principal"].includes(req.session.teacher.role))) return "/admin";
   if (req.session.teacher && req.session.teacher.role === "academician") return "/academician";
   return "/teacher";
 }
 
 function reviewerDepartmentId(req) {
-  return req.session.teacher && req.session.teacher.role === "academician" ?
+  return req.session.teacher && ["academician", "head_of_department"].includes(req.session.teacher.role) ?
     req.session.teacher.departmentId :
     null;
 }
 
 function isReviewer(req) {
-  return !!req.session.admin || (req.session.teacher && req.session.teacher.role === "academician");
+  return !!req.session.admin ||
+    (req.session.teacher && ["academician", "head_of_department", "principal"].includes(req.session.teacher.role)) ||
+    hasLessonPlanPermission(req, "view") ||
+    hasLessonPlanPermission(req, "edit");
 }
 
 function canReviewPlan(plan, req) {
-  if (req.session.admin) return true;
+  if (req.session.admin || (req.session.teacher && req.session.teacher.role === "principal") || hasLessonPlanPermission(req, "edit")) return true;
   return !!(
     req.session.teacher &&
-    req.session.teacher.role === "academician" &&
+    ["academician", "head_of_department"].includes(req.session.teacher.role) &&
     String(plan.teacherId) !== String(req.session.teacher.id)
   );
 }
 
 function canAuthorLessonPlans(req) {
-  return !!req.session.teacher;
+  return !!(
+    req.session.teacher &&
+    (!["head_of_department", "principal"].includes(req.session.teacher.role) ||
+      hasLessonPlanPermission(req, "add"))
+  );
 }
 
 function planDepartment(plan) {
@@ -122,7 +142,13 @@ function buildTeacherClassGroups(plans, limit) {
 }
 
 function requireLessonPlanAccess(req, res, next) {
-  if (req.session.admin || req.session.teacher) return next();
+  if (req.session.admin) return next();
+  const role = req.session.teacher && req.session.teacher.role;
+  if (["head_of_department", "principal"].includes(role) && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentLessonPlanPermission(req)) {
+    return res.status(403).send("This role has read-only access.");
+  }
+  if (req.session.teacher && role !== "exam_officer") return next();
+  if (req.session.teacher && role === "exam_officer") return res.status(403).send("Not authorized");
   req.flash("error", "Please sign in to access lesson plans.");
   return res.redirect("/");
 }
@@ -183,17 +209,27 @@ async function getPlan(id) {
 }
 
 function canView(plan, req) {
-  if (req.session.admin) return true;
-  if (req.session.teacher && req.session.teacher.role === "academician") {
+  if (req.session.admin || (req.session.teacher && req.session.teacher.role === "principal")) return true;
+  if (req.session.teacher && ["academician", "head_of_department"].includes(req.session.teacher.role)) {
     return String(planDepartment(plan).id) === String(req.session.teacher.departmentId);
   }
+  if (hasLessonPlanPermission(req, "view") ||
+      hasLessonPlanPermission(req, "edit") ||
+      hasLessonPlanPermission(req, "print")) return true;
   return req.session.teacher && String(plan.teacherId) === String(req.session.teacher.id);
 }
 
 function canEdit(plan, req) {
   return !!(req.session.teacher &&
-    String(plan.teacherId) === String(req.session.teacher.id) &&
-    plan.status !== "approved");
+    plan.status !== "approved" &&
+    (String(plan.teacherId) === String(req.session.teacher.id) ||
+      hasLessonPlanPermission(req, "edit")));
+}
+
+function canDelete(plan, req) {
+  return !!(req.session.teacher &&
+    (String(plan.teacherId) === String(req.session.teacher.id) && plan.status !== "approved" ||
+      hasLessonPlanPermission(req, "delete")));
 }
 
 async function getTeacherAssignments(teacherId) {
@@ -228,7 +264,7 @@ async function getAuthoringTeacher(req) {
 async function getLessonPlanAssignments(req) {
   const assignments = await getTeacherAssignments(req.session.teacher.id);
   const authoringTeacher = await getAuthoringTeacher(req);
-  if (!authoringTeacher || authoringTeacher.role !== "academician") {
+  if (!authoringTeacher || !["academician", "head_of_department"].includes(authoringTeacher.role)) {
     return assignments;
   }
   const classes = await Class.findAll({
@@ -281,7 +317,7 @@ async function canCreateLessonPlan(req, classId, subjectId) {
     },
   });
   if (assigned) return true;
-  if (authoringTeacher.role !== "academician") return false;
+  if (!["academician", "head_of_department"].includes(authoringTeacher.role)) return false;
   const lessonClass = await Class.findById(parsedClassId, {
     include: [{
       model: Department,
@@ -638,7 +674,7 @@ router.post("/:id/delete", async (req, res) => {
   if (!req.session.teacher) return res.redirect(`${portalBase(req)}/lesson-plans`);
   try {
     const plan = await LessonPlan.findById(req.params.id);
-    if (!plan || !canEdit(plan, req)) throw new Error("Only your non-approved lesson plans can be deleted.");
+    if (!plan || !canDelete(plan, req)) throw new Error("You do not have permission to delete this lesson plan.");
     await LessonPlanFeedback.destroy({
       where: {
         lessonPlanId: plan.id

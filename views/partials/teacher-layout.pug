@@ -1,6 +1,8 @@
 extends ../layout
 
 block content
+  - const portalRole = teacher && teacher.role
+  - const portalName = portalRole === 'head_of_department' ? 'HoD Portal' : portalRole === 'principal' ? 'Principal Portal' : portalRole === 'exam_officer' ? 'Examination Officer Portal' : portalRole === 'academician' ? 'Academician Portal' : 'Teacher Portal'
   .app-shell
     aside.sidebar.sidebar-teacher
       .sidebar-brand
@@ -8,7 +10,7 @@ block content
           i.fas.fa-chalkboard-teacher
         .brand-text
           span.brand-name CAMS
-          span.brand-sub Teacher Portal
+          span.brand-sub #{portalName}
       nav.sidebar-nav
         .nav-section
           span.nav-label Overview

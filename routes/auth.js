@@ -201,7 +201,13 @@ router.post("/admin/change-password", requireAdmin, async (req, res) => {
 
 // ─── Teacher Login ─────────────────────────────────────────────────────────────
 router.get("/teacher/login", (req, res) => {
-  if (req.session.teacher) return res.redirect("/teacher/dashboard");
+  if (req.session.teacher) {
+    const role = req.session.teacher.role;
+    if (role === "principal") return res.redirect("/admin/dashboard");
+    if (role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
+    if (role === "exam_officer") return res.redirect("/admin/reports/examination");
+    return res.redirect("/teacher/dashboard");
+  }
   const timeout = req.query.reason === "timeout";
   res.render("auth/teacher-login", {
     title: "Teacher Login",
@@ -251,10 +257,14 @@ router.post("/teacher/login", async (req, res) => {
       fullName: teacher.fullName,
       role: teacher.role,
       departmentId: teacher.departmentId,
+      customPermissions: teacher.customPermissions,
     };
     req.session.lastActive = Date.now();
     if (teacher.mustChangePassword)
       return res.redirect("/auth/teacher/first-change-password");
+    if (teacher.role === "principal") return res.redirect("/admin/dashboard");
+    if (teacher.role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
+    if (teacher.role === "exam_officer") return res.redirect("/admin/reports/examination");
     res.redirect("/teacher/dashboard");
   } catch (err) {
     req.flash("error", "Login error: " + err.message);
@@ -292,6 +302,10 @@ router.post("/teacher/first-change-password", async (req, res) => {
       }
     }, );
     req.flash("success", "Password set. Welcome!");
+    const role = req.session.teacher.role;
+    if (role === "principal") return res.redirect("/admin/dashboard");
+    if (role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
+    if (role === "exam_officer") return res.redirect("/admin/reports/examination");
     res.redirect("/teacher/dashboard");
   } catch (err) {
     req.flash("error", err.message);

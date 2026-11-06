@@ -1,0 +1,39 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Custom permissions for #{teacher.fullName}
+      span.badge.badge-class #{teacher.role.replace(/_/g, ' ')}
+    .card-body
+      p.form-hint Checked actions grant access to that module and override role-based restrictions for those actions. Department-scoped data remains restricted to the assigned department. Modules left blank continue to use the user's role access. Administrator-only account and permission management remains restricted to admins. Updates apply on the user's next request.
+      form(method='POST', action=`/admin/teachers/${teacher.id}/permissions`)
+        table.data-table
+          thead
+            tr
+              th Module
+              each action in permissionActions
+                th #{action.charAt(0).toUpperCase() + action.slice(1)}
+          tbody
+            each moduleLabel, moduleName in permissionModules
+              tr
+                td #{moduleLabel}
+                each action in permissionActions
+                  td
+                    input(
+                      type='checkbox',
+                      name=`permissions[${moduleName}][]`,
+                      value=action,
+                      checked=Array.isArray(permissions[moduleName]) && permissions[moduleName].includes(action)
+                    )
+        br
+        .action-group
+          button.btn.btn-primary(type='submit')
+            i.fas.fa-save
+            span Save Permissions
+          a.btn.btn-outline(href='/admin/teachers') Back to Teachers
+      form(method='POST', action=`/admin/teachers/${teacher.id}/permissions`, style='margin-top: 1rem')
+        input(type='hidden', name='clearCustomPermissions', value='1')
+        button.btn.btn-warning(type='submit')
+          i.fas.fa-undo
+          span Clear Custom Permissions
