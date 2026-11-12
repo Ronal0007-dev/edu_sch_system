@@ -293,7 +293,7 @@ block body
       i.fas.fa-file-alt
       span Final Examination — #{selectedSubject.name} | #{selectedClass.name} | #{term}
       if isArtSenior
-        span.exam-max-badge Out of #{ART_MAX} (Confirmed from CA)
+        span.exam-max-badge Out of 144
       else if isArtPrimaryMode
         span.exam-max-badge Out of 50 (Converted 50%)
       else if isPrimaryDept
@@ -305,13 +305,13 @@ block body
       .marks-info-bar
         .info-item
           span.info-label Note
-          span.info-val Art & Design (Year 10/11): Total CA marks are transferred as the final report score out of #{ART_MAX}. Edit below only to confirm or adjust.
+          span.info-val Art & Design (Year 10/11): Enter the final exam score out of 144.
         .info-item
           span.info-label Max Mark
-          span.info-val #{ART_MAX}
+          span.info-val 144
         .info-item
           span.info-label Pass Threshold
-          span.info-val ≥ #{Math.ceil(ART_MAX * 0.4)} / #{ART_MAX} (40%)
+          span.info-val ≥ 58 / 144 (40%)
     else if isArtPrimaryMode
       .marks-info-bar
         .info-item
@@ -358,7 +358,7 @@ block body
                 th Classification
               else
                 th Final Exam Score
-                th Max Mark #{isArtSenior ? '(72)' : '(set once)'}
+                th Max Mark #{isArtSenior ? '(144)' : '(set once)'}
                 th % Score
                 th Pass/Fail
           tbody
@@ -369,8 +369,7 @@ block body
               if isArtSenior
                 if feScore == null && existing && existing.totalScore != null
                   - feScore = existing.totalScore
-                if !feMax
-                  - feMax = ART_MAX
+                - feMax = 144
               else if isArtPrimaryMode
                 if feScore == null && existing && existing.totalScore != null
                   - feScore = Math.round((existing.totalScore * 0.5) * 10) / 10
@@ -401,17 +400,19 @@ block body
                 else
                   td
                     input.mark-input.fe-input(
-                      type='number', min=0, max=isArtSenior ? 72 : null, step=0.5,
+                      type='number', min=0, max=isArtSenior ? 144 : null, step=0.5,
                       name=`fe_${student.id}`,
                       value=feScore != null ? feScore : '',
-                      placeholder=isArtSenior ? 'Score (max 72)' : 'Score'
+                      placeholder=isArtSenior ? 'Score (max 144)' : 'Score'
                     )
                   td
                     input.mark-input.fe-max-input(
                       type='number', min=1, step=1,
                       name=`femax_${student.id}`,
-                      value=feMax ? feMax : (isArtSenior ? ART_MAX : ''),
-                      placeholder=isArtSenior ? '72' : 'Max'
+                      value=feMax ? feMax : (isArtSenior ? 144 : ''),
+                      max=isArtSenior ? 144 : null,
+                      placeholder=isArtSenior ? '144' : 'Max',
+                      readonly=isArtSenior
                     )
                   td
                     span.fe-pct-display(data-sid=student.id)

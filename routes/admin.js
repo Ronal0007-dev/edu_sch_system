@@ -1671,11 +1671,18 @@ router.post("/marks/save", async (req, res) => {
       .filter((id) => validIds.has(String(id)));
 
     if (section === "fe") {
+      if (isArtSenior && studentIds.some((studentId) => {
+        const score = Number(req.body[`fe_${studentId}`]);
+        return Number.isFinite(score) && score > 144;
+      })) {
+        req.flash("error", "Art & Design final exam marks cannot exceed 144. Please correct the score and try again.");
+        return res.redirect(`/admin/marks?classId=${classId}&subjectId=${subjectId}&term=${term}&year=${academicYear}`);
+      }
     for (const studentId of studentIds) {
         const finalExam = parseFloat(req.body[`fe_${studentId}`]);
         if (isNaN(finalExam)) continue;
-        let finalExamMax = parseFloat(req.body[`femax_${studentId}`]);
-        if (isNaN(finalExamMax) || finalExamMax <= 0) {
+        let finalExamMax = isArtSenior ? 144 : parseFloat(req.body[`femax_${studentId}`]);
+        if (!isArtSenior && (isNaN(finalExamMax) || finalExamMax <= 0)) {
           finalExamMax = isPrimary ? 50 : isArtSenior ? 72 : null;
         }
         const [mark] = await Mark.findOrCreate({

@@ -171,7 +171,7 @@ block body
       i.fas.fa-file-alt
       span Final Examination — #{selectedSubject.name} | #{selectedClass.name} | #{term}
       if isArtSenior
-        span.exam-max-badge Out of #{ART_MAX} (Confirmed from CA)
+        span.exam-max-badge Out of 144
       else if isArtPrimaryMode
         span.exam-max-badge Out of 50 (Converted 50%)
       else if isPrimaryDept
@@ -188,7 +188,7 @@ block body
           thead
             tr
               th Student
-              th Final Exam Score #{isPrimaryDept ? '(out of 50)' : isArtSenior ? '(out of 72)' : ''}
+              th Final Exam Score #{isPrimaryDept ? '(out of 50)' : isArtSenior ? '(out of 144)' : ''}
               th Max Mark
           tbody
             each student in students
@@ -198,8 +198,7 @@ block body
               if isArtSenior
                 if feScore == null && existing && existing.totalScore != null
                   - feScore = existing.totalScore
-                if !feMax
-                  - feMax = ART_MAX
+                - feMax = 144
               else if isArtPrimaryMode
                 if feScore == null && existing && existing.totalScore != null
                   - feScore = Math.round((existing.totalScore * 0.5) * 10) / 10
@@ -211,9 +210,9 @@ block body
               tr
                 td #{student.fullName}
                 td
-                  input.mark-input(type='number', min=0, max=isArtSenior ? 72 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '')
+                  input.mark-input(type='number', min=0, max=isArtSenior ? 144 : isPrimaryDept ? 50 : null, step=0.5, name=`fe_${student.id}`, value=feScore != null ? feScore : '', placeholder=isArtSenior ? '0–144' : '')
                 td
-                  input.mark-input(type='number', min=1, step=1, name=`femax_${student.id}`, value=feMax ? feMax : '')
+                  input.mark-input(type='number', min=1, max=isArtSenior ? 144 : null, step=1, name=`femax_${student.id}`, value=feMax ? feMax : '', placeholder=isArtSenior ? '144' : '', readonly=isArtSenior)
       .form-actions
         button.btn.btn-primary.btn-lg(type='submit')
           i.fas.fa-save
