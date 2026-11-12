@@ -5,7 +5,7 @@ exports.requireAdmin = (req, res, next) => {
 };
 
 const customPermissionRoutes = [
-  ['reports', /^\/(?:admin\/)?reports(?:\/|$)|^\/(?:teacher|academician)\/(?:exam-analysis|academic-report|progressive-report|final-report|report-card|report-cards)(?:\/|$)/],
+  ['reports', /^\/(?:admin|teacher)\/reports(?:\/|$)|^\/(?:teacher|academician)\/(?:exam-analysis|academic-report|progressive-report|final-report|report-card|report-cards)(?:\/|$)/],
   ['discipline', /^\/(?:admin\/|academician\/|teacher\/)?discipline(?:\/|$)/],
   ['lesson_plans', /^\/(?:admin\/|academician\/|teacher\/)?lesson-plans(?:\/|$)/],
   ['year11', /^\/(?:admin\/|academician\/|teacher\/)?electives(?:\/|$)/],
@@ -59,6 +59,34 @@ exports.requireAdminArea = (req, res, next) => {
     req.flash('error', 'Please login as admin to continue');
     return res.redirect('/auth/admin/login');
   }
+  if (req.baseUrl === '/teacher' &&
+      /^\/(?:discipline|electives|lesson-plans|academician)(?:\/|$)/.test(req.path)) {
+    return next();
+  }
+  if (req.path === '/report-access-requests' ||
+      /^\/report-access-requests\/review\/\d+$/.test(req.path)) {
+    if (teacher.role !== 'head_of_department') {
+      return res.status(403).render('permission-denied', {
+        title: 'Access Restricted',
+        message: 'Only administrators and the assigned Head of Department can review report access requests.',
+        returnUrl: teacher.role === 'exam_officer' ?
+          '/teacher/reports/examination' :
+          teacher.role === 'principal' ?
+            '/teacher/dashboard' :
+            '/teacher/dashboard',
+        user: teacher,
+      });
+    }
+    const isReviewPath = /^\/report-access-requests\/review\/\d+$/.test(req.path);
+    if ((req.method === 'GET' && req.path === '/report-access-requests') ||
+        (req.method === 'POST' && isReviewPath)) return next();
+    return res.status(403).render('permission-denied', {
+      title: 'Access Restricted',
+      message: 'This action is not available for report access requests.',
+      returnUrl: '/teacher/report-access-requests',
+      user: teacher,
+    });
+  }
   if (/^\/teachers\/[^/]+\/(?:permissions|role(?:-academician)?|revoke-role|toggle|delete|reset-password)$/.test(req.path) ||
       /^\/teachers\/(?:edit\/[^/]+)?$/.test(req.path) ||
       (req.path === '/teachers' && req.method !== 'GET')) {
@@ -66,11 +94,11 @@ exports.requireAdminArea = (req, res, next) => {
       title: 'Access Restricted',
       message: 'Only an administrator can manage user accounts or permissions.',
       returnUrl: teacher.role === 'head_of_department' ?
-        '/admin/reports/exam-analysis' :
+        '/teacher/reports/exam-analysis' :
         teacher.role === 'exam_officer' ?
-          '/admin/reports/examination' :
+          '/teacher/reports/examination' :
           teacher.role === 'principal' ?
-            '/admin/dashboard' :
+            '/teacher/dashboard' :
             '/teacher/dashboard',
       user: teacher,
     });
@@ -84,11 +112,11 @@ exports.requireAdminArea = (req, res, next) => {
       title: 'Access Restricted',
       message: 'A custom backup view permission is required to download database backups.',
       returnUrl: teacher.role === 'principal' ?
-        '/admin/dashboard' :
+        '/teacher/dashboard' :
         teacher.role === 'head_of_department' ?
-          '/admin/reports/exam-analysis' :
+          '/teacher/reports/exam-analysis' :
           teacher.role === 'exam_officer' ?
-            '/admin/reports/examination' :
+            '/teacher/reports/examination' :
             '/teacher/dashboard',
       user: teacher,
     });
@@ -116,11 +144,11 @@ exports.requireAdminArea = (req, res, next) => {
     title: 'Access Restricted',
     message: 'You do not have permission to access this page.',
     returnUrl: teacher.role === 'head_of_department' ?
-      '/admin/reports/exam-analysis' :
+      '/teacher/reports/exam-analysis' :
       teacher.role === 'exam_officer' ?
-        '/admin/reports/examination' :
+        '/teacher/reports/examination' :
         teacher.role === 'principal' ?
-          '/admin/dashboard' :
+          '/teacher/dashboard' :
           '/teacher/dashboard',
     user: teacher,
   });

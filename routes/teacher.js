@@ -52,6 +52,7 @@ const {
   ReportComment,
   Timetable,
   SubstituteRequest,
+  ReportAccessRequest,
 } = require("../models");
 
 router.use(requireTeacher);
@@ -1272,11 +1273,15 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
   if (!student)
     throw new Error("Student record not found or not available for reporting");
   if (teacherId && student.classId) {
-    const streamId = await getTeacherAssignedStreamId(
-      teacherId,
-      student.classId,
-    );
-    if (streamId && student.streamId !== streamId) {
+    const assignments = await TeacherClass.findAll({
+      where: { teacherId, classId: student.classId },
+    });
+    const hasUnrestrictedAssignment = assignments.some((row) => !row.streamId);
+    const assignedStreams = assignments
+      .filter((row) => row.streamId)
+      .map((row) => String(row.streamId));
+    if (!assignments.length ||
+        (!hasUnrestrictedAssignment && !assignedStreams.includes(String(student.streamId)))) {
       throw new Error("You are not authorized to view this student");
     }
   }
@@ -1345,6 +1350,57 @@ async function loadStudentReportData(studentId, term, year, teacherId = null) {
   };
 }
 
+function reportAccessKey(studentId, reportType, term, year) {
+  return `${studentId}:${reportType}:${term}:${year}`;
+}
+
+async function renderReportAccessLock(req, res, reportType, studentId, term, year) {
+  const existingRequest = await ReportAccessRequest.findOne({
+    where: {
+      teacherId: req.session.teacher.id,
+      studentId,
+      reportType,
+      term,
+      academicYear: year,
+    },
+  });
+  const student = await Student.findOne({
+    where: { id: studentId, isActive: true, status: "Active" },
+    include: [{ model: Class, as: "class" }],
+  });
+  if (!student) throw new Error("Student record not found or not available for reporting");
+  const assignments = await TeacherClass.findAll({
+    where: { teacherId: req.session.teacher.id, classId: student.classId },
+  });
+  const hasUnrestrictedAssignment = assignments.some((row) => !row.streamId);
+  const assignedStreams = assignments
+    .filter((row) => row.streamId)
+    .map((row) => String(row.streamId));
+  if (!assignments.length ||
+      (!hasUnrestrictedAssignment && !assignedStreams.includes(String(student.streamId)))) {
+    throw new Error("You are not authorized to view this student");
+  }
+  const approvalIsActive = existingRequest &&
+    existingRequest.status === "approved" &&
+    existingRequest.expiresAt &&
+    new Date(existingRequest.expiresAt).getTime() > Date.now();
+  if (approvalIsActive) return true;
+  res.status(403).render("teacher/report-access-locked", {
+    title: "Report Access Approval",
+    student: student.toJSON(),
+    reportType,
+    term,
+    year,
+    requestStatus: existingRequest && existingRequest.status === "approved" && !approvalIsActive ?
+      null :
+      (existingRequest ? existingRequest.status : null),
+    teacher: req.session.teacher,
+    error: req.flash("error"),
+    success: req.flash("success"),
+  });
+  return false;
+}
+
 // ── Progressive Report Card (CA only) ────────────────────────────────────────
 router.get("/progressive-report/:studentId", async (req, res) => {
   try {
@@ -1363,6 +1419,9 @@ router.get("/progressive-report/:studentId", async (req, res) => {
         ["startDate", "DESC"]
       ],
     });
+    if (!(await renderReportAccessLock(
+      req, res, "progressive", req.params.studentId, term, year,
+    ))) return;
     const data = await loadStudentReportData(
       req.params.studentId,
       term,
@@ -1419,6 +1478,9 @@ router.get("/final-report/:studentId", async (req, res) => {
         ["startDate", "DESC"]
       ],
     });
+    if (!(await renderReportAccessLock(
+      req, res, "final", req.params.studentId, term, year,
+    ))) return;
     const data = await loadStudentReportData(
       req.params.studentId,
       term,
@@ -1470,6 +1532,95 @@ router.get("/report-card/:studentId", (req, res) => {
   );
 });
 
+router.post("/report-access/request", async (req, res) => {
+  const { studentId, reportType, term, year } = req.body;
+  try {
+    if (!["progressive", "final"].includes(reportType) ||
+        !/^\d+$/.test(String(studentId || "")) ||
+        typeof term !== "string" || !term.trim() || term.length > 50 ||
+        typeof year !== "string" || !year.trim() || year.length > 50) {
+      throw new Error("Select a valid report, term, and academic year.");
+    }
+
+    const student = await Student.findOne({
+      where: {
+        id: Number(studentId),
+        isActive: true,
+        status: "Active",
+      },
+      include: [{ model: Class, as: "class" }],
+    });
+    if (!student || !student.classId || !student.class) {
+      throw new Error("Student record not found or not available for reporting.");
+    }
+    const assignments = await TeacherClass.findAll({
+      where: {
+        teacherId: req.session.teacher.id,
+        classId: student.classId,
+      },
+    });
+    const hasUnrestrictedAssignment = assignments.some((row) => !row.streamId);
+    const assignedStreams = assignments
+      .filter((row) => row.streamId)
+      .map((row) => String(row.streamId));
+    if (!assignments.length ||
+        (!hasUnrestrictedAssignment && !assignedStreams.includes(String(student.streamId)))) {
+      throw new Error("You are not authorized to request access to this student's report.");
+    }
+
+    const academicYear = await AcademicYear.findOne({
+      where: { name: year.trim() },
+      include: [{
+        model: Term,
+        as: "terms",
+        where: { name: term.trim() },
+        required: true,
+      }],
+    });
+    if (!academicYear) throw new Error("The selected term and academic year are not available.");
+
+    const where = {
+      teacherId: req.session.teacher.id,
+      studentId: student.id,
+      reportType,
+      term: term.trim(),
+      academicYear: year.trim(),
+    };
+    const existingRequest = await ReportAccessRequest.findOne({ where });
+    if (existingRequest &&
+        existingRequest.status === "approved" &&
+        existingRequest.expiresAt &&
+        new Date(existingRequest.expiresAt).getTime() > Date.now()) {
+      return res.redirect(
+        `/teacher/${reportType === "progressive" ? "progressive-report" : "final-report"}/${student.id}?term=${encodeURIComponent(term.trim())}&year=${encodeURIComponent(year.trim())}`,
+      );
+    }
+    if (existingRequest && existingRequest.status === "pending") {
+      req.flash("success", "Your request is already awaiting review.");
+    } else if (existingRequest) {
+      await existingRequest.update({
+        status: "pending",
+        reviewedByType: null,
+        reviewedById: null,
+        reviewerName: null,
+        reviewNote: null,
+        expiresAt: null,
+      });
+      req.flash("success", "Your new report access request was sent for review.");
+    } else {
+      await ReportAccessRequest.create({
+        ...where,
+        departmentId: student.class.departmentId,
+        status: "pending",
+      });
+      req.flash("success", "Your report access request was sent for review.");
+    }
+  } catch (err) {
+    req.flash("error", err.message);
+  }
+  res.redirect("/teacher/report-cards");
+});
+
 // ── Report Cards List ──────────────────────────────────────────────────────────
 router.get("/report-cards", async (req, res) => {
   const currentYear = await getCurrentYear();
@@ -1491,12 +1642,32 @@ router.get("/report-cards", async (req, res) => {
       },
     ],
   });
-  const classes = teacherClassRows
-    .map((tc) => ({
-      ...tc.class.toJSON(),
-      isClassTeacher: tc.isClassTeacher,
-    }))
-    .filter((c) => c.id);
+  const classesById = {};
+  teacherClassRows.forEach((tc) => {
+    if (!tc.class) return;
+    const classData = tc.class.toJSON();
+    const classId = String(classData.id);
+    if (!classesById[classId]) {
+      classesById[classId] = {
+        ...classData,
+        students: [],
+        isClassTeacher: false,
+      };
+    }
+    classesById[classId].isClassTeacher =
+      classesById[classId].isClassTeacher || Boolean(tc.isClassTeacher);
+    const assignedStudents = (classData.students || []).filter((student) =>
+      student.isActive &&
+      student.status === "Active" &&
+      (!tc.streamId || String(student.streamId) === String(tc.streamId)),
+    );
+    assignedStudents.forEach((student) => {
+      if (!classesById[classId].students.some((existing) => String(existing.id) === String(student.id))) {
+        classesById[classId].students.push(student);
+      }
+    });
+  });
+  const classes = Object.values(classesById);
   const classStreamMap = {};
   teacherClassRows.forEach((tc) => {
     if (!tc.class) return;
@@ -1522,12 +1693,28 @@ router.get("/report-cards", async (req, res) => {
       ["startDate", "DESC"]
     ],
   });
+  const reportRequests = await ReportAccessRequest.findAll({
+    where: { teacherId: req.session.teacher.id },
+  });
+  const reportAccessByKey = {};
+  reportRequests.forEach((request) => {
+  const approvalIsActive = request.status === "approved" &&
+    request.expiresAt &&
+    new Date(request.expiresAt).getTime() > Date.now();
+  reportAccessByKey[reportAccessKey(
+    request.studentId,
+    request.reportType,
+    request.term,
+    request.academicYear,
+  )] = approvalIsActive ? "approved" : request.status === "approved" ? null : request.status;
+  });
   res.render("teacher/report-cards", {
     title: "Report Cards",
     classes,
     classStreamMap,
     currentYear,
     academicYears,
+    reportAccessByKey,
     teacher: req.session.teacher,
     error: req.flash("error"),
     success: req.flash("success"),
@@ -1682,14 +1869,24 @@ router.get("/academic-report/:classId", async (req, res) => {
         as: "department"
       }],
     });
+    if (!cls) throw new Error("Class record not found.");
     const deptCode = cls && cls.department ? cls.department.code : "";
     const isPrimary = deptCode === "Primary" || deptCode === "EYC";
-    const streamId = await getTeacherAssignedStreamId(
-      req.session.teacher.id,
-      req.params.classId,
-    );
+    const classAssignments = await TeacherClass.findAll({
+      where: {
+        teacherId: req.session.teacher.id,
+        classId: req.params.classId,
+      },
+    });
+    if (!classAssignments.length) throw new Error("You are not authorized to view this class.");
+    const hasUnrestrictedAssignment = classAssignments.some((row) => !row.streamId);
+    const assignedStreams = classAssignments
+      .filter((row) => row.streamId)
+      .map((row) => String(row.streamId));
+    const studentWhere = buildTeacherStudentWhere(req.params.classId, null);
+    if (!hasUnrestrictedAssignment) studentWhere.streamId = { $in: assignedStreams };
     const students = await Student.findAll({
-      where: buildTeacherStudentWhere(req.params.classId, streamId),
+      where: studentWhere,
       include: [{
         model: Stream,
         as: "stream"
@@ -1698,6 +1895,28 @@ router.get("/academic-report/:classId", async (req, res) => {
         ["fullName", "ASC"]
       ],
     });
+    const approvedStudentIds = await ReportAccessRequest.findAll({
+      where: {
+        teacherId: req.session.teacher.id,
+        studentId: { $in: students.map((student) => student.id) },
+        reportType: "final",
+        term,
+        academicYear: year,
+        status: "approved",
+        expiresAt: { $gt: new Date() },
+      },
+    });
+    if (approvedStudentIds.length !== students.length) {
+      return res.status(403).render("teacher/class-report-access-locked", {
+        title: "Report Access Approval",
+        cls,
+        term,
+        year,
+        teacher: req.session.teacher,
+        error: req.flash("error"),
+        success: req.flash("success"),
+      });
+    }
     const marks = await Mark.findAll({
       where: {
         classId: req.params.classId,

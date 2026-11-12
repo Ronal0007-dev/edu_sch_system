@@ -32,7 +32,13 @@ router.use((req, res, next) => {
   if (req.baseUrl === "/admin/discipline" && !req.session.admin && role !== "principal" && role !== "head_of_department" && !hasCurrentPermission(req)) {
     return res.status(403).send("Not authorized");
   }
-  if ((role === "principal" || role === "head_of_department") && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentPermission(req)) {
+  const isDepartmentHeadAction =
+    role === "head_of_department" &&
+    req.baseUrl === "/teacher/discipline" &&
+    req.method === "POST";
+  if ((role === "principal" || role === "head_of_department") &&
+      req.method !== "GET" && req.method !== "HEAD" &&
+      !isDepartmentHeadAction && !hasCurrentPermission(req)) {
     return res.status(403).send("This role has read-only access.");
   }
   next();

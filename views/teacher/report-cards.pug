@@ -61,13 +61,33 @@ block body
                         small #{student.gender}
                   td #{student.stream ? student.stream.name : '-'}
                   td
-                    a.btn.btn-sm.btn-primary.prog-link(href=`/teacher/progressive-report/${student.id}`, data-student=student.id)
-                      i.fas.fa-chart-line
-                      span CA Report
+                    .report-access-control(data-student=student.id, data-type='progressive')
+                      form(method='post', action='/teacher/report-access/request')
+                        input(type='hidden', name='studentId', value=student.id)
+                        input(type='hidden', name='reportType', value='progressive')
+                        input.access-term(type='hidden', name='term')
+                        input.access-year(type='hidden', name='year')
+                        button.btn.btn-sm.btn-primary(type='submit')
+                          i.fas.fa-unlock-alt
+                          span Request Approval
+                      span.access-pending(style='display:none') Awaiting approval
+                      a.btn.btn-sm.btn-primary.access-view(style='display:none')
+                        i.fas.fa-chart-line
+                        span CA Report
                   td
-                    a.btn.btn-sm.btn-outline.final-link(href=`/teacher/final-report/${student.id}`, data-student=student.id)
-                      i.fas.fa-file-alt
-                      span Final Report
+                    .report-access-control(data-student=student.id, data-type='final')
+                      form(method='post', action='/teacher/report-access/request')
+                        input(type='hidden', name='studentId', value=student.id)
+                        input(type='hidden', name='reportType', value='final')
+                        input.access-term(type='hidden', name='term')
+                        input.access-year(type='hidden', name='year')
+                        button.btn.btn-sm.btn-outline(type='submit')
+                          i.fas.fa-unlock-alt
+                          span Request Approval
+                      span.access-pending(style='display:none') Awaiting approval
+                      a.btn.btn-sm.btn-outline.access-view(style='display:none')
+                        i.fas.fa-file-alt
+                        span Final Report
         else
           p.text-muted No students in #{cls.name}
 
@@ -77,6 +97,7 @@ block body
     const classSel = document.getElementById('classSel');
     const streamSel = document.getElementById('streamSel');
     const classStreamMap = !{JSON.stringify(classStreamMap || {})};
+    const reportAccessByKey = !{JSON.stringify(reportAccessByKey || {})};
 
     function updateStreams() {
       const cid = classSel.value;
@@ -110,13 +131,24 @@ block body
     }
 
     function updateLinks() {
-      const term = encodeURIComponent(termSel.value);
-      const year = encodeURIComponent(yearSel.value);
-      document.querySelectorAll('.prog-link').forEach(a => {
-        a.href = '/teacher/progressive-report/' + a.dataset.student + '?term=' + term + '&year=' + year;
-      });
-      document.querySelectorAll('.final-link').forEach(a => {
-        a.href = '/teacher/final-report/' + a.dataset.student + '?term=' + term + '&year=' + year;
+      const term = termSel.value;
+      const year = yearSel.value;
+      document.querySelectorAll('.report-access-control').forEach(control => {
+        const student = control.dataset.student;
+        const type = control.dataset.type;
+        const status = reportAccessByKey[student + ':' + type + ':' + term + ':' + year];
+        const form = control.querySelector('form');
+        const button = form.querySelector('button');
+        const pending = control.querySelector('.access-pending');
+        const link = control.querySelector('.access-view');
+        form.querySelector('.access-term').value = term;
+        form.querySelector('.access-year').value = year;
+        form.style.display = status === 'approved' || status === 'pending' ? 'none' : '';
+        pending.style.display = status === 'pending' ? '' : 'none';
+        link.style.display = status === 'approved' ? '' : 'none';
+        link.href = '/teacher/' + (type === 'progressive' ? 'progressive-report' : 'final-report') +
+          '/' + student + '?term=' + encodeURIComponent(term) + '&year=' + encodeURIComponent(year);
+        button.querySelector('span').textContent = status === 'rejected' ? 'Request Again' : 'Request Approval';
       });
     }
     termSel.addEventListener('change', updateLinks);

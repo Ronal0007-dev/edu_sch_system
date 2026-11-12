@@ -31,7 +31,7 @@ function hasCurrentPermission(req) {
 
 async function checkYear11TeacherAuth(req, res, next) {
   if (isAdmin(req)) return next();
-  if ((isDepartmentHead(req) || isPrincipal(req)) && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentPermission(req)) {
+  if (isPrincipal(req) && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentPermission(req)) {
     return res.status(403).send("This role has read-only access.");
   }
   if (hasCurrentPermission(req)) return next();
@@ -41,7 +41,7 @@ async function checkYear11TeacherAuth(req, res, next) {
   const canTeach = await teacherTeachesYear11(teacherId);
   if (!canTeach) {
     req.flash("error", "Only teachers who teach Year 11 in Secondary department can access Year 11 subject options.");
-    return res.redirect(req.session.teacher && req.session.teacher.role === "academician" ? "/academician/dashboard" : "/teacher/dashboard");
+    return res.redirect("/teacher/dashboard");
   }
   next();
 }
@@ -104,7 +104,7 @@ router.get("/", async (req, res) => {
       });
       rows.forEach((row) => { chosen[`${row.studentId}_${row.subjectId}`] = true; });
     }
-    res.render(req.session.admin || isPrincipal(req) ? "admin/electives" : "teacher/electives", {
+    res.render(req.session.admin ? "admin/electives" : "teacher/electives", {
       title: "Year 11 Subject Options",
       classes: classes.map((cls) => cls.toJSON()),
       selectedClassId: selected ? selected.id : "",

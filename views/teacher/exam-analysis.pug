@@ -131,6 +131,15 @@ block body
               - const passPct = subj.total > 0 ? Math.round((subj.pass/subj.total)*100) : 0
               .subj-bar-fill(style=`width:${passPct}%`, class=passPct>=50?'bar-good':'bar-bad')
               span.subj-bar-label #{passPct}% Pass Rate
+            if ['primary', 'eyc'].includes(String(analysisData.deptCode || '').trim().toLowerCase())
+              .primary-grade-counts
+                .primary-grade-counts-title Total Students by Grade
+                .primary-grade-counts-grid
+                  - const gradeCounts = subj.gradeCounts || (subj.marks || []).reduce((counts, mark) => { const score = parseFloat(mark.finalExam) || 0; const label = score === 0 ? 'Unclassified' : score <= 10 ? 'Basic' : score <= 20 ? 'Aspiring' : score <= 30 ? 'Good' : score <= 40 ? 'High' : 'Outstanding'; counts[label] += 1; return counts; }, { Outstanding: 0, High: 0, Good: 0, Basic: 0, Aspiring: 0, Unclassified: 0 })
+                  each grade in ['Outstanding', 'High', 'Good', 'Basic', 'Aspiring', 'Unclassified']
+                    .primary-grade-count(class=`grade-${grade.toLowerCase()}`)
+                      span.primary-grade-count-label #{grade}
+                      span.primary-grade-count-value #{gradeCounts[grade]}
     else
       .empty-state
         i.fas.fa-chart-bar

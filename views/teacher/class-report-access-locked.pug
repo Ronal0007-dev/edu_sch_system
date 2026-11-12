@@ -1,0 +1,13 @@
+extends ../partials/teacher-layout
+
+block body
+  .card
+    .card-header
+      h2 Report access required
+    .card-body
+      p
+        | The academic report for
+        strong  #{cls.name}
+        |  (#{term}, #{year}) includes individual student results and remains locked until you have approval for every student.
+      p Request access to the required final reports from the Report Cards page.
+      a.btn.btn-primary(href='/teacher/report-cards') Go to Report Cards

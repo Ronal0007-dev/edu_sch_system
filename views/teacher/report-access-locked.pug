@@ -1,0 +1,23 @@
+extends ../partials/teacher-layout
+
+block body
+  .card
+    .card-header
+      h2 Report access required
+    .card-body
+      p
+        | #{reportType === 'progressive' ? 'Progressive' : 'Final'} report for
+        strong  #{student.fullName}
+        |  (#{term}, #{year}) is locked until an administrator or Head of Department approves access.
+      if requestStatus === 'pending'
+        .alert.alert-info Your request is awaiting review.
+      else
+        if requestStatus === 'rejected'
+          .alert.alert-error Your previous request was rejected. You may submit a new request.
+        form(method='post', action='/teacher/report-access/request')
+          input(type='hidden', name='studentId', value=student.id)
+          input(type='hidden', name='reportType', value=reportType)
+          input(type='hidden', name='term', value=term)
+          input(type='hidden', name='year', value=year)
+          button.btn.btn-primary(type='submit') Request approval
+      a.btn.btn-outline(href='/teacher/report-cards') Back to report cards

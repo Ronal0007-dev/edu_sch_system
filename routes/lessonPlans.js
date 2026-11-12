@@ -29,21 +29,16 @@ function currentUser(req) {
 }
 
 function portal(req) {
-  return req.session.admin || (req.session.teacher && ["admin", "head_of_department", "principal"].includes(req.session.teacher.role)) ? "admin" : "teacher";
+  return req.session.admin || (req.session.teacher && ["admin", "principal"].includes(req.session.teacher.role)) ? "admin" : "teacher";
 }
 
 function lessonPlanPath(req, id) {
-  if (req.session.admin || (req.session.teacher && ["head_of_department", "principal"].includes(req.session.teacher.role))) return `/admin/lesson-plans/${id}`;
-  if (req.session.teacher && req.session.teacher.role === "academician") {
-    return `/academician/lesson-plans/${id}`;
-  }
+  if (req.session.admin) return `/admin/lesson-plans/${id}`;
   return `/teacher/lesson-plans/${id}`;
 }
 
 function portalBase(req) {
-  if (req.session.admin || (req.session.teacher && ["head_of_department", "principal"].includes(req.session.teacher.role))) return "/admin";
-  if (req.session.teacher && req.session.teacher.role === "academician") return "/academician";
-  return "/teacher";
+  return req.session.admin ? "/admin" : "/teacher";
 }
 
 function reviewerDepartmentId(req) {
@@ -71,7 +66,7 @@ function canReviewPlan(plan, req) {
 function canAuthorLessonPlans(req) {
   return !!(
     req.session.teacher &&
-    (!["head_of_department", "principal"].includes(req.session.teacher.role) ||
+    (req.session.teacher.role !== "principal" ||
       hasLessonPlanPermission(req, "add"))
   );
 }
@@ -144,7 +139,7 @@ function buildTeacherClassGroups(plans, limit) {
 function requireLessonPlanAccess(req, res, next) {
   if (req.session.admin) return next();
   const role = req.session.teacher && req.session.teacher.role;
-  if (["head_of_department", "principal"].includes(role) && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentLessonPlanPermission(req)) {
+  if (role === "principal" && req.method !== "GET" && req.method !== "HEAD" && !hasCurrentLessonPlanPermission(req)) {
     return res.status(403).send("This role has read-only access.");
   }
   if (req.session.teacher && role !== "exam_officer") return next();

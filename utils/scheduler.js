@@ -1,6 +1,7 @@
 'use strict';
 const cron = require('node-cron');
 const { runBackup } = require('./backup');
+const { pruneExpiredActivityLogs } = require('./activityLog');
 
 /**
  * Schedule automatic database backup every 7 days.
@@ -18,6 +19,21 @@ function startScheduler() {
     await runBackup(false);
   }, {
     timezone: 'Africa/Dar_es_Salaam'  // Tanzania timezone — change to your server timezone
+  });
+
+  cron.schedule('10 2 * * *', async () => {
+    try {
+      const deleted = await pruneExpiredActivityLogs();
+      console.log(`🧹 Removed ${deleted} activity log(s) older than seven days`);
+    } catch (err) {
+      console.error('Unable to prune expired activity logs:', err);
+    }
+  }, {
+    timezone: 'Africa/Dar_es_Salaam'
+  });
+
+  pruneExpiredActivityLogs().catch((err) => {
+    console.error('Unable to prune expired activity logs:', err);
   });
 }
 

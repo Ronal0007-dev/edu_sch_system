@@ -86,6 +86,8 @@ const {
   ReportComment,
   Timetable,
   SubstituteRequest,
+  ReportAccessRequest,
+  ActivityLog,
 } = require("../models");
 
 router.use(requireAdminArea);
@@ -5133,6 +5135,181 @@ router.post("/backup/run", async (req, res) => {
     req.flash("error", "Backup error: " + err.message);
   }
   res.redirect("/admin/backup");
+});
+
+router.get("/report-access-requests", async (req, res) => {
+  const isAdministrator = Boolean(req.session.admin);
+  const reviewer = req.session.teacher;
+  if (!isAdministrator && (!reviewer || reviewer.role !== "head_of_department")) {
+    return res.status(403).render("permission-denied", {
+      title: "Access Restricted",
+      message: "Only administrators and Heads of Department can review report access requests.",
+      returnUrl: "/",
+      user: reviewer || req.session.admin,
+    });
+  }
+  if (!isAdministrator && !reviewer.departmentId) {
+    return res.status(403).render("permission-denied", {
+      title: "Access Restricted",
+      message: "Your account must be assigned to a department to review report access requests.",
+      returnUrl: "/teacher/reports/exam-analysis",
+      user: reviewer,
+    });
+  }
+  try {
+    const where = { status: "pending" };
+    if (!isAdministrator) where.departmentId = reviewer.departmentId;
+    const requests = await ReportAccessRequest.findAll({
+      where,
+      include: [
+        { model: Teacher, as: "requester" },
+        { model: Student, as: "student", include: [{ model: Class, as: "class" }] },
+        { model: Department, as: "department" },
+      ],
+      order: [["createdAt", "ASC"]],
+      limit: 250,
+    });
+    res.render("admin/report-access-requests", {
+      title: "Report Access Requests",
+      requests,
+      admin: req.session.admin,
+      teacher: reviewer,
+      error: req.flash("error"),
+      success: req.flash("success"),
+    });
+  } catch (err) {
+    console.error("Report access request inbox error:", err);
+    req.flash("error", "Unable to load report access requests.");
+    res.redirect(isAdministrator ? "/admin/dashboard" : "/teacher/reports/exam-analysis");
+  }
+});
+
+router.post("/report-access-requests/review/:id", async (req, res) => {
+  const isAdministrator = Boolean(req.session.admin);
+  const reviewer = req.session.teacher;
+  if (!isAdministrator && (!reviewer || reviewer.role !== "head_of_department")) {
+    return res.status(403).render("permission-denied", {
+      title: "Access Restricted",
+      message: "Only administrators and Heads of Department can review report access requests.",
+      returnUrl: "/",
+      user: reviewer || req.session.admin,
+    });
+  }
+  if (!isAdministrator && !reviewer.departmentId) {
+    return res.status(403).render("permission-denied", {
+      title: "Access Restricted",
+      message: "Your account must be assigned to a department to review report access requests.",
+      returnUrl: "/teacher/reports/exam-analysis",
+      user: reviewer,
+    });
+  }
+  try {
+    const decision = req.body.decision;
+    if (!["approved", "rejected"].includes(decision)) {
+      throw new Error("Choose approve or reject.");
+    }
+    const request = await ReportAccessRequest.findById(req.params.id, {
+      include: [{ model: Student, as: "student", include: [{ model: Class, as: "class" }] }],
+    });
+    if (!request || request.status !== "pending") {
+      throw new Error("This request is no longer pending.");
+    }
+    if (!isAdministrator && (
+      String(request.departmentId) !== String(reviewer.departmentId) ||
+      !request.student ||
+      !request.student.class ||
+      String(request.student.class.departmentId) !== String(reviewer.departmentId)
+    )) {
+      return res.status(403).render("permission-denied", {
+        title: "Access Restricted",
+        message: "You can only review requests for students in your assigned department.",
+        returnUrl: "/teacher/report-access-requests",
+        user: reviewer,
+      });
+    }
+    await request.update({
+      status: decision,
+      expiresAt: decision === "approved" ?
+        new Date(Date.now() + 24 * 60 * 60 * 1000) :
+        null,
+      reviewedByType: isAdministrator ? "admin" : "teacher",
+      reviewedById: isAdministrator ? req.session.admin.id : reviewer.id,
+      reviewerName: isAdministrator ? req.session.admin.username : reviewer.fullName,
+      reviewNote: typeof req.body.reviewNote === "string" ?
+        req.body.reviewNote.trim().slice(0, 500) || null :
+        null,
+    });
+    req.flash("success", `Report access request ${decision}.`);
+  } catch (err) {
+    req.flash("error", err.message);
+  }
+  res.redirect("/admin/report-access-requests");
+});
+
+router.get("/activity-logs", async (req, res) => {
+  if (!req.session.admin) {
+    return res.status(403).render("permission-denied", {
+      title: "Access Restricted",
+      message: "Only an administrator can view activity logs.",
+      returnUrl: req.session.teacher ? "/teacher/dashboard" : "/",
+      user: req.session.teacher || null,
+    });
+  }
+  const requestedPage = Number.parseInt(req.query.page, 10);
+  const requestedPageNumber = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const limit = 20;
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  try {
+    await ActivityLog.destroy({
+      where: { createdAt: { $lt: cutoff } },
+    });
+    const where = {
+      createdAt: { $gte: cutoff },
+    };
+    const count = await ActivityLog.count({ where });
+    const totalPages = Math.max(1, Math.ceil(count / limit));
+    const page = Math.min(requestedPageNumber, totalPages);
+    const logs = await ActivityLog.findAll({
+      where,
+      attributes: {
+        include: [[
+          sequelize.fn("DATE_FORMAT", sequelize.col("createdAt"), "%Y-%m-%d %H:%i:%s"),
+          "databaseDateTime",
+        ]],
+      },
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset: (page - 1) * limit,
+    });
+    const pageNumbers = [];
+    const firstPageNumber = Math.max(1, page - 2);
+    const lastPageNumber = Math.min(totalPages, page + 2);
+    for (let pageNumber = firstPageNumber; pageNumber <= lastPageNumber; pageNumber += 1) {
+      pageNumbers.push(pageNumber);
+    }
+    res.render("admin/activity-logs", {
+      title: "Activity Logs",
+      logs: logs.map((entry) => {
+        const row = entry.toJSON();
+        const role = row.actorRole || "teacher";
+        const actorLabel = row.actorType === "admin" ?
+          "Admin" :
+          role.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+        return { ...row, actorLabel };
+      }),
+      page,
+      totalPages,
+      pageNumbers,
+      totalCount: count,
+      admin: req.session.admin,
+      error: req.flash("error"),
+      success: req.flash("success"),
+    });
+  } catch (err) {
+    console.error("Activity log page error:", err);
+    req.flash("error", "Unable to load activity logs.");
+    res.redirect("/admin/dashboard");
+  }
 });
 
 module.exports = router;

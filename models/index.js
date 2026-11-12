@@ -472,6 +472,55 @@ const LessonPlanFeedback = sequelize.define(
   { tableName: "lesson_plan_feedback", timestamps: true },
 );
 
+const ReportAccessRequest = sequelize.define(
+  "ReportAccessRequest",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    teacherId: { type: DataTypes.INTEGER, allowNull: false },
+    studentId: { type: DataTypes.INTEGER, allowNull: false },
+    departmentId: { type: DataTypes.INTEGER, allowNull: false },
+    reportType: { type: DataTypes.ENUM("progressive", "final"), allowNull: false },
+    term: { type: DataTypes.STRING(50), allowNull: false },
+    academicYear: { type: DataTypes.STRING(50), allowNull: false },
+    status: {
+      type: DataTypes.ENUM("pending", "approved", "rejected"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    expiresAt: { type: DataTypes.DATE, allowNull: true },
+    reviewedByType: { type: DataTypes.ENUM("admin", "teacher"), allowNull: true },
+    reviewedById: { type: DataTypes.INTEGER, allowNull: true },
+    reviewerName: { type: DataTypes.STRING(100), allowNull: true },
+    reviewNote: { type: DataTypes.STRING(500), allowNull: true },
+  },
+  {
+    tableName: "report_access_requests",
+    timestamps: true,
+    indexes: [{
+      name: "report_access_teacher_student_term_year_uq",
+      unique: true,
+      fields: ["teacherId", "studentId", "reportType", "term", "academicYear"],
+    }],
+  },
+);
+
+const ActivityLog = sequelize.define(
+  "ActivityLog",
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    actorType: { type: DataTypes.ENUM("admin", "teacher"), allowNull: false },
+    actorId: { type: DataTypes.INTEGER, allowNull: true },
+    actorName: { type: DataTypes.STRING(100), allowNull: false },
+    actorRole: { type: DataTypes.STRING(50), allowNull: true },
+    action: { type: DataTypes.STRING(300), allowNull: false },
+    method: { type: DataTypes.STRING(10), allowNull: false },
+    path: { type: DataTypes.STRING(255), allowNull: false },
+    statusCode: { type: DataTypes.INTEGER, allowNull: true },
+    ipAddress: { type: DataTypes.STRING(45), allowNull: true },
+  },
+  { tableName: "activity_logs", timestamps: true, updatedAt: false },
+);
+
 // ─── Associations ─────────────────────────────────────────────────────────────
 AcademicYear.hasMany(Term, { foreignKey: "academicYearId", as: "terms" });
 Term.belongsTo(AcademicYear, {
@@ -596,6 +645,9 @@ LessonPlan.belongsTo(Class, { foreignKey: "classId", as: "class" });
 LessonPlan.belongsTo(Subject, { foreignKey: "subjectId", as: "subject" });
 LessonPlan.hasMany(LessonPlanFeedback, { foreignKey: "lessonPlanId", as: "feedback" });
 LessonPlanFeedback.belongsTo(LessonPlan, { foreignKey: "lessonPlanId", as: "lessonPlan" });
+ReportAccessRequest.belongsTo(Teacher, { foreignKey: "teacherId", as: "requester" });
+ReportAccessRequest.belongsTo(Student, { foreignKey: "studentId", as: "student" });
+ReportAccessRequest.belongsTo(Department, { foreignKey: "departmentId", as: "department" });
 
 module.exports = {
   sequelize,
@@ -623,4 +675,6 @@ module.exports = {
   SubstituteRequest,
   LessonPlan,
   LessonPlanFeedback,
+  ReportAccessRequest,
+  ActivityLog,
 };

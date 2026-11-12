@@ -49,7 +49,7 @@ exports.getPrimaryExamGrade = (score) => {
 exports.primaryExamPassed = (score, maxMark = 50) => {
   const s = parseFloat(score) || 0;
   const max = parseFloat(maxMark) || 50;
-  return max > 0 ? (s / max) * 100 >= 50 : s >= 25;
+  return max > 0 ? (s / max) * 100 >= 50 : s >= 21;
 };
 
 /**
@@ -276,7 +276,8 @@ exports.getSecondarySeniorRemark = (subjectName, score) => {
 };
 
 exports.buildExamAnalysis = (marks, deptCode) => {
-  const isPrimary = deptCode === 'Primary' || deptCode === 'EYC';
+  const normalizedDeptCode = String(deptCode || '').trim().toLowerCase();
+  const isPrimary = normalizedDeptCode === 'primary' || normalizedDeptCode === 'eyc';
   // group by subject
   const bySubject = {};
   marks.forEach(m => {
@@ -294,7 +295,26 @@ exports.buildExamAnalysis = (marks, deptCode) => {
       if (isPrimary) return !exports.primaryExamPassed(m.finalExam, m.finalExamMax || 50);
       return !exports.secondaryExamPassed(m.finalExam, m.finalExamMax);
     });
-    return { subject, total: sMarks.length, pass: pass.length, fail: fail.length, marks: sMarks };
+    const gradeCounts = {
+      Outstanding: 0,
+      High: 0,
+      Good: 0,
+      Basic: 0,
+      Aspiring: 0,
+      Unclassified: 0,
+    };
+    sMarks.forEach(m => {
+      const { label } = exports.getPrimaryExamGrade(m.finalExam);
+      gradeCounts[label] += 1;
+    });
+    return {
+      subject,
+      total: sMarks.length,
+      pass: pass.length,
+      fail: fail.length,
+      marks: sMarks,
+      gradeCounts,
+    };
   });
 };
 

@@ -7,7 +7,7 @@ block content
   - const isHeadOfDepartment = role === 'head_of_department'
   - const isExamOfficer = role === 'exam_officer'
   - const portalName = isAdminUser ? 'Admin Panel' : isHeadOfDepartment ? 'HoD Portal' : isPrincipal ? 'Principal Portal' : isExamOfficer ? 'Examination Officer Portal' : role === 'academician' ? 'Academician Portal' : 'Admin Panel'
-  - const customLinks = {reports:'/admin/reports/examination', discipline:'/admin/discipline', lesson_plans:'/admin/lesson-plans', year11:'/admin/electives', students:'/admin/students', assignments:'/admin/assignments/teacher-class', attendance:'/admin/attendance', marks:'/admin/marks', classes:'/admin/classes', streams:'/admin/streams', subjects:'/admin/subjects', departments:'/admin/departments', academic_years:'/admin/academic-years', holidays:'/admin/holidays', backup:'/admin/backup', timetable:'/teacher/timetable'}
+  - const customLinks = {reports:`${routeBase}/reports/examination`, discipline:`${routeBase}/discipline`, lesson_plans:`${routeBase}/lesson-plans`, year11:`${routeBase}/electives`, students:`${routeBase}/students`, assignments:`${routeBase}/assignments/teacher-class`, attendance:`${routeBase}/attendance`, marks:`${routeBase}/marks`, classes:`${routeBase}/classes`, streams:`${routeBase}/streams`, subjects:`${routeBase}/subjects`, departments:`${routeBase}/departments`, academic_years:`${routeBase}/academic-years`, holidays:`${routeBase}/holidays`, backup:`${routeBase}/backup`, timetable:'/teacher/timetable'}
   .app-shell
     aside.sidebar
       .sidebar-brand
@@ -20,117 +20,128 @@ block content
         .nav-section
           if isAdminUser || isPrincipal
             span.nav-label Overview
-            a.nav-item(href='/admin/dashboard', class=title==='Admin Dashboard'?'active':'')
+            a.nav-item(href=`${routeBase}/dashboard`, class=title==='Admin Dashboard' || title==='Teacher Dashboard'?'active':'')
               i.fas.fa-tachometer-alt
               span Dashboard
           else if isHeadOfDepartment
             span.nav-label Overview
-            a.nav-item(href='/admin/reports/exam-analysis', class=title==='Exam Analysis'?'active':'')
+            a.nav-item(href=`${routeBase}/reports/exam-analysis`, class=title==='Exam Analysis'?'active':'')
               i.fas.fa-tachometer-alt
               span Department Overview
           else if isExamOfficer
             span.nav-label Overview
-            a.nav-item(href='/admin/reports/examination', class=title==='Examination Report'?'active':'')
+            a.nav-item(href=`${routeBase}/reports/examination`, class=title==='Examination Report'?'active':'')
               i.fas.fa-tachometer-alt
               span Examination Reports
         if isAdminUser || isPrincipal
           .nav-section
             span.nav-label Academic
-            a.nav-item(href='/admin/academic-years', class=title==='Academic Years'?'active':'')
+            a.nav-item(href=`${routeBase}/academic-years`, class=title==='Academic Years'?'active':'')
               i.fas.fa-calendar-alt
               span Academic Years
         if isAdminUser || isPrincipal
           .nav-section
             span.nav-label Setup
-            a.nav-item(href='/admin/departments', class=title==='Departments'?'active':'')
+            a.nav-item(href=`${routeBase}/departments`, class=title==='Departments'?'active':'')
               i.fas.fa-building
               span Departments
-            a.nav-item(href='/admin/teachers', class=title==='Teachers'?'active':'')
+            a.nav-item(href=`${routeBase}/teachers`, class=title==='Teachers'?'active':'')
               i.fas.fa-chalkboard-teacher
               span Teachers
-            a.nav-item(href='/admin/classes', class=title==='Classes'?'active':'')
+            a.nav-item(href=`${routeBase}/classes`, class=title==='Classes'?'active':'')
               i.fas.fa-door-open
               span Classes
-            a.nav-item(href='/admin/streams', class=title==='Streams'?'active':'')
+            a.nav-item(href=`${routeBase}/streams`, class=title==='Streams'?'active':'')
               i.fas.fa-code-branch
               span Streams
-            a.nav-item(href='/admin/subjects', class=title==='Subjects'?'active':'')
+            a.nav-item(href=`${routeBase}/subjects`, class=title==='Subjects'?'active':'')
               i.fas.fa-book
               span Subjects
-            a.nav-item(href='/admin/students', class=title==='Students'?'active':'')
+            a.nav-item(href=`${routeBase}/students`, class=title==='Students'?'active':'')
               i.fas.fa-user-graduate
               span Students
-            a.nav-item(href='/admin/students/moved', class=title==='Moved Students'?'active':'')
+            a.nav-item(href=`${routeBase}/students/moved`, class=title==='Moved Students'?'active':'')
               i.fas.fa-user-slash
               span Moved Students
-            a.nav-item(href='/admin/students/graduated', class=title==='Graduated Students'?'active':'')
+            a.nav-item(href=`${routeBase}/students/graduated`, class=title==='Graduated Students'?'active':'')
               i.fas.fa-user-graduate
               span Graduated Students
-            a.nav-item(href='/admin/students/deleted', class=title==='Deleted Students'?'active':'')
+            a.nav-item(href=`${routeBase}/students/deleted`, class=title==='Deleted Students'?'active':'')
               i.fas.fa-trash-alt
               span Archived Students
-            a.nav-item(href='/admin/students/import', class=title==='Import Students (CSV)'?'active':'')
+            a.nav-item(href=`${routeBase}/students/import`, class=title==='Import Students (CSV)'?'active':'')
               i.fas.fa-file-csv
               span Import CSV
         if isAdminUser || isPrincipal
           .nav-section
             span.nav-label Assignments
-            a.nav-item(href='/admin/assignments/teacher-class', class=title==='Assign Teachers to Classes'?'active':'')
+            a.nav-item(href=`${routeBase}/assignments/teacher-class`, class=title==='Assign Teachers to Classes'?'active':'')
               i.fas.fa-link
               span Teacher → Class
-            a.nav-item(href='/admin/assignments/class-subject', class=title==='Assign Subjects to Classes'?'active':'')
+            a.nav-item(href=`${routeBase}/assignments/class-subject`, class=title==='Assign Subjects to Classes'?'active':'')
               i.fas.fa-link
               span Class → Subject
-            a.nav-item(href='/admin/assignments/teacher-subject', class=title==='Assign Teachers to Subjects'?'active':'')
+            a.nav-item(href=`${routeBase}/assignments/teacher-subject`, class=title==='Assign Teachers to Subjects'?'active':'')
               i.fas.fa-link
               span Teacher → Subject
         if isAdminUser || isPrincipal || isHeadOfDepartment || isExamOfficer
           .nav-section
             span.nav-label Reports
             if isAdminUser || isPrincipal
-              a.nav-item(href='/admin/attendance', class=title==='Admin Attendance'?'active':'')
+              a.nav-item(href=`${routeBase}/attendance`, class=title==='Admin Attendance'?'active':'')
                 i.fas.fa-clipboard-check
                 span Call Attendance
-              a.nav-item(href='/admin/marks', class=title==='Admin Marks'?'active':'')
+              a.nav-item(href=`${routeBase}/marks`, class=title==='Admin Marks'?'active':'')
                 i.fas.fa-pen
                 span Enter Marks
-              a.nav-item(href='/admin/reports/attendance', class=title==='Attendance Report'?'active':'')
+              a.nav-item(href=`${routeBase}/reports/attendance`, class=title==='Attendance Report'?'active':'')
                 i.fas.fa-calendar-check
                 span Attendance
             if isAdminUser || isPrincipal || isHeadOfDepartment || isExamOfficer
-              a.nav-item(href='/admin/reports/examination', class=title==='Examination Report'?'active':'')
+              a.nav-item(href=`${routeBase}/reports/examination`, class=title==='Examination Report'?'active':'')
                 i.fas.fa-chart-bar
                 span Examination
             if isAdminUser || isPrincipal || isHeadOfDepartment || isExamOfficer
-              a.nav-item(href='/admin/reports/exam-analysis', class=title==='Exam Analysis'?'active':'')
+              a.nav-item(href=`${routeBase}/reports/exam-analysis`, class=title==='Exam Analysis'?'active':'')
                 i.fas.fa-microscope
                 span Exam Analysis
             if isAdminUser || isPrincipal || isHeadOfDepartment
-              a.nav-item(href='/admin/discipline', class=title==='Discipline Record' || title==='Student Discipline Record'?'active':'')
+              a.nav-item(href=`${routeBase}/discipline`, class=title==='Discipline Record' || title==='Student Discipline Record'?'active':'')
                 i.fas.fa-scale-balanced
                 span Discipline Record
-              a.nav-item(href='/admin/electives', class=title==='Year 11 Subject Options'?'active':'')
+              a.nav-item(href=`${routeBase}/electives`, class=title==='Year 11 Subject Options'?'active':'')
                 i.fas.fa-list-check
                 span Year 11 Subjects
+          if isAdminUser || isHeadOfDepartment
+            .nav-section
+              span.nav-label Approvals
+              a.nav-item(href=`${routeBase}/report-access-requests`, class=title==='Report Access Requests'?'active':'')
+                i.fas.fa-user-check
+                span Report Access Requests
+                if pendingReportAccessRequestCount
+                  span.role-badge #{pendingReportAccessRequestCount}
         if isAdminUser || isPrincipal || isHeadOfDepartment
           .nav-section
             span.nav-label Planning
-            a.nav-item(href='/admin/lesson-plans', class=title==='Lesson Plans' || title==='LESSON PLAN'?'active':'')
+            a.nav-item(href=`${routeBase}/lesson-plans`, class=title==='Lesson Plans' || title==='LESSON PLAN'?'active':'')
               i.fas.fa-file-signature
               span Lesson Plans
         if isAdminUser || isPrincipal
           .nav-section
             span.nav-label System
-            a.nav-item(href='/admin/holidays', class=title==='Public Holidays'?'active':'')
+            a.nav-item(href=`${routeBase}/holidays`, class=title==='Public Holidays'?'active':'')
               i.fas.fa-umbrella-beach
               span Holidays
-            a.nav-item(href='/admin/backup', class=title==='Database Backup'?'active':'')
+            a.nav-item(href=`${routeBase}/backup`, class=title==='Database Backup'?'active':'')
               i.fas.fa-database
               span DB Backup
             if isAdminUser
               a.nav-item(href='/admin/teachers')
                 i.fas.fa-user-cog
                 span User Permissions
+              a.nav-item(href='/admin/activity-logs', class=title==='Activity Logs'?'active':'')
+                i.fas.fa-clipboard-list
+                span Activity Logs
         if !isAdminUser && session && session.teacher
           .nav-section
             span.nav-label Custom Access

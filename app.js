@@ -8,7 +8,7 @@ const path = require('path');
 const { Sequelize } = require('sequelize');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const sequelize = require('./config/database');
-const { Student, Teacher } = require('./models');
+const { Student, Teacher, ReportAccessRequest } = require('./models');
 const academicianRoutes = require('./routes/academician');
 const {
   customPermissionForRequest,
@@ -46,17 +46,18 @@ sessionStore.sync();
 app.use(flash());
 
 const { teacherTeachesYear11 } = require('./utils/electives');
+const { recordActivity } = require('./utils/activityLog');
 
 function renderAccessDenied(req, res, message) {
   const teacher = req.session && req.session.teacher;
   const returnUrl = req.session && req.session.admin ?
     '/admin/dashboard' :
     teacher && teacher.role === 'head_of_department' ?
-      '/admin/reports/exam-analysis' :
+      '/teacher/reports/exam-analysis' :
       teacher && teacher.role === 'exam_officer' ?
-        '/admin/reports/examination' :
+        '/teacher/reports/examination' :
         teacher && teacher.role === 'principal' ?
-          '/admin/dashboard' :
+          '/teacher/dashboard' :
           '/teacher/dashboard';
   return res.status(403).render('permission-denied', {
     title: 'Access Restricted',
@@ -102,9 +103,73 @@ app.use(async (req, res, next) => {
   }
 });
 
+app.use((req, res, next) => {
+  const teacher = req.session && req.session.teacher;
+  if ((req.session && req.session.admin) || !teacher ||
+      teacher.role === 'admin' || !/^\/admin(?:\/|$)/.test(req.path)) return next();
+  const teacherPath = req.path.replace(/^\/admin(?=\/|$)/, '/teacher');
+  const destination = teacherPath === '/teacher' ? '/teacher/dashboard' : teacherPath;
+  return res.redirect(307, `${destination}${req.originalUrl.slice(req.path.length)}`);
+});
+
+app.use((req, res, next) => {
+  const teacher = req.session && req.session.teacher;
+  if ((req.session && req.session.admin) || !teacher ||
+      teacher.role === 'admin' || !/^\/academician(?:\/|$)/.test(req.path)) return next();
+  const teacherPath = req.path.replace(
+    /^\/academician\/(discipline|electives|lesson-plans)(?=\/|$)/,
+    '/teacher/$1',
+  ).replace(/^\/academician(?=\/|$)/, '/teacher/academician');
+  return res.redirect(307, `${teacherPath}${req.originalUrl.slice(req.path.length)}`);
+});
+
+app.use((req, res, next) => {
+  const admin = req.session && req.session.admin;
+  const teacher = req.session && req.session.teacher;
+  if (!admin && !teacher) return next();
+  if (req.path === '/admin/activity-logs') return next();
+  const actor = admin ? {
+    actorType: 'admin',
+    actorId: admin.id,
+    actorName: admin.username || 'Admin',
+    actorRole: 'admin',
+  } : {
+    actorType: 'teacher',
+    actorId: teacher.id,
+    actorName: teacher.fullName || 'Teacher',
+    actorRole: teacher.role || 'teacher',
+  };
+  res.on('finish', () => {
+    recordActivity({
+      ...actor,
+      action: `${req.method} ${req.path}`.slice(0, 300),
+      method: req.method.slice(0, 10),
+      path: req.path.slice(0, 255),
+      statusCode: res.statusCode,
+      ipAddress: (req.socket && req.socket.remoteAddress || '').slice(0, 45) || null,
+    });
+  });
+  next();
+});
+
 // ── Locals ────────────────────────────────────────────────────────────────────
 app.use(async (req, res, next) => {
   res.locals.session = req.session;
+  res.locals.routeBase = req.session && req.session.admin ? '/admin' : '/teacher';
+  res.locals.pendingReportAccessRequestCount = 0;
+  const isAdmin = Boolean(req.session && req.session.admin);
+  const isHeadOfDepartment =
+    req.session && req.session.teacher &&
+    req.session.teacher.role === 'head_of_department';
+  if (isAdmin || isHeadOfDepartment) {
+    try {
+      const where = { status: 'pending' };
+      if (!isAdmin) where.departmentId = req.session.teacher.departmentId;
+      res.locals.pendingReportAccessRequestCount = await ReportAccessRequest.count({ where });
+    } catch (err) {
+      return next(err);
+    }
+  }
   res.locals.customPermissions = req.session.teacher && req.session.teacher.customPermissions ?
     req.session.teacher.customPermissions :
     {};
@@ -114,6 +179,7 @@ app.use(async (req, res, next) => {
   } else if (req.session && req.session.teacher) {
     try {
       res.locals.canManageYear11Electives =
+        req.session.teacher.role === 'head_of_department' ||
         await teacherTeachesYear11(req.session.teacher.id) ||
         hasCustomPermission(req.session.teacher, 'year11', 'view');
     } catch (e) {
@@ -165,15 +231,25 @@ app.use((req, res, next) => {
     return renderAccessDenied(req, res, 'The principal account has read-only access.');
   }
   if (role === "head_of_department") {
-    const allowedPath = /^\/admin\/reports\/(examination|exam-analysis|print-all-report-cards|print-all-final-reports|academic-report)(\/|$)/.test(req.path) ||
-      /^\/admin\/(?:discipline|electives|lesson-plans)(?:\/|$)/.test(req.path) ||
+    const reportReviewPath = /^\/teacher\/report-access-requests(?:\/review\/\d+)?$/.test(req.path);
+    const academicianOperationPath =
+      /^\/teacher\/(?:discipline|lesson-plans|electives|academician\/teachers)(?:\/|$)/.test(req.path);
+    const allowedPath = /^\/teacher\/reports\/(examination|exam-analysis|print-all-report-cards|print-all-final-reports|academic-report)(\/|$)/.test(req.path) ||
+      /^\/teacher\/(?:discipline|electives|lesson-plans|teachers)(?:\/|$)/.test(req.path) ||
+      /^\/teacher\/academician\/teachers(?:\/|$)/.test(req.path) ||
+      req.path === '/teacher/dashboard' ||
+      reportReviewPath ||
       req.path === '/' ||
       /^\/(?:auth\/logout|auth\/teacher\/(?:change-password|first-change-password))(?:\/|$)/.test(req.path);
     if (!allowedPath) return renderAccessDenied(req, res, 'This account has access to academic activities in its assigned department, including exam analysis, examination reports, discipline, Year 11 options, and lesson plans.');
-    if (req.method !== 'GET' && req.method !== 'HEAD') return renderAccessDenied(req, res, 'This role has read-only access.');
+    if (req.method !== 'GET' && req.method !== 'HEAD' &&
+        !academicianOperationPath &&
+        !(reportReviewPath && req.method === 'POST' && /^\/teacher\/report-access-requests\/review\/\d+$/.test(req.path))) {
+      return renderAccessDenied(req, res, 'This role has read-only access.');
+    }
   }
   if (role === "exam_officer") {
-    const allowedPath = /^\/admin\/reports\/(examination|exam-analysis|print-all-report-cards|print-all-final-reports|academic-report)(\/|$)/.test(req.path) ||
+    const allowedPath = /^\/teacher\/reports\/(examination|exam-analysis|print-all-report-cards|print-all-final-reports|academic-report)(\/|$)/.test(req.path) ||
       req.path === '/' ||
       /^\/(?:auth\/logout|auth\/teacher\/(?:change-password|first-change-password))(?:\/|$)/.test(req.path);
     if (!allowedPath) return renderAccessDenied(req, res, 'This account only has access to examination and academic reports.');
@@ -185,16 +261,20 @@ app.use((req, res, next) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   if (req.session.admin) return res.redirect('/admin/dashboard');
-  if (req.session.teacher && req.session.teacher.role === 'principal') return res.redirect('/admin/dashboard');
-  if (req.session.teacher && req.session.teacher.role === 'head_of_department') return res.redirect('/admin/reports/exam-analysis');
-  if (req.session.teacher && req.session.teacher.role === 'exam_officer') return res.redirect('/admin/reports/examination');
+  if (req.session.teacher && req.session.teacher.role === 'principal') return res.redirect('/teacher/dashboard');
+  if (req.session.teacher && req.session.teacher.role === 'head_of_department') return res.redirect('/teacher/dashboard');
+  if (req.session.teacher && req.session.teacher.role === 'exam_officer') return res.redirect('/teacher/reports/examination');
   if (req.session.teacher) return res.redirect('/teacher/dashboard');
   res.render('index', { title: 'Welcome' });
 });
 
+app.get('/teacher', (req, res) => res.redirect('/teacher/dashboard'));
 app.use('/auth', require('./routes/auth'));
-app.use('/admin', require('./routes/admin'));
 app.use('/teacher', require('./routes/teacher'));
+app.use('/teacher', require('./routes/admin'));
+app.use('/admin', require('./routes/admin'));
+app.use('/teacher/academician', academicianRoutes);
+app.use('/academician/electives', require('./routes/electives'));
 app.use('/academician', academicianRoutes);
 app.use('/teacher/lesson-plans', require('./routes/lessonPlans'));
 app.use('/academician/lesson-plans', require('./routes/lessonPlans'));
@@ -205,7 +285,7 @@ app.use('/teacher/discipline', require('./routes/discipline'));
 app.use('/academician/discipline', require('./routes/discipline'));
 app.use('/admin/electives', require('./routes/electives'));
 app.use('/teacher/electives', require('./routes/electives'));
-app.use('/academician/electives', require('./routes/electives'));
+
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).render('404', {

@@ -22,7 +22,7 @@ block body
                 td #{i + 1}
                 td
                   strong #{t.fullName}
-                  if t.role === 'head_of_dept'
+                  if t.role === 'head_of_department'
                     span.badge.badge-warning HOD
                   else if t.role === 'academician'
                     span.badge.badge-info Academician
@@ -30,7 +30,7 @@ block body
                 td #{t.phone}
                 td #{t.email}
                 td
-                  a.btn.btn-sm.btn-primary(href=`/academician/teachers/view/${t.id}`)
+                  a.btn.btn-sm.btn-primary(href=`${basePath}/teachers/view/${t.id}`)
                     i.fas.fa-eye
                     span View Profile & Timetable
       else

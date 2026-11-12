@@ -17,7 +17,67 @@ block content
           a.nav-item(href='/teacher/dashboard', class=title==='Teacher Dashboard'?'active':'')
             i.fas.fa-home
             span Dashboard
+          if teacher && teacher.role === 'head_of_department'
+            a.nav-item(href='/teacher/reports/exam-analysis', class=title==='Exam Analysis'?'active':'')
+              i.fas.fa-microscope
+              span Department Overview
+          if teacher && teacher.role === 'exam_officer'
+            a.nav-item(href='/teacher/reports/examination', class=title==='Examination Report'?'active':'')
+              i.fas.fa-chart-bar
+              span Examination Reports
         
+        if teacher && teacher.role === 'principal'
+          .nav-section
+            span.nav-label System View
+            a.nav-item(href='/teacher/academic-years')
+              i.fas.fa-calendar-alt
+              span Academic Years
+            a.nav-item(href='/teacher/departments')
+              i.fas.fa-building
+              span Departments
+            a.nav-item(href='/teacher/teachers')
+              i.fas.fa-chalkboard-teacher
+              span Teachers
+            a.nav-item(href='/teacher/classes')
+              i.fas.fa-door-open
+              span Classes
+            a.nav-item(href='/teacher/streams')
+              i.fas.fa-code-branch
+              span Streams
+            a.nav-item(href='/teacher/subjects')
+              i.fas.fa-book
+              span Subjects
+            a.nav-item(href='/teacher/students')
+              i.fas.fa-user-graduate
+              span Students
+            a.nav-item(href='/teacher/assignments/teacher-class')
+              i.fas.fa-link
+              span Assignments
+            a.nav-item(href='/teacher/reports/attendance')
+              i.fas.fa-calendar-check
+              span Attendance Report
+            a.nav-item(href='/teacher/reports/examination')
+              i.fas.fa-chart-bar
+              span Examination Report
+            a.nav-item(href='/teacher/reports/exam-analysis')
+              i.fas.fa-microscope
+              span Exam Analysis
+            a.nav-item(href='/teacher/discipline')
+              i.fas.fa-scale-balanced
+              span Discipline Record
+            a.nav-item(href='/teacher/electives')
+              i.fas.fa-list-check
+              span Year 11 Subjects
+            a.nav-item(href='/teacher/lesson-plans')
+              i.fas.fa-file-signature
+              span Lesson Plans
+            a.nav-item(href='/teacher/holidays')
+              i.fas.fa-umbrella-beach
+              span Holidays
+            a.nav-item(href='/teacher/backup')
+              i.fas.fa-database
+              span Database Backup
+
         .nav-section
           span.nav-label Attendance
           a.nav-item(href='/teacher/attendance', class=title==='Take Attendance'?'active':'')
@@ -42,19 +102,26 @@ block content
           a.nav-item(href='/teacher/exam-analysis', class=title==='Exam Analysis'?'active':'')
             i.fas.fa-microscope
             span Exam Analysis
-          a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/discipline' : '/teacher/discipline'), class=title==='Discipline Record' || title==='Student Discipline Record'?'active':'')
+          if teacher && teacher.role === 'head_of_department'
+            a.nav-item(href='/teacher/reports/examination', class=title==='Examination Report'?'active':'')
+              i.fas.fa-chart-bar
+              span Examination Reports
+            a.nav-item(href='/teacher/report-access-requests', class=title==='Report Access Requests'?'active':'')
+              i.fas.fa-user-check
+              span Report Access Requests
+          a.nav-item(href='/teacher/discipline', class=title==='Discipline Record' || title==='Student Discipline Record'?'active':'')
             i.fas.fa-scale-balanced
             span Discipline Record
           a.nav-item(href='/teacher/comments', class=title==='Report Comments'?'active':'')
             i.fas.fa-comment-alt
             span Report Comments
           if canManageYear11Electives
-            a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/electives' : '/teacher/electives'), class=title==='Year 11 Subject Options'?'active':'')
+            a.nav-item(href='/teacher/electives', class=title==='Year 11 Subject Options'?'active':'')
               i.fas.fa-list-check
               span Year 11 Subjects
         .nav-section
           span.nav-label Planning
-          a.nav-item(href=(teacher && teacher.role === 'academician' ? '/academician/lesson-plans' : '/teacher/lesson-plans'), class=title==='Lesson Plans' || title==='Create Lesson Plan' || title==='LESSON PLAN'?'active':'')
+          a.nav-item(href='/teacher/lesson-plans', class=title==='Lesson Plans' || title==='Create Lesson Plan' || title==='LESSON PLAN'?'active':'')
             i.fas.fa-file-signature
             span Lesson Plans
         .nav-section

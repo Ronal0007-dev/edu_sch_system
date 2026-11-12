@@ -5,7 +5,7 @@ block body
   .card
     .card-header
       h2 LESSON PLAN
-      if !isReviewer || (teacher && teacher.role === 'academician')
+      if !isReviewer || (teacher && ['academician', 'head_of_department'].includes(teacher.role))
         a.btn.btn-primary(href=`${portalBase}/lesson-plans/new`)
           i.fas.fa-plus
           |  New lesson plan
@@ -49,7 +49,7 @@ block body
                   a.btn.btn-sm.btn-outline(href=`/${isReviewer && admin ? 'admin' : isReviewer ? 'academician' : 'teacher'}/lesson-plans/${plan.id}`)
                     i.fas.fa-eye
                     |  View
-                  if ((!isReviewer || (teacher && teacher.role === 'academician' && String(teacher.id) === String(plan.teacherId))) && plan.status !== 'approved')
+                  if ((!isReviewer || (teacher && ['academician', 'head_of_department'].includes(teacher.role) && String(teacher.id) === String(plan.teacherId))) && plan.status !== 'approved')
                     a.btn.btn-sm.btn-primary(href=`${portalBase}/lesson-plans/${plan.id}/edit` style='margin-left:.35rem')
                       i.fas.fa-edit
                       | Edit

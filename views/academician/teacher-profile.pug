@@ -51,7 +51,7 @@ block body
         i.fas.fa-calendar-alt
       .card-body
         //- Filter to switch terms/years
-        form.filter-form(action=`/academician/teachers/view/${teacher.id}` method='GET' style='margin-bottom: 20px;')
+        form.filter-form(action=`${basePath}/teachers/view/${teacher.id}` method='GET' style='margin-bottom: 20px;')
           .form-row
             .form-group
               select(name='term')
@@ -110,6 +110,6 @@ block body
           p No substitute requests found.
             
   div(style="margin-top: 20px;")
-    a.btn.btn-outline(href='/academician/teachers')
+    a.btn.btn-outline(href=`${basePath}/teachers`)
       i.fas.fa-arrow-left
       span Back to Directory

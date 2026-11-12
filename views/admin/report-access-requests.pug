@@ -1,0 +1,36 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Pending report access requests
+    .card-body
+      if requests.length
+        .table-responsive
+          table.data-table
+            thead
+              tr
+                th Requested
+                th Teacher
+                th Student
+                th Department
+                th Report
+                th Term / Year
+                th Decision
+            tbody
+              each request in requests
+                tr
+                  td #{request.createdAt ? new Date(request.createdAt).toLocaleString() : ''}
+                  td #{request.requester ? request.requester.fullName : 'Unknown'}
+                  td #{request.student ? request.student.fullName : 'Unavailable'}
+                  td #{request.department ? request.department.name : 'Unknown'}
+                  td #{request.reportType === 'progressive' ? 'Progressive' : 'Final'}
+                  td #{request.term} / #{request.academicYear}
+                  td
+                    form(method='post', action=`/admin/report-access-requests/review/${request.id}`)
+                      .form-group
+                        input.form-control(type='text', name='reviewNote', maxlength='500', placeholder='Optional note')
+                      button.btn.btn-sm.btn-primary(type='submit', name='decision', value='approved') Approve
+                      button.btn.btn-sm.btn-outline(type='submit', name='decision', value='rejected') Reject
+      else
+        p.text-muted There are no pending report access requests.

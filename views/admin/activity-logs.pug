@@ -1,0 +1,49 @@
+extends ../partials/admin-layout
+
+block body
+  .card
+    .card-header
+      h2 Sign-ins and user activity
+    .card-body
+      if logs.length
+        .table-responsive
+          table.data-table
+            thead
+              tr
+                th Date &amp; Time
+                th User
+                th Role
+                th Activity
+                th IP address
+            tbody
+              each entry in logs
+                tr
+                  td #{entry.databaseDateTime}
+                  td
+                    span.activity-log-user(class=entry.actorType === 'admin' ? 'admin' : 'teacher')
+                      | #{entry.actorLabel || (entry.actorType === 'admin' ? 'Admin' : 'Teacher')}: #{entry.actorName}
+                  td #{entry.actorRole || entry.actorType}
+                  td
+                    span.status-badge.activity-log-status(class=entry.statusCode >= 500 ? 'error' : entry.statusCode >= 400 ? 'warning' : 'success')
+                      | #{entry.action} (#{entry.statusCode || '-'})
+                  td #{entry.ipAddress || '-'}
+      else
+        p.text-muted No activity has been recorded yet.
+      - const logPage = Number(page) > 0 ? Number(page) : 1
+      - const logTotalPages = Number(totalPages) > 0 ? Number(totalPages) : 1
+      - const visiblePageNumbers = Array.isArray(pageNumbers) ? pageNumbers : []
+      nav.pagination(aria-label='Activity log pages')
+        if logPage > 1
+          a.page-btn(href=`/admin/activity-logs?page=${logPage - 1}`)
+            i.fas.fa-chevron-left
+            span Prev
+        each pageNumber in visiblePageNumbers
+          if pageNumber === logPage
+            span.page-info Page #{pageNumber}
+          else
+            a.page-btn(href=`/admin/activity-logs?page=${pageNumber}`) #{pageNumber}
+        if logPage < logTotalPages
+          a.page-btn(href=`/admin/activity-logs?page=${logPage + 1}`)
+            span Next
+            i.fas.fa-chevron-right
+        span.page-info #{totalCount || 0} total - 20 per page

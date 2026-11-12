@@ -74,9 +74,8 @@ block body
       i.fas.fa-calendar-alt
       span Manage My Timetable
 
-    //- Only visible if the teacher has the academician role
-    if teacher && teacher.role === 'academician'
-      a.btn.btn-info(href='/academician/teachers' style="display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; padding: 10px 20px; background-color: #0d9488; color: white;")
+    if teacher && ['academician', 'head_of_department'].includes(teacher.role)
+      a.btn.btn-info(href='/teacher/academician/teachers' style="display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; padding: 10px 20px; background-color: #0d9488; color: white;")
         i.fas.fa-users
         span View All Teachers & Timetables
   //- ──────────────────────────────────────────────────────────────────────────

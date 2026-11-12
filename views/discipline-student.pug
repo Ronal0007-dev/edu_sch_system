@@ -17,7 +17,7 @@ block content
               th Points
               th Given by
               th Note
-              if admin || (teacher && teacher.role === 'academician')
+              if admin || (teacher && ['academician', 'head_of_department'].includes(teacher.role))
                 th Actions
           tbody
             each row in records
@@ -27,7 +27,7 @@ block content
                 td(class=row.points > 0 ? 'discipline-merit' : 'discipline-demerit') #{row.points > 0 ? '+' : ''}#{row.points}
                 td #{row.awardedBy ? row.awardedBy.fullName : row.awardedByName}
                 td #{row.note || '-'}
-                if admin || (teacher && teacher.role === 'academician')
+                if admin || (teacher && ['academician', 'head_of_department'].includes(teacher.role))
                   td
                     details
                       summary.btn.btn-sm.btn-outline Edit
@@ -39,5 +39,5 @@ block content
                         button.btn.btn-sm.btn-primary(type='submit') Save
                     form.inline-form(method='POST' action=`${admin ? '/admin' : '/academician'}/discipline/records/${row.id}/delete`)
                       button.btn.btn-sm.btn-danger(type='submit') Delete
-        - const disciplineBase = admin ? '/admin/discipline' : (teacher && teacher.role === 'academician' ? '/academician/discipline' : '/teacher/discipline')
+        - const disciplineBase = admin ? '/admin/discipline' : (teacher && ['academician', 'head_of_department'].includes(teacher.role) ? '/academician/discipline' : '/teacher/discipline')
         a.btn.btn-primary(href=`${disciplineBase}/print?studentId=${student.id}&term=${encodeURIComponent(term)}&year=${encodeURIComponent(year)}` target='_blank') Print

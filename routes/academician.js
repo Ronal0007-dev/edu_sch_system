@@ -10,9 +10,10 @@ const {
   TeacherSubject
 } = require('../models');
 
-// Middleware to ensure user is logged in as an academician (or admin)
+// Heads of Department use the academician tools within their department.
 function requireAcademician(req, res, next) {
-  if (req.session.teacher && (req.session.teacher.role === 'academician' || req.session.teacher.role === 'admin')) {
+  if (req.session.teacher &&
+      ['academician', 'head_of_department', 'principal', 'admin'].includes(req.session.teacher.role)) {
     return next();
   }
   if (req.session.admin) {
@@ -27,7 +28,12 @@ router.use(requireAcademician);
 // ── View All Teachers List ────────────────────────────────────────────────────
 router.get('/teachers', async (req, res) => {
   try {
+    const where = {};
+    if (req.session.teacher && req.session.teacher.role === 'head_of_department') {
+      where.departmentId = req.session.teacher.departmentId;
+    }
     const teachers = await Teacher.findAll({
+      where,
       include: [{
         model: Department,
         as: 'department'
@@ -41,6 +47,9 @@ router.get('/teachers', async (req, res) => {
       title: 'Teachers Directory',
       teachers: teachers.map(t => t.toJSON()),
       user: req.session.teacher || req.session.admin,
+      teacher: req.session.teacher,
+      admin: req.session.admin,
+      basePath: req.baseUrl,
       error: req.flash('error'),
       success: req.flash('success')
     });
@@ -62,7 +71,7 @@ router.get('/teachers/view/:id', async (req, res) => {
 
     if (!teacher) {
       req.flash('error', 'Teacher not found');
-      return res.redirect('/academician/teachers');
+      return res.redirect(`${req.baseUrl}/teachers`);
     }
 
     // Get current term/year parameters or defaults
@@ -106,10 +115,11 @@ router.get('/teachers/view/:id', async (req, res) => {
         ['id', 'ASC']
       ]
     });
-    if (req.session.teacher && req.session.teacher.role !== 'admin' &&
+    if (req.session.teacher &&
+      !['admin', 'principal'].includes(req.session.teacher.role) &&
       String(teacher.departmentId) !== String(req.session.teacher.departmentId)) {
       req.flash('error', 'You may only view teachers in your department.');
-      return res.redirect('/academician/teachers');
+      return res.redirect(`${req.baseUrl}/teachers`);
     }
     const timetableDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const timetableSlots = [{
@@ -195,12 +205,13 @@ router.get('/teachers/view/:id', async (req, res) => {
       term,
       year,
       user: req.session.teacher || req.session.admin,
+      basePath: req.baseUrl,
       error: req.flash('error'),
       success: req.flash('success')
     });
   } catch (err) {
     req.flash('error', err.message);
-    res.redirect('/academician/teachers');
+    res.redirect(`${req.baseUrl}/teachers`);
   }
 });
 

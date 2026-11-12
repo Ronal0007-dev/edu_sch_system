@@ -6,7 +6,7 @@ block body
       h2 Filter Examination Report
       i.fas.fa-filter
     .card-body
-      form.filter-form(method='GET', action='/admin/reports/examination')
+      form.filter-form(method='GET', action=`${routeBase}/reports/examination`)
         .form-row
           .form-group
             label Select Class
@@ -43,13 +43,13 @@ block body
     .report-toolbar.no-print
       span &nbsp;
       .toolbar-actions
-        a.btn.btn-primary(href=`/admin/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
+        a.btn.btn-primary(href=`${routeBase}/reports/print-all-report-cards?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
           i.fas.fa-chart-line
           span Print All Progressive
-        a.btn.btn-outline(href=`/admin/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
+        a.btn.btn-outline(href=`${routeBase}/reports/print-all-final-reports?classId=${selectedClass}&term=${selectedTerm}&year=${selectedYear}&status=${selectedStatus}`, target='_blank')
           i.fas.fa-file-alt
           span Print All Final
-        a.btn.btn-outline(href=`/admin/reports/academic-report/${selectedClass}?term=${selectedTerm}&year=${selectedYear}`, target='_blank')
+        a.btn.btn-outline(href=`${routeBase}/reports/academic-report/${selectedClass}?term=${selectedTerm}&year=${selectedYear}`, target='_blank')
           i.fas.fa-book-open
           span Academic Report
 

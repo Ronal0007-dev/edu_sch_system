@@ -20,6 +20,7 @@ const {
   checkLimit,
   resetLimit
 } = require("../utils/rateLimiter");
+const { recordActivity } = require("../utils/activityLog");
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -157,6 +158,16 @@ router.post("/admin/login", async (req, res) => {
       username: admin.username
     };
     req.session.lastActive = Date.now();
+    await recordActivity({
+      actorType: "admin",
+      actorId: admin.id,
+      actorName: admin.username,
+      actorRole: "admin",
+      action: "LOGIN SUCCESS",
+      method: "POST",
+      path: "/auth/admin/login",
+      ipAddress: getIP(req),
+    });
     res.redirect("/admin/dashboard");
   } catch (err) {
     req.flash("error", "Login error: " + err.message);
@@ -203,9 +214,9 @@ router.post("/admin/change-password", requireAdmin, async (req, res) => {
 router.get("/teacher/login", (req, res) => {
   if (req.session.teacher) {
     const role = req.session.teacher.role;
-    if (role === "principal") return res.redirect("/admin/dashboard");
-    if (role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
-    if (role === "exam_officer") return res.redirect("/admin/reports/examination");
+    if (role === "principal") return res.redirect("/teacher/dashboard");
+    if (role === "head_of_department") return res.redirect("/teacher/dashboard");
+    if (role === "exam_officer") return res.redirect("/teacher/reports/examination");
     return res.redirect("/teacher/dashboard");
   }
   const timeout = req.query.reason === "timeout";
@@ -260,11 +271,21 @@ router.post("/teacher/login", async (req, res) => {
       customPermissions: teacher.customPermissions,
     };
     req.session.lastActive = Date.now();
+    await recordActivity({
+      actorType: "teacher",
+      actorId: teacher.id,
+      actorName: teacher.fullName,
+      actorRole: teacher.role,
+      action: "LOGIN SUCCESS",
+      method: "POST",
+      path: "/auth/teacher/login",
+      ipAddress: getIP(req),
+    });
     if (teacher.mustChangePassword)
       return res.redirect("/auth/teacher/first-change-password");
-    if (teacher.role === "principal") return res.redirect("/admin/dashboard");
-    if (teacher.role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
-    if (teacher.role === "exam_officer") return res.redirect("/admin/reports/examination");
+    if (teacher.role === "principal") return res.redirect("/teacher/dashboard");
+    if (teacher.role === "head_of_department") return res.redirect("/teacher/dashboard");
+    if (teacher.role === "exam_officer") return res.redirect("/teacher/reports/examination");
     res.redirect("/teacher/dashboard");
   } catch (err) {
     req.flash("error", "Login error: " + err.message);
@@ -303,9 +324,9 @@ router.post("/teacher/first-change-password", async (req, res) => {
     }, );
     req.flash("success", "Password set. Welcome!");
     const role = req.session.teacher.role;
-    if (role === "principal") return res.redirect("/admin/dashboard");
-    if (role === "head_of_department") return res.redirect("/admin/reports/exam-analysis");
-    if (role === "exam_officer") return res.redirect("/admin/reports/examination");
+    if (role === "principal") return res.redirect("/teacher/dashboard");
+    if (role === "head_of_department") return res.redirect("/teacher/dashboard");
+    if (role === "exam_officer") return res.redirect("/teacher/reports/examination");
     res.redirect("/teacher/dashboard");
   } catch (err) {
     req.flash("error", err.message);
