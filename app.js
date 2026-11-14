@@ -8,6 +8,7 @@ const path = require('path');
 const { Sequelize } = require('sequelize');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const sequelize = require('./config/database');
+const addTeacherCustomPermissionsColumn = require('./utils/002-add-teacher-custom-permissions');
 const { Student, Teacher, ReportAccessRequest } = require('./models');
 const academicianRoutes = require('./routes/academician');
 const {
@@ -311,16 +312,8 @@ async function start() {
   try {
     await sequelize.authenticate();
     console.log('✅ Database connected');
+    await addTeacherCustomPermissionsColumn(sequelize);
     await sequelize.sync({ alter: true });
-    const [permissionColumns] = await sequelize.query(
-      "SHOW COLUMNS FROM `teachers` LIKE 'customPermissions'",
-    );
-    if (!permissionColumns.length) {
-      await sequelize.query(
-        'ALTER TABLE `teachers` ADD COLUMN `customPermissions` TEXT NULL',
-      );
-      console.log('✅ Added teacher custom permissions column');
-    }
     const [roleColumns] = await sequelize.query(
       "SHOW COLUMNS FROM `teachers` LIKE 'role'",
     );
