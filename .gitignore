@@ -1,9 +1,0 @@
-node_modules
-.env
-seed.js
-docker-compose.yml
-Dockerfile
-.gitignore
-edu_sch_system.zip
-seeders/*
-README.md
